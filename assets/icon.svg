@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="#e0702c"/>
+  <!-- eighth note -->
+  <g fill="#fdfcf8">
+    <ellipse cx="420" cy="700" rx="150" ry="108" transform="rotate(-22 420 700)"/>
+    <rect x="530" y="230" width="44" height="470" rx="10"/>
+    <path d="M552 230 C 600 330, 760 360, 740 560 C 735 600, 720 630, 700 660 C 740 520, 650 440, 552 420 Z"/>
+  </g>
+</svg>

@@ -1,0 +1,43 @@
+# Builds the installable desktop apps.
+# Download: GitHub → Actions → "Desktop-Build" → latest run → Artifacts.
+name: Desktop-Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  bundle:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: Windows
+            bundles: nsis
+            artifacts: src-tauri/target/release/bundle/nsis/*.exe
+          - os: macos-latest # Apple Silicon
+            name: macOS
+            bundles: app,dmg
+            artifacts: src-tauri/target/release/bundle/dmg/*.dmg
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npm test
+      - run: npx tauri build --bundles ${{ matrix.bundles }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Icastico-${{ matrix.name }}
+          path: ${{ matrix.artifacts }}
+          if-no-files-found: error

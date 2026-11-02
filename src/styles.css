@@ -1,0 +1,121 @@
+:root {
+  --chrome-bg: #1c1d22;
+  --chrome-fg: #d9dae0;
+  --chrome-muted: #8b8d98;
+  --chrome-line: #2c2e35;
+  --canvas-bg: #2a2c33;
+  --paper: #fdfcf8;
+  --ink: #1a1a1a;
+  --accent: #e0702c;
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
+  font: 13px/1.4 var(--font);
+}
+
+.workstation {
+  display: grid;
+  grid-template-rows: 40px 1fr 26px;
+  height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--chrome-line);
+  user-select: none;
+}
+
+.brand {
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.doc-title {
+  color: var(--chrome-muted);
+}
+
+.workspace {
+  margin-left: auto;
+  padding: 2px 10px;
+  border: 1px solid var(--chrome-line);
+  border-radius: 999px;
+  color: var(--chrome-muted);
+}
+
+.canvas {
+  overflow: auto;
+  background: var(--canvas-bg);
+  padding: 32px 16px;
+}
+
+.pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+}
+
+.page {
+  width: min(100%, 1100px);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 2px;
+  box-shadow: 0 8px 30px rgb(0 0 0 / 0.35);
+}
+
+.page svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Selection: Verovio draws with currentColor, so colouring the group is enough. */
+.page g.is-selected {
+  color: var(--accent);
+  fill: var(--accent);
+}
+
+.page g.note,
+.page g.chord,
+.page g.rest,
+.page g.mRest {
+  cursor: pointer;
+}
+
+.error {
+  max-width: 720px;
+  padding: 16px;
+  border: 1px solid #a33;
+  border-radius: 6px;
+  background: #2b1c1c;
+  white-space: pre-wrap;
+  font-family: ui-monospace, monospace;
+}
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-top: 1px solid var(--chrome-line);
+  color: var(--chrome-muted);
+  font-size: 12px;
+  user-select: none;
+}
+
+.statusbar .meta {
+  margin-left: auto;
+}
