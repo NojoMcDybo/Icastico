@@ -50,12 +50,24 @@ ausführlich getestet.
   (Klick auf Note → Event).
 - `verovio.ts` – Wrapper um Verovio (WASM). Einzige Stelle, die Verovio kennt.
 
-### 4. UI – `src/main.ts` (wird in Schritt 1–2 zu `src/ui/`)
+### 4. Editor – `src/core/editor/`
 
-Workstation-Hülle: Kopfzeile, Papier, Statuszeile. Auswahl per Klick mit
-Toleranz (hohle Notenköpfe).
+- `state.ts` – `EditorState` = Partitur + Cursor + Auswahl + Eingabe-Einstellungen.
+- `commands.ts` – jede Funktion ist ein Command: reine Funktion
+  `(Zustand, Argument) → neuer Zustand` mit deutschem Titel.
+- `voiceOps.ts` – Zeitstrahl-Operationen (Überschreiben, Einfügen).
+- `history.ts` – Undo/Redo durch Aufbewahren alter Zustände (nur
+  Partitur-Änderungen erzeugen Undo-Schritte).
 
-### 5. Native Hülle – `src-tauri/`
+### 5. UI – `src/ui/`
+
+- `keys.ts` – Tastendruck → layoutunabhängige Kombination („Alt+5“, „Plus“).
+- `keymaps/finale.ts` – Tastenbelegung als Daten (ADR 0006).
+- `workstation.ts` – rendert nur bei Partitur-Änderungen neu, zeichnet Cursor
+  und Auswahl über das SVG, Statuszeile, Tastenhilfe. Fehler in einem
+  Command werden abgefangen und rückgängig gemacht.
+
+### 6. Native Hülle – `src-tauri/`
 
 Tauri 2. Aktuell nur Fenster. Geplant: MIDI (`midir`), Audio-Ein/Ausgabe
 (`cpal`), Synthesizer, ONNX-Inferenz für Audio→Noten, Dateien.

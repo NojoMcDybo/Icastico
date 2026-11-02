@@ -6,8 +6,9 @@ Open Source, angelehnt an Finale, aber neu gedacht.
 
 *Music notation software built as a customizable workstation. Early development.*
 
-> **Status:** Fundament (Schritt 0). Die App zeigt eine Demo-Partitur; Noten
-> lassen sich anklicken. Eingabe kommt in Schritt 1 – siehe [Roadmap](docs/roadmap.md).
+> **Status:** v0.1.0 – Noteneingabe per Tastatur wie in Finale (Simple Entry).
+> Strg+N für eine leere Partitur, F1 zeigt alle Tasten.
+> Speichern kommt als Nächstes – siehe [Roadmap](docs/roadmap.md).
 
 ## Ausprobieren
 

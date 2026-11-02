@@ -33,19 +33,24 @@ Eingabewegen, die zum Instrument passen – bis hin zu Audio→Noten.
 | Instrument | Notation | Typische Eingabe (Idee, noch zu klären) |
 |---|---|---|
 | Gesang | Violinschlüssel (später: Bass/Tenor), Liedtext | Einsingen (Audio→Noten), Tastatur |
-| Gitarre | Violinschlüssel mit 8 darunter; später Tabulatur | Griffbrett, Tastatur, Audio |
+| Gitarre | Violinschlüssel mit 8 darunter; Tabulatur vorerst **nicht nötig** | Tastatur, Audio, später Griffbrett |
 | Klavier | Akkolade (zwei Systeme) | MIDI-Keyboard, Tastatur |
 
 ## Erster Audio-Fall
 
-Noch offen – Kandidat: **Melodie einsingen** (einstimmig, technisch am
-verlässlichsten).
+**Melodie einsingen** (bestätigt) – einstimmig, technisch am verlässlichsten.
+
+## Eingabe
+
+**Erstmal wie Finale** (Simple Entry): Zahlen für Notenwerte, Buchstaben für
+Tonhöhen. Details und offene Punkte: ADR 0006.
 
 ## Offene Fragen an den Owner
 
-- Was heißt „schnell“ konkret? Beispiel: Wie viele Tastendrücke für eine Achtel-Note?
-- Gitarre: Tabulatur von Anfang an wichtig? Akkordsymbole/Griffbilder?
-- Gesang: Liedtext-Eingabe in Schritt 1 oder später?
+- Stimmen die als **Annahme** markierten Tasten in ADR 0006 mit deinem Finale überein?
+- Oktavwahl: „nächste Oktave zur vorigen Note“ ok, oder wie in Finale über die Cursorhöhe?
+- Gitarre: Akkordsymbole/Griffbilder wichtig?
+- Gesang: Liedtext-Eingabe wann?
 - Was hat an Finale genervt, was war unverzichtbar?
 
 ## Nicht-Ziele (vorerst)

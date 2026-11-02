@@ -10,7 +10,8 @@
       <header class="topbar">
         <span class="brand">Icastico</span>
         <span class="doc-title" id="doc-title"></span>
-        <span class="workspace" title="Workspaces kommen in Schritt 2">Standard</span>
+        <span class="mode" id="mode">Auswahl</span>
+        <button class="help-button" type="button" onclick="document.getElementById('help').hidden = false" title="Tastenbelegung (F1)">?</button>
       </header>
       <main class="canvas" id="canvas">
         <div class="pages" id="pages" aria-label="Partitur"></div>
@@ -19,6 +20,7 @@
         <span id="status">Lädt …</span>
         <span class="meta" id="meta"></span>
       </footer>
+      <div class="help" id="help" hidden></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -49,7 +49,8 @@ npm install            # Abhängigkeiten
 npm test               # Unit-Tests (Vitest), inkl. echtem Verovio-Rendering
 npm run typecheck      # TypeScript strikt
 npm run build          # Typecheck + Web-Build nach dist/
-npm run screenshot -- out.png [--click=<svg-id>]   # App im Headless-Chromium
+npm run screenshot -- out.png [--click=<svg-id>] [--keys=Control+n,5,c,d]
+                       # App im Headless-Chromium, optional mit Klick/Tastendrücken
 npm run tauri dev      # Desktop-App lokal (braucht Rust + Systemlibs)
 npx tauri build        # Installer bauen
 ```
@@ -71,8 +72,11 @@ npx tauri build        # Installer bauen
 ```
 src/core/            Modell, Zeit, Tonhöhen, Instrumente (reines TypeScript)
 src/core/notation/   Zeitstrahl → Notation (Takte, Bögen, Pausen, Balken)
+src/core/editor/     EditorState, Commands (reine Funktionen), Undo/Redo
 src/render/          Modell → MEI → Verovio → SVG
-src/main.ts          Workstation-Hülle (UI)
+src/ui/              Workstation (Rendering, Cursor, Auswahl), Tastatur
+src/ui/keymaps/      Tastenbelegungen als Daten (Finale Simple Entry)
+src/main.ts          Start
 src-tauri/           Native Desktop-Hülle (Rust/Tauri 2)
 docs/                Vision, Architektur, Roadmap, Entscheidungen
 scripts/             Hilfsskripte (Screenshot)

@@ -103,16 +103,20 @@ function entryAt<T extends { at: Fraction }>(list: readonly T[], time: Fraction)
   return current;
 }
 
+/** Key signature (fifths) in effect at a time. */
+export const keyAt = (score: Score, time: Fraction): number => entryAt(score.keys, time).fifths;
+
 /**
  * Derives the measures from the meter map. Produces at least `minMeasures`
- * measures and always enough to hold all content.
+ * measures, always enough to hold all content, and – if given – a measure
+ * that contains `coverTime` (so an input caret after the last note has room).
  */
-export function measuresOf(score: Score, minMeasures = 1): Measure[] {
+export function measuresOf(score: Score, minMeasures = 1, coverTime?: Fraction): Measure[] {
   const end = contentEnd(score);
   const result: Measure[] = [];
   let start = ZERO;
   let index = 0;
-  while (index < minMeasures || lt(start, end)) {
+  while (index < minMeasures || lt(start, end) || (coverTime !== undefined && le(start, coverTime))) {
     const sig = entryAt(score.meter, start).sig;
     const fifths = entryAt(score.keys, start).fifths;
     const mEnd = add(start, measureLength(sig));

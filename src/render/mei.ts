@@ -11,6 +11,7 @@
  * a note tied over from the previous measure shows no accidental.
  */
 import { type Score, type Part, measuresOf, type Measure, validateScore } from '../core/model';
+import type { Fraction } from '../core/time';
 import { getInstrument, type Clef } from '../core/instruments';
 import { keyAlteration, type Pitch } from '../core/pitch';
 import {
@@ -27,7 +28,21 @@ export interface ElementRef {
   /** Set for notes; rests have no model event. */
   readonly eventId?: string;
   readonly measureNumber: number;
+  /** Global staff number (1-based, as in MEI). */
+  readonly staffN: number;
+  /** Where the symbol starts on the timeline (measure start for measure rests). */
+  readonly onset: Fraction;
+  /** `chordNote` = a single note inside a chord (same event as its chord). */
+  readonly kind: 'note' | 'chordNote' | 'rest' | 'measureRest';
 }
+
+export interface MeiOptions {
+  /** Make sure the score shows a measure containing this time (input caret). */
+  readonly coverTime?: Fraction;
+}
+
+/** xml:id of a staff within a measure, e.g. for positioning the caret. */
+export const staffElementId = (measureNumber: number, staffN: number): string => `m${measureNumber}-s${staffN}`;
 
 export interface MeiResult {
   readonly mei: string;
@@ -135,11 +150,11 @@ function scoreDefChange(prev: Measure, m: Measure): string | null {
   return attrs.length ? `      <scoreDef ${attrs.join(' ')}/>` : null;
 }
 
-export function scoreToMei(score: Score): MeiResult {
+export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
   const problems = validateScore(score);
   if (problems.length > 0) throw new Error(`Partitur ungültig:\n- ${problems.join('\n- ')}`);
 
-  const measures = measuresOf(score);
+  const measures = measuresOf(score, 1, options.coverTime);
   const elements = new Map<string, ElementRef>();
 
   // Global staff numbering across all parts.
@@ -156,17 +171,21 @@ export function scoreToMei(score: Score): MeiResult {
     for (const voice of part.voices) {
       const perMeasure = notateVoice(voice, measures);
       notated.set(voice.id, perMeasure);
+      const staffN = slots.find((sl) => sl.part === part && sl.staffIndex === voice.staff)!.n;
       perMeasure.forEach((items, mi) => {
+        const m = measures[mi]!;
         for (const it of items) {
-          const ref: ElementRef = {
-            partId: part.id,
-            voiceId: voice.id,
-            measureNumber: measures[mi]!.number,
-            ...(it.kind === 'note' ? { eventId: it.eventId } : {}),
-          };
-          elements.set(it.id, ref);
-          if (it.kind === 'note' && it.pitches.length > 1) {
-            it.pitches.forEach((_, i) => elements.set(`${it.id}-${i + 1}`, ref));
+          const base = { partId: part.id, voiceId: voice.id, measureNumber: m.number, staffN };
+          if (it.kind === 'measureRest') {
+            elements.set(it.id, { ...base, kind: 'measureRest', onset: m.start });
+          } else if (it.kind === 'rest') {
+            elements.set(it.id, { ...base, kind: 'rest', onset: it.onset });
+          } else {
+            const ref: ElementRef = { ...base, kind: 'note', onset: it.onset, eventId: it.eventId };
+            elements.set(it.id, ref);
+            if (it.pitches.length > 1) {
+              it.pitches.forEach((_, i) => elements.set(`${it.id}-${i + 1}`, { ...ref, kind: 'chordNote' }));
+            }
           }
         }
       });
@@ -179,7 +198,7 @@ export function scoreToMei(score: Score): MeiResult {
     if (change) body.push(change);
     body.push(`      <measure xml:id="m${m.number}" n="${m.number}">`);
     for (const slot of slots) {
-      body.push(`        <staff n="${slot.n}">`);
+      body.push(`        <staff xml:id="${staffElementId(m.number, slot.n)}" n="${slot.n}">`);
       const voices = slot.part.voices.filter((v) => v.staff === slot.staffIndex);
       const accidentals = new AccidentalState(m.fifths);
       if (voices.length === 0) {

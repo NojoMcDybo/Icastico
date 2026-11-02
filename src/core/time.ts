@@ -57,6 +57,7 @@ export const eq = (a: Fraction, b: Fraction): boolean => compare(a, b) === 0;
 export const lt = (a: Fraction, b: Fraction): boolean => compare(a, b) < 0;
 export const le = (a: Fraction, b: Fraction): boolean => compare(a, b) <= 0;
 export const gt = (a: Fraction, b: Fraction): boolean => compare(a, b) > 0;
+export const ge = (a: Fraction, b: Fraction): boolean => compare(a, b) >= 0;
 export const min = (a: Fraction, b: Fraction): Fraction => (lt(a, b) ? a : b);
 export const max = (a: Fraction, b: Fraction): Fraction => (gt(a, b) ? a : b);
 export const isZero = (a: Fraction): boolean => a.n === 0;

@@ -16,6 +16,11 @@ export interface Clef {
 
 export interface StaffDef {
   readonly clef: Clef;
+  /**
+   * Sounding pitch of the middle staff line. The first note typed into an
+   * empty staff lands in the octave closest to it.
+   */
+  readonly center: Pitch;
 }
 
 export interface InstrumentDef {
@@ -43,7 +48,7 @@ export const INSTRUMENTS: Readonly<Record<InstrumentId, InstrumentDef>> = {
     id: 'voice',
     name: 'Gesang',
     shortName: 'Ges.',
-    staves: [{ clef: TREBLE }],
+    staves: [{ clef: TREBLE, center: parsePitch('B4') }],
     brace: false,
     range: { low: parsePitch('E2'), high: parsePitch('C6') },
     midiProgram: 52, // Choir Aahs
@@ -53,7 +58,7 @@ export const INSTRUMENTS: Readonly<Record<InstrumentId, InstrumentDef>> = {
     name: 'Gitarre',
     shortName: 'Git.',
     // Guitar is written an octave higher than it sounds: treble clef with "8" below.
-    staves: [{ clef: TREBLE_8VB }],
+    staves: [{ clef: TREBLE_8VB, center: parsePitch('B3') }],
     brace: false,
     range: { low: parsePitch('E2'), high: parsePitch('B5') },
     midiProgram: 24, // Acoustic Guitar (nylon)
@@ -62,7 +67,10 @@ export const INSTRUMENTS: Readonly<Record<InstrumentId, InstrumentDef>> = {
     id: 'piano',
     name: 'Klavier',
     shortName: 'Klav.',
-    staves: [{ clef: TREBLE }, { clef: BASS }],
+    staves: [
+      { clef: TREBLE, center: parsePitch('B4') },
+      { clef: BASS, center: parsePitch('D3') },
+    ],
     brace: true,
     range: { low: parsePitch('A0'), high: parsePitch('C8') },
     midiProgram: 0, // Acoustic Grand Piano

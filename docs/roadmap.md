@@ -14,16 +14,23 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Verovio-Rendering, Klick auf Note → Modell-Event (mit Toleranz)
 - [x] Demo-Partitur „Erste Skizze“
 
-## Schritt 1 – Schnelle Eingabe (als Nächstes)
+## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.1.0)
 
-- [ ] Command-System mit Undo/Redo (Grundlage für alles Weitere)
-- [ ] Eingabe-Cursor: sichtbare Position im Zeitstrahl
-- [ ] Tastatureingabe: Notenwert wählen, Tonhöhe per Buchstabe, Oktave, Vorzeichen, Pause
-- [ ] Auswahl bearbeiten: Tonhöhe hoch/runter, Dauer ändern, löschen
-- [ ] Neue Partitur: Instrumente wählen, Tonart, Taktart
+- [x] Command-System (reine Funktionen) mit Undo/Redo
+- [x] Eingabe-Cursor (blinkend; gestrichelt im Einfügemodus), springt hinter Schlüssel/Taktart
+- [x] Tastenbelegung nach Finale Simple Entry als austauschbarer Datensatz (ADR 0006)
+- [x] Noten, Pausen, Punktierung, Akkorde, Haltebögen (auch über Taktstriche), Tonart-bewusst
+- [x] Letzte/ausgewählte Note ändern: Stufe, Oktave, Halbton, Notenwert, löschen
+- [x] Überschreiben (Standard) und Einfügen
+- [x] Navigation: vor/zurück, System wechseln, Klick setzt Cursor
+- [x] Tastenhilfe (F1 / ?), Statuszeile mit Modus
+- [x] Neue leere Partitur (Strg+N) mit Gesang, Gitarre, Klavier
+- [x] Sicherheitsnetz: Befehl, der nicht darstellbar ist, wird automatisch rückgängig gemacht
+- [ ] Owner prüft die als „Annahme“ markierten Tasten (ADR 0006)
+- [ ] Neue Partitur mit Auswahl: Instrumente, Tonart, Taktart, Titel
+- [ ] Tonart/Taktart ändern
 - [ ] Speichern/Öffnen (eigenes JSON-Format, versioniert)
 - [ ] Notationsregeln verfeinern (Synkopen, Halbtakt-Balken in 4/4)
-- [ ] Offen: Owner definiert „schnell“ (siehe `vision.md`)
 
 ## Schritt 2 – Workstation
 

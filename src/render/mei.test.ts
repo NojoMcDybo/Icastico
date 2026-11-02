@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { scoreToMei } from './mei';
 import { Engraver } from './verovio';
 import { demoScore } from '../core/demo';
+import { frac } from '../core/time';
 
 describe('scoreToMei', () => {
   const { mei, elements } = scoreToMei(demoScore());
@@ -29,8 +30,23 @@ describe('scoreToMei', () => {
   });
 
   it('maps rendered ids back to model events', () => {
-    expect(elements.get('v6-m3-1')).toEqual({ partId: 'voice', voiceId: 'voice-v1', eventId: 'v6', measureNumber: 3 });
-    expect(elements.get('g1-m1-1-2')?.eventId).toBe('g1'); // a note inside a chord
+    expect(elements.get('v6-m3-1')).toEqual({
+      partId: 'voice',
+      voiceId: 'voice-v1',
+      eventId: 'v6',
+      measureNumber: 3,
+      staffN: 1,
+      kind: 'note',
+      onset: frac(2),
+    });
+    expect(elements.get('g1-m1-1-2')).toMatchObject({ eventId: 'g1', kind: 'chordNote' }); // a note inside a chord
+    expect(elements.get('piano-lh-m4-r1')).toMatchObject({ kind: 'rest', staffN: 4, onset: frac(7, 2) });
+  });
+
+  it('adds an empty measure for the caret when asked', () => {
+    const covered = scoreToMei(demoScore(), { coverTime: frac(4) });
+    expect(covered.mei).toContain('<measure xml:id="m5" n="5">');
+    expect(covered.elements.get('voice-v1-m5-mr')).toMatchObject({ kind: 'measureRest', onset: frac(4) });
   });
 });
 

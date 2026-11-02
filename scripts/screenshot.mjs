@@ -1,5 +1,5 @@
 // Renders the built app (dist/) in headless Chromium and saves a screenshot.
-// Usage: npm run build && npm run screenshot -- [output.png] [--click=<svg-id>]
+// Usage: npm run build && npm run screenshot -- [output.png] [--click=<svg-id>] [--keys=Control+n,Enter,5,c,d]
 // Used by Claude to verify UI changes without a Windows machine.
 import { createRequire } from 'node:module';
 import { preview } from 'vite';
@@ -10,6 +10,8 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 const args = process.argv.slice(2);
 const out = args.find((a) => !a.startsWith('--')) ?? 'screenshot.png';
 const click = args.find((a) => a.startsWith('--click='))?.slice(8);
+// Comma-separated Playwright key names, pressed in order after loading.
+const keys = args.find((a) => a.startsWith('--keys='))?.slice(7).split(',').filter(Boolean) ?? [];
 
 const server = await preview({ preview: { port: 4173, strictPort: false }, logLevel: 'silent' });
 const url = server.resolvedUrls.local[0];
@@ -22,6 +24,8 @@ try {
   await page.goto(url);
   await page.waitForSelector('.page svg', { timeout: 30000 });
   if (click) await page.locator(`[id="${click}"] use`).first().click({ force: true });
+  for (const key of keys) await page.keyboard.press(key);
+  if (keys.length) await page.waitForTimeout(300);
   await page.screenshot({ path: out });
   console.log(`status: ${await page.textContent('#status')}`);
   console.log(problems.length ? problems.join('\n') : 'console: clean');
