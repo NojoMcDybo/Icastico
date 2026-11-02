@@ -1,0 +1,77 @@
+# Publishes a version: signed installers + latest.json on a GitHub Release.
+# Installed Icastico apps read latest.json and update themselves (ADR 0010).
+#
+# Trigger: push a tag like v0.5.0 (must equal "version" in package.json).
+# Needs the repository secret TAURI_SIGNING_PRIVATE_KEY (update signing key).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Tag matches package.json
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME passt nicht zu package.json ($version)."
+            exit 1
+          fi
+      - name: Signing key present
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::Secret TAURI_SIGNING_PRIVATE_KEY fehlt (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+
+  release:
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            args: --bundles nsis
+          - os: macos-latest # Apple Silicon
+            args: --bundles app,dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npm test
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Icastico ${{ github.ref_name }}
+          releaseBody: |
+            **Neu installieren (nur beim ersten Mal):** unten bei „Assets“ herunterladen –
+            Windows: `Icastico_…_x64-setup.exe`, Mac (Apple Silicon): `Icastico_…_aarch64.dmg`.
+            Danach aktualisiert sich Icastico von selbst.
+
+            Was neu ist: siehe docs/roadmap.md.
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: ${{ matrix.args }}

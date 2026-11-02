@@ -6,20 +6,28 @@ Open Source, angelehnt an Finale, aber neu gedacht.
 
 *Music notation software built as a customizable workstation. Early development.*
 
-> **Status:** v0.4.0 – Noteneingabe wie in Finale (Simple Entry), eigene
+> **Status:** v0.5.0 – Noteneingabe wie in Finale (Simple Entry), eigene
 > Bibliothek in `Dokumente/Icastico` mit Sammlungen und Papierkorb,
-> automatisches Speichern, neue Partitur mit Titel, Instrumenten, Tonart,
+> automatisches Speichern, automatische Updates, neue Partitur mit Titel, Instrumenten, Tonart,
 > Taktart und Auftakt. Strg+O Bibliothek, Strg+N neu, F1 alle Tasten.
 > Siehe [Roadmap](docs/roadmap.md).
 
-## Ausprobieren
+## Installieren
 
-Fertige Installer baut GitHub automatisch:
-**Actions → „Desktop-Build“ → neuester Lauf → Artifacts** (`Icastico-Windows`
-bzw. `Icastico-macOS`). Die Installer sind noch nicht signiert:
+**[Neueste Version herunterladen](https://github.com/NojoMcDybo/Icastico/releases/latest)** → unten bei „Assets“:
+
+- **Windows:** `Icastico_…_x64-setup.exe` ausführen. Am Ende „Desktop-Verknüpfung
+  erstellen“ angehakt lassen.
+- **macOS (Apple Silicon):** `Icastico_…_aarch64.dmg` öffnen, Icastico in „Programme“ ziehen.
+
+Das ist nur beim ersten Mal nötig: **Icastico aktualisiert sich danach selbst**
+(beim Start, mit Rückfrage). Die Installer sind noch nicht von Microsoft/Apple
+signiert, deshalb beim ersten Installieren:
 
 - **Windows**: SmartScreen warnt → „Weitere Informationen“ → „Trotzdem ausführen“.
 - **macOS**: Rechtsklick auf die App → „Öffnen“.
+
+Testbuilds jedes Entwicklungsstands: Actions → „Desktop-Build“ → Artifacts.
 
 ## Entwickeln
 

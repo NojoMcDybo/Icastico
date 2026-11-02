@@ -65,6 +65,14 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_process::init())
+        .setup(|app| {
+            // Self-update from GitHub Releases (see docs/decisions/0010-updates.md).
+            #[cfg(desktop)]
+            app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+            let _ = app;
+            Ok(())
+        })
         .manage(PendingFile(Mutex::new(initial)))
         .manage(library::LibraryRoot::default())
         .invoke_handler(tauri::generate_handler![

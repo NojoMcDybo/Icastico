@@ -7,6 +7,8 @@ import { Workstation } from './ui/workstation';
 import { currentPlatform } from './platform/files';
 import { APP_VERSION } from './version';
 import { loadLastOpened } from './ui/preferences';
+import { currentUpdater } from './platform/updater';
+import { UpdateChecker } from './ui/updates';
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -26,6 +28,13 @@ async function start(): Promise<void> {
     store = null;
   }
 
+  // Self-update (desktop only). The workstation is created below; flush waits for it.
+  let flush: () => Promise<void> = async () => undefined;
+  const updater = currentUpdater();
+  const updates = updater
+    ? new UpdateChecker(updater, () => flush(), (text) => ($('status').textContent = text))
+    : null;
+
   const workstation = new Workstation(
     {
       pages: $('pages'),
@@ -40,8 +49,11 @@ async function start(): Promise<void> {
     FINALE_KEYMAP,
     platform,
     store,
+    updates,
   );
+  flush = () => workstation.flush();
   await workstation.openInitial(loadLastOpened());
+  updates?.scheduleQuietCheck();
   if (!store) $('status').textContent = 'Bibliothek nicht verfügbar – Speichern nur über „Speichern unter“.';
 }
 

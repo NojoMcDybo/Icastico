@@ -23,6 +23,7 @@ import type { Platform } from '../platform/files';
 import { APP_VERSION } from '../version';
 import { ask, inform, isDialogOpen } from './dialog';
 import { LibraryPanel } from './libraryPanel';
+import type { UpdateChecker } from './updates';
 import { loadNewScoreDefaults, saveLastOpened, saveNewScoreDefaults } from './preferences';
 import { scoreDialog } from './scoreDialog';
 import { comboOf } from './keys';
@@ -93,6 +94,7 @@ export class Workstation {
     private readonly keymap: Keymap,
     private readonly platform: Platform,
     private readonly store: LibraryStore | null,
+    updates: UpdateChecker | null = null,
   ) {
     const blank = createEditorState(emptyScore());
     this.history = new History(blank);
@@ -107,6 +109,7 @@ export class Workstation {
           openExternal: () => this.fileOpen(),
           relocated: (from, to) => this.relocated(from, to),
           closedByTrash: () => this.closeDocument(),
+          ...(updates ? { checkForUpdates: () => updates.checkNow() } : {}),
         })
       : null;
     el.libraryButton.hidden = !this.library;

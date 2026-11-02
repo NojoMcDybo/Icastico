@@ -90,10 +90,16 @@ ausführlich getestet.
 - UI: `src/ui/libraryPanel.ts` (Seitenleiste), Workstation speichert
   Bibliotheks-Partituren automatisch und folgt verschobenen Dateien.
 
-### 8. Native Hülle – `src-tauri/`
+### 8. Updates – `src/platform/updater.ts`, `src/ui/updates.ts` (ADR 0010)
+
+Stille Prüfung beim Start, Dialog, Speichern vor dem Installieren, Neustart.
+Veröffentlichung über `.github/workflows/release.yml` (Tag `vX.Y.Z`).
+
+### 9. Native Hülle – `src-tauri/`
 
 Tauri 2. `library.rs`: Bibliotheksordner finden/anlegen, durchsuchen,
 anlegen/umbenennen/löschen – nur innerhalb des Ordners. `lib.rs`:
+Plugins: Dialog, Opener, Process, Updater.
 Dateien lesen und absturzsicher schreiben (`read_score_file`,
 `write_score_file`), per Doppelklick übergebene Dateien (`take_pending_file`,
 macOS-Ereignis `open-file`), Dialog-Plugin. Geplant: MIDI (`midir`),

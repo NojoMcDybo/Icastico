@@ -76,7 +76,23 @@ npx tauri build        # Installer bauen
   (fortlaufende Nummer, Vorlage siehe `docs/decisions/README.md`).
 - Nach jedem Arbeitspaket `docs/roadmap.md` aktualisieren.
 - GitHub Actions bauen bei Push auf `main` Windows- und macOS-Installer
-  (`.github/workflows/build.yml`). Ein roter Build ist ein Bug.
+  (`.github/workflows/build.yml`, unsigniert). Ein roter Build ist ein Bug.
+
+## Neue Version veröffentlichen (ADR 0010)
+
+1. Version in `package.json` und `src-tauri/Cargo.toml` erhöhen (gleich!),
+   Roadmap aktualisieren, committen, auf `main` pushen, grüne Builds abwarten.
+2. `git tag vX.Y.Z && git push origin vX.Y.Z`
+3. `.github/workflows/release.yml` baut signierte Installer, legt die GitHub
+   Release an und hängt `latest.json` an → installierte Apps bieten das
+   Update beim nächsten Start an.
+4. Braucht das Secret `TAURI_SIGNING_PRIVATE_KEY` (nur der Owner kann es
+   setzen; Claude hat keinen Zugriff auf Secrets). Öffentlicher Schlüssel:
+   `src-tauri/tauri.conf.json` → `plugins.updater.pubkey` – nie ändern, sonst
+   nehmen installierte Apps keine Updates mehr an.
+5. Updater lokal testen: `tauri build` mit `--config` auf einen lokalen
+   Endpunkt (`dangerousInsecureTransportProtocol`), `latest.json` per
+   `python3 -m http.server` ausliefern, App unter `xvfb-run` starten.
 
 ## Projektstruktur
 

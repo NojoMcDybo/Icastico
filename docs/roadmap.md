@@ -14,7 +14,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Verovio-Rendering, Klick auf Note → Modell-Event (mit Toleranz)
 - [x] Demo-Partitur „Erste Skizze“
 
-## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.4.0)
+## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.5.0)
 
 - [x] Command-System (reine Funktionen) mit Undo/Redo
 - [x] Eingabe-Cursor (blinkend; gestrichelt im Einfügemodus), springt hinter Schlüssel/Taktart
@@ -39,6 +39,8 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Bibliothek `Dokumente/Icastico` mit Sammlungen, Suche, Papierkorb, Explorer-Knopf (ADR 0009)
 - [x] Automatisches Speichern, Dateiname folgt dem Titel, Start mit der zuletzt bearbeiteten Partitur
 - [ ] Owner bestätigt Design-Referenz „Folio“ (ADR 0009)
+- [x] Installer mit Desktop-Verknüpfung, automatische Updates über GitHub Releases (ADR 0010)
+- [ ] Owner hinterlegt Update-Schlüssel als GitHub-Secret → erste Release v0.5.0
 - [ ] Partituren per Ziehen in Sammlungen verschieben
 - [ ] Vorschaubild der ersten Zeile in der Bibliothek
 - [ ] Notationsregeln verfeinern (Synkopen, Halbtakt-Balken in 4/4)

@@ -15,6 +15,7 @@ import {
 } from '../library/library';
 import type { LibraryStore } from '../library/store';
 import { ask, inform, promptText } from './dialog';
+import { APP_VERSION } from '../version';
 
 export type LibraryView = { kind: 'all' } | { kind: 'collection'; name: string } | { kind: 'trash' };
 
@@ -30,6 +31,8 @@ export interface LibraryActions {
   relocated(from: string, to: string): void;
   /** The open document went to the trash. */
   closedByTrash(): void;
+  /** "Nach Updates suchen" (desktop only). */
+  checkForUpdates?: () => Promise<void>;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -171,6 +174,16 @@ export class LibraryPanel {
       void this.actions.openExternal();
     });
 
+    const updates: HTMLElement[] = [];
+    if (this.actions.checkForUpdates) {
+      const check = el('button', { type: 'button', className: 'library__link', textContent: `Nach Updates suchen (${APP_VERSION})` });
+      check.addEventListener('click', () => {
+        this.hide();
+        void this.actions.checkForUpdates?.();
+      });
+      updates.push(check);
+    }
+
     this.sidebar.replaceChildren(
       el('h2', { className: 'library__title', textContent: 'Bibliothek' }),
       this.viewButton({ kind: 'all' }, 'Alle Partituren', symbol('♪', 'library__badge--all'), live.length),
@@ -181,6 +194,7 @@ export class LibraryPanel {
       this.viewButton({ kind: 'trash' }, 'Papierkorb', symbol('🗑', 'library__badge--trash'), index.items.length - live.length),
       reveal,
       external,
+      ...updates,
     );
   }
 
