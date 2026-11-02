@@ -38,8 +38,64 @@ schneller oder einfacher? Wenn nein, wandert es nach unten.
 | Akkordsymbole schnell tippen („Am7“, „F#m/C#“) | 💡 | M | Vorschlag | Für Gitarre/Gesang wichtig, siehe Abschnitt 4 |
 | Gitarre: Eingabe am Griffbrett (Bund anklicken) | 💡 | L | Vision | Setzt Tabulatur-Überlegungen voraus |
 | Auswahl erweitern (Takte markieren, kopieren, einfügen, wiederholen) | ❓ | M | Vorschlag | Fehlt bisher komplett – ohne Kopieren ist kein Lied in vertretbarer Zeit fertig |
+| **Diktierfunktion**: Noten per Sprache eingeben („c, Viertel, d, Achtel, Pause …“) | ❓ | L | Owner | Siehe Abschnitt „Diktieren“ unten |
 | Eigene Tastenbelegung | 📌 | M | Vision | Schritt 2 |
 | Makros („mach das, was ich gerade getan habe, nochmal“) | 💡 | L | Owner/Vision | Bauen auf den Commands auf (ADR 0004) |
+
+### Diktieren (Idee vom Owner)
+
+**Gemeint ist:** Du sprichst, Icastico führt dieselben Befehle aus wie bei der
+Tastatureingabe. Nicht zu verwechseln mit *Einsingen* (Abschnitt 2) – dort
+kommt Musik rein, hier kommen Wörter rein.
+
+**Warum das gut passt:** Die Eingabe läuft schon über Befehle (ADR 0004,
+ADR 0006). „Sprache“ wäre nur ein weiterer Weg zu denselben Befehlen – wie die
+Tastenbelegung, nur mit Mund statt Fingern. Keine neue Notenlogik nötig.
+
+**Mögliche Befehle** (Beispiele, Wortschatz bewusst klein und festgelegt):
+
+| Du sagst | Wirkt wie |
+|---|---|
+| „c“, „d“, „es“, „fis“ … | Note mit dieser Tonhöhe |
+| „Viertel“, „Achtel“, „halbe“ | Notenwert wählen |
+| „Punkt“, „Pause“, „Bindebogen“ | Punktierung, Pause, Haltebogen |
+| „höher“, „tiefer“, „Oktave hoch“ | letzte Note ändern |
+| „zurück“, „weiter“, „rückgängig“ | Navigation, Undo |
+
+**Harte Punkte (ehrlich):**
+
+- **Kurze Einzelbuchstaben sind das Schwierigste für Spracherkennung.**
+  „d/t“, „e/ä“, „b/p“, „h/a“ klingen ähnlich. Ein freies Diktat („schreib mir
+  c d e“) ist unzuverlässig; ein *fester kleiner Wortschatz* mit
+  Rückmeldung funktioniert deutlich besser.
+- **Lösungsansatz:** nicht „c“, sondern eigene, unverwechselbare Wörter
+  (wie das Funkalphabet: z. B. „Cäsar“, „Dora“ …) – oder Tonnamen *und*
+  sofortige Anzeige, was verstanden wurde, mit Sprachbefehl „nein“ zum
+  Verwerfen.
+- **Offline oder online?** Ein Dienst in der Cloud ist laut Vision ein
+  Nicht-Ziel (Datenschutz, Internet nötig). Offline-Erkennung läuft nativ
+  (Regel 7: in Rust), kostet Speicherplatz für das Modell und braucht ein
+  brauchbares Deutsch-Modell. Konkrete Optionen prüfe ich erst, wenn es
+  ansteht, und lege sie dir mit Empfehlung vor (neues ADR).
+- **Alternative/Zwischenstufe:** die Diktierfunktion des Betriebssystems
+  nutzen (Windows: Win+H, macOS: Diktat). Kostet fast nichts, aber wir
+  haben keine Kontrolle über Wortschatz und Verzögerung. Wahrscheinlich nur
+  für Texte brauchbar (**Liedtext diktieren** – eigentlich der sinnvollere
+  Einstieg).
+- **Mikrofonrechte:** Windows/macOS fragen nach Erlaubnis; kommt ohnehin für
+  Audio→Noten.
+
+**Ehrliche Einschätzung:** Für *Noten* schneller als die Tastatur wird es
+vermutlich nicht – Finale-Simple-Entry ist mit zwei Händen sehr fix. Der
+echte Gewinn liegt dort, wo die Hände **nicht** frei sind (Gitarre in der
+Hand, Klavier spielen und nebenbei Notenwerte ansagen) und bei **Liedtext**.
+
+**Fragen an den Owner:**
+
+- Wann würdest du das benutzen: am Instrument mit beiden Händen belegt? Oder
+  einfach, weil es sich schneller anfühlt?
+- Nur Befehle („Achtel“, „Punkt“) oder auch Tonnamen?
+- Auch Liedtext diktieren?
 
 ## 2. Audio → Noten
 
