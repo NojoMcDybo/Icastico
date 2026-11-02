@@ -69,6 +69,8 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 
 ## Später
 
+Weitere, noch unsortierte Ideen: [ideas.md](ideas.md).
+
 - Gitarren-Tabulatur, Akkordsymbole, Liedtext
 - N-Tolen
 - Eigene Funktionen des Owners (Makros/Skripte)

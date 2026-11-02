@@ -19,6 +19,8 @@ aber bewusst neu gedacht.
 2. `docs/roadmap.md` – wo wir stehen, was als Nächstes kommt
 3. `docs/architecture.md` – Schichten und Regeln
 4. `docs/decisions/` – warum Dinge so sind, wie sie sind (ADRs)
+5. `docs/ideas.md` – Ideenparkplatz (nichts davon ist beschlossen; Owner gibt frei,
+   dann wandert es in die Roadmap)
 
 ## Design
 
