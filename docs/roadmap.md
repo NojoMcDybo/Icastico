@@ -14,7 +14,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Verovio-Rendering, Klick auf Note → Modell-Event (mit Toleranz)
 - [x] Demo-Partitur „Erste Skizze“
 
-## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.5.0)
+## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.6.0)
 
 - [x] Command-System (reine Funktionen) mit Undo/Redo
 - [x] Eingabe-Cursor (blinkend; gestrichelt im Einfügemodus), springt hinter Schlüssel/Taktart
@@ -38,11 +38,13 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [ ] Transponieren
 - [x] Bibliothek `Dokumente/Icastico` mit Sammlungen, Suche, Papierkorb, Explorer-Knopf (ADR 0009)
 - [x] Automatisches Speichern, Dateiname folgt dem Titel, Start mit der zuletzt bearbeiteten Partitur
-- [ ] Owner bestätigt Design-Referenz „Folio“ (ADR 0009)
+- [x] Design nach der Owner-App Folio: Bibliothek als Startbildschirm mit Vorschau-Kacheln, Farben/Schrift/Knöpfe (ADR 0009)
+- [x] Update-Hinweis in der Bibliothek statt Dialog (wie Folio)
+- [ ] Rahmenloses Fenster mit schwebenden Glas-Bedienelementen (wie Folio) – mit Owner abstimmen
 - [x] Installer mit Desktop-Verknüpfung, automatische Updates über GitHub Releases (ADR 0010)
-- [ ] Owner hinterlegt Update-Schlüssel als GitHub-Secret → erste Release v0.5.0
+- [x] Owner hat den Update-Schlüssel als GitHub-Secret hinterlegt
+- [ ] Erste Release veröffentlichen (Tag-Push ist aus Claudes Umgebung gesperrt → Owner legt die Release auf GitHub an)
 - [ ] Partituren per Ziehen in Sammlungen verschieben
-- [ ] Vorschaubild der ersten Zeile in der Bibliothek
 - [ ] Notationsregeln verfeinern (Synkopen, Halbtakt-Balken in 4/4)
 
 ## Schritt 2 – Workstation

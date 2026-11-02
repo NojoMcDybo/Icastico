@@ -8,11 +8,12 @@
   <body>
     <div class="workstation">
       <header class="topbar">
-        <button class="library-button" id="library-button" type="button" title="Bibliothek (Strg+O)" aria-label="Bibliothek öffnen">
-          <span class="library-button__icon" aria-hidden="true"></span>Bibliothek
+        <button class="round library-button" id="library-button" type="button" title="Bibliothek (Strg+O)" aria-label="Bibliothek">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg>
         </button>
         <span class="brand">Icastico</span>
         <span class="doc-title" id="doc-title"></span>
+        <button class="pill is-primary update-button" id="update-button" type="button" hidden>Update</button>
         <span class="mode" id="mode">Auswahl</span>
         <button class="help-button" type="button" onclick="document.getElementById('help').hidden = false" title="Tastenbelegung (F1)">?</button>
       </header>

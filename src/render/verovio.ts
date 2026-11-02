@@ -11,6 +11,8 @@ export interface EngraveOptions {
   readonly pageWidth?: number;
   /** Zoom in percent. */
   readonly scale?: number;
+  /** Fixed page height (e.g. A4 preview pictures); default: as tall as the music. */
+  readonly pageHeight?: number;
 }
 
 export interface EngraveResult {
@@ -35,7 +37,8 @@ export class Engraver {
     this.toolkit.setOptions({
       pageWidth: options.pageWidth ?? 2100,
       scale: options.scale ?? 40,
-      adjustPageHeight: true,
+      pageHeight: options.pageHeight ?? 2970,
+      adjustPageHeight: options.pageHeight === undefined,
       breaks: 'auto',
       header: 'auto',
       footer: 'none',

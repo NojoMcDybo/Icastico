@@ -8,11 +8,10 @@
 Der Owner möchte, dass Icastico selbst einen Ordner anlegt, dort speichert
 und die Projekte über ein Menü zugänglich macht. Referenz: „Folio“.
 
-**Annahme:** gemeint ist die Open-Source-Notiz-App *Folio* (GNOME, Nachfolger
-von „Paper“): Notizbücher = Ordner, Notizen = Dateien, farbige Notizbuch-
-Kacheln mit Initialen, Notizliste, Papierkorb, automatisches Speichern. Die
-Referenz-Seiten waren aus der Arbeitsumgebung nicht abrufbar; das Design
-beruht auf diesem Wissensstand und ist vom Owner zu bestätigen.
+**Referenz (bestätigt):** Folio ist die eigene App des Owners, ein PDF-Reader
+für Windows ([NojoMcDybo/folio](https://github.com/NojoMcDybo/folio), dort
+`DESIGN.md`). Eine erste Fassung (v0.4.0) folgte irrtümlich der GNOME-App
+gleichen Namens und wurde in v0.6.0 ersetzt.
 
 ## Entscheidung
 
@@ -28,11 +27,23 @@ beruht auf diesem Wissensstand und ist vom Owner zu bestätigen.
   der letzten Änderung, außerdem vor jedem Wechsel und beim Schließen – keine
   Nachfrage mehr. Strg+S speichert sofort. Dateien *außerhalb* der Bibliothek
   (Strg+Umschalt+O) verhalten sich wie bisher (Nachfrage, ADR 0007).
-- **Bibliothek als Menü** (Strg+O / Knopf oben links): Sammlungen links,
-  Partituren rechts (Titel, Instrumente, Tonart, Takt, „vor 5 Min.“), Suche,
-  Tastatur (tippen, ↑/↓, Enter, Esc), Aktionen pro Partitur (Duplizieren,
-  Verschieben, Papierkorb), Sammlung anlegen/umbenennen/löschen (nur leer).
-- **Start:** zuletzt bearbeitete Partitur, sonst die neueste.
+- **Bibliothek als Startbildschirm, wie in Folio** (beim Start, Strg+O,
+  runder Knopf oben links): großer Titel, darunter Kachelraster. Jede Kachel
+  zeigt die **erste Notenseite** (von Verovio gesetzt, als Bild), Titel und
+  Kurzinfo. Erste Kachel „+ Neue Partitur“. Runder „⋯“-Knopf und Rechtsklick
+  pro Kachel; Menüeinträge mit Erklärzeile, Papierkorb in Rot. Sammlungen
+  (gibt es in Folio nicht) als Pillen unter dem Titel; Papierkorb als Pille
+  rechts; Suche rechts. Tastatur: tippen = suchen, Pfeile durchs Raster,
+  Enter öffnet, Esc zurück zur Partitur.
+- **Start:** Bibliothek; die zuletzt bearbeitete Partitur ist dahinter schon
+  geöffnet (Esc). Ohne offene Partitur bleibt die Bibliothek stehen.
+- **Design-Sprache von Folio für die ganze App:** Anthrazit (`#202020`
+  Leser, `#1c1c1e` Bibliothek), Schrift Segoe UI Variable, `#f5f5f7` /
+  `#a1a1a6`, Akzent `#75b8ff` nur für Auswahl und Fokus (auf weißem
+  Notenpapier dunkleres `#0b6bd6` für Kontrast), runde 40-px-Knöpfe, Drücken
+  = 93 %, Federkurven, `prefers-reduced-motion`. Werte in `src/styles.css`.
+- **Bewusst noch nicht übernommen:** rahmenloses Fenster mit schwebenden
+  Glas-Bedienelementen (WebGL) – eigener Schritt, mit Owner abzustimmen.
 - **Sicherheit:** Rust-Befehle zum Anlegen/Umbenennen/Löschen prüfen jeden
   Pfad und arbeiten *nur innerhalb* des Bibliotheksordners. Umbenennen
   überschreibt nie (unter Windows würde `rename` sonst stillschweigend

@@ -22,7 +22,8 @@ import type { Engraver } from '../render/verovio';
 import type { Platform } from '../platform/files';
 import { APP_VERSION } from '../version';
 import { ask, inform, isDialogOpen } from './dialog';
-import { LibraryPanel } from './libraryPanel';
+import { LibraryHome } from './libraryHome';
+import { Thumbnails } from './thumbnails';
 import type { UpdateChecker } from './updates';
 import { loadNewScoreDefaults, saveLastOpened, saveNewScoreDefaults } from './preferences';
 import { scoreDialog } from './scoreDialog';
@@ -35,9 +36,11 @@ export interface WorkstationElements {
   readonly mode: HTMLElement;
   readonly title: HTMLElement;
   readonly help: HTMLElement;
-  /** Container for the library drawer. */
+  /** Container for the library home screen. */
   readonly library: HTMLElement;
   readonly libraryButton: HTMLElement;
+  /** "Update" button in the top bar, shown when a new version is known. */
+  readonly updateButton: HTMLElement;
 }
 
 interface DocumentLocation {
@@ -80,7 +83,7 @@ export class Workstation {
   private savedScore: Score;
   private saving: Promise<boolean> = Promise.resolve(true);
   private autosaveTimer = 0;
-  private readonly library: LibraryPanel | null;
+  private readonly library: LibraryHome | null;
   /** A file dialog is open; ignore shortcuts meanwhile. */
   private busy = false;
   private windowTitle = '';
@@ -101,7 +104,7 @@ export class Workstation {
     this.savedScore = blank.score;
     this.buildHelp();
     this.library = store
-      ? new LibraryPanel(el.library, store, {
+      ? new LibraryHome(el.library, store, new Thumbnails(engraver), {
           currentPath: () => (this.empty ? null : (this.location?.path ?? null)),
           flush: () => this.flush(),
           open: (path) => this.openLibraryItem(path),
@@ -113,6 +116,17 @@ export class Workstation {
         })
       : null;
     el.libraryButton.hidden = !this.library;
+    el.updateButton.hidden = true;
+    if (updates) {
+      el.updateButton.addEventListener('click', () => void updates.confirmAndInstall());
+      updates.onAvailable((u) => {
+        el.updateButton.hidden = !u;
+        el.updateButton.title = u ? `Version ${u.version} installieren` : '';
+        this.library?.setUpdate(
+          u ? { text: `Version ${u.version} ist verfügbar.`, install: () => void updates.confirmAndInstall() } : null,
+        );
+      });
+    }
     el.libraryButton.addEventListener('click', () => this.run('library.toggle'));
     platform.guardClose(
       () => this.dirty,
@@ -230,13 +244,17 @@ export class Workstation {
     }
   }
 
-  /** Opens the last edited score (or the newest), then listens for double-clicked files. */
+  /**
+   * Start like Folio: the library is the first screen. The last edited score
+   * is already open behind it (Esc goes there). Then listen for files that
+   * were double-clicked in Explorer/Finder.
+   */
   async openInitial(lastOpened: string | null): Promise<void> {
     if (this.store) {
       const items = this.store.index.items.filter((i) => !i.trashed && !i.broken);
       const item = items.find((i) => i.path === lastOpened) ?? items[0];
       if (item) await this.openLibraryItem(item.path);
-      else void this.library?.show();
+      await this.library?.show();
     } else {
       this.load(createEditorState(demoScore()), null);
     }

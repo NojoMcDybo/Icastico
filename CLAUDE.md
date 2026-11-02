@@ -20,6 +20,15 @@ aber bewusst neu gedacht.
 3. `docs/architecture.md` – Schichten und Regeln
 4. `docs/decisions/` – warum Dinge so sind, wie sie sind (ADRs)
 
+## Design
+
+Icastico übernimmt die Design-Sprache der Owner-App **Folio**
+([NojoMcDybo/folio](https://github.com/NojoMcDybo/folio), `DESIGN.md`):
+Anthrazit, Segoe UI Variable, `#f5f5f7`/`#a1a1a6`, Akzent `#75b8ff` *nur* für
+Auswahl und Fokus, runde Knöpfe, Drücken = 93 %, Federkurven. Alle Werte als
+Variablen oben in `src/styles.css` – keine neuen Farben ohne Grund. Bei
+Designfragen zuerst nachsehen, wie Folio es löst (ADR 0009).
+
 ## Sprache
 
 - Doku, UI-Texte, Fehlermeldungen für Nutzer: **Deutsch**
@@ -82,7 +91,11 @@ npx tauri build        # Installer bauen
 
 1. Version in `package.json` und `src-tauri/Cargo.toml` erhöhen (gleich!),
    Roadmap aktualisieren, committen, auf `main` pushen, grüne Builds abwarten.
-2. `git tag vX.Y.Z && git push origin vX.Y.Z`
+2. `git tag vX.Y.Z && git push origin vX.Y.Z` – **aus Claudes Umgebung
+   gesperrt** (Tag-Push bricht ab, Anlegen per API ist als „öffentlich
+   veröffentlichen“ blockiert). Dann legt der Owner auf GitHub eine Release
+   mit neuem Tag `vX.Y.Z` an (Releases → Draft a new release → Tag eingeben →
+   Publish); das löst denselben Workflow aus.
 3. `.github/workflows/release.yml` baut signierte Installer, legt die GitHub
    Release an und hängt `latest.json` an → installierte Apps bieten das
    Update beim nächsten Start an.
@@ -103,7 +116,8 @@ src/core/editor/     EditorState, Commands (reine Funktionen), Undo/Redo
 src/core/file/       Dateiformat .icastico
 src/library/         Bibliothek (Dokumente/Icastico): Logik, Speicher-Variante, Bibliothekar
 src/render/          Modell → MEI → Verovio → SVG
-src/ui/              Workstation (Rendering, Cursor, Auswahl, Autosave), Tastatur, Dialoge, Bibliothek
+src/ui/              Workstation (Rendering, Cursor, Auswahl, Autosave), Tastatur, Dialoge,
+                     Bibliothek als Startbildschirm, Vorschaubilder, Updates
 src/ui/keymaps/      Tastenbelegungen als Daten (Finale Simple Entry)
 src/platform/        Desktop vs. Browser (Dateien, Fenster) hinter einer Schnittstelle
 src/main.ts          Start

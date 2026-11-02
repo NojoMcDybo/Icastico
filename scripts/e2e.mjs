@@ -53,16 +53,17 @@ try {
       );
     });
   const openLibrary = async () => {
-    await type('Control+o');
+    if (await page.locator('#library').isHidden()) await type('Control+o');
     await page.waitForSelector('#library:not([hidden])');
   };
-  const items = () => page.locator('.library__item .library__item-title').allTextContents();
+  /** Titles of the tiles (without the collection label next to them). */
+  const items = () => page.$$eval('.tile-item .tile__name', (els) => els.map((e) => e.firstChild?.textContent ?? ''));
   const itemMenu = async (titleText, entry) => {
-    await page.locator('.library__item', { hasText: titleText }).first().hover();
-    await page.locator('.library__item', { hasText: titleText }).first().locator('.library__more').click();
+    await page.locator('.tile-item', { hasText: titleText }).first().hover();
+    await page.locator('.tile-item', { hasText: titleText }).first().locator('.tile__more').click();
     await page.locator('.menu button', { hasText: entry }).click();
   };
-  const view = async (name) => page.locator('.library__view', { hasText: name }).click();
+  const view = async (name) => page.locator('.home__pills .pill', { hasText: name }).first().click();
   const openExternal = async (file) => {
     const [chooser] = await Promise.all([page.waitForEvent('filechooser'), type('Control+Shift+o')]);
     await chooser.setFiles(file);
@@ -72,17 +73,22 @@ try {
   check((await title()) === 'Erste Skizze', 'Erster Start: Beispiel „Erste Skizze“ aus der Bibliothek geöffnet');
   check(JSON.stringify(await files()) === '{"/Icastico/Erste Skizze.icastico":"Erste Skizze"}', 'Bibliotheksordner angelegt, Beispiel darin gespeichert');
 
-  // ── Bibliothek als Menü ──
-  await openLibrary();
-  check((await items()).map((t) => t.trim()).join() === 'Erste Skizze', 'Strg+O zeigt die Bibliothek mit der Partitur');
-  check((await page.locator('.library__item.is-current').count()) === 1, 'Geöffnete Partitur ist markiert');
+  // ── Bibliothek als Startbildschirm (wie Folio) ──
+  check(await page.locator('#library').isVisible(), 'Start: die Bibliothek ist der erste Bildschirm');
+  await page.waitForSelector('.tile-item .tile__cover img');
+  check((await page.locator('.tile-item .tile__cover img').count()) === 1, 'Kachel zeigt die erste Notenseite als Vorschau');
+  check((await items()).map((t) => t.trim()).join() === 'Erste Skizze', 'Bibliothek zeigt die Partitur');
+  check((await page.locator('.tile-item.is-current').count()) === 1, 'Geöffnete Partitur ist markiert');
   await type('Escape');
   check(await page.locator('#library').isHidden(), 'Esc schließt die Bibliothek');
   await page.click('#library-button');
-  check(await page.locator('#library').isVisible(), 'Knopf „Bibliothek“ oben links öffnet sie auch');
+  check(await page.locator('#library').isVisible(), 'Runder Knopf oben links öffnet sie wieder');
+  await type('Escape');
+  await type('Control+o');
+  check(await page.locator('#library').isVisible(), 'Strg+O öffnet sie auch');
 
   // ── Neue Partitur landet in der Bibliothek ──
-  await page.click('.library__header-actions .is-primary');
+  await page.click('.tile--new');
   await page.waitForSelector('.modal h2:text("Neue Partitur")');
   await page.keyboard.type('Mein Lied');
   await type('Enter');
@@ -109,19 +115,19 @@ try {
 
   // ── Sammlungen ──
   await openLibrary();
-  await page.click('.library__add');
+  await page.click('.pill--ghost');
   await page.waitForSelector('.modal h2:text("Neue Sammlung")');
   await page.keyboard.type('papierkorb');
   await type('Enter');
   check((await page.textContent('.form__error')).includes('reserviert'), 'Name „Papierkorb“ wird abgelehnt');
   await page.fill('#prompt-input', 'Lieder');
   await type('Enter');
-  await page.waitForSelector('.library__heading:text("Lieder")');
-  check((await page.locator('.library__view', { hasText: 'Lieder' }).locator('.library__badge').textContent()) === 'Li', 'Sammlung „Lieder“ mit Kachel „Li“');
+  await page.waitForSelector('.pill.is-active:has-text("Lieder")');
+  check((await page.locator('.pill', { hasText: 'Lieder' }).locator('.pill__badge').textContent()) === 'Li', 'Sammlung „Lieder“ als Pille mit Abzeichen „Li“');
 
-  await view('Alle Partituren');
+  await view('Alle');
   await itemMenu('Ständchen', 'Verschieben nach: Lieder');
-  await page.waitForFunction(() => document.querySelector('.library__where')?.textContent === 'Lieder');
+  await page.waitForFunction(() => document.querySelector('.tile__where')?.textContent === 'Lieder');
   check('/Icastico/Lieder/Ständchen für Anna.icastico' in (await files()), 'Verschieben legt die Datei in den Ordner „Lieder“');
   await page.screenshot({ path: join(outDir, 'bibliothek.png') });
 
@@ -135,7 +141,7 @@ try {
 
   // ── Suche + Tastatur ──
   await openLibrary();
-  await view('Alle Partituren');
+  await view('Alle');
   await page.keyboard.type('skiz');
   check((await items()).map((t) => t.trim()).join() === 'Erste Skizze', 'Suche „skiz“ findet nur „Erste Skizze“');
   await type('Enter');
@@ -152,12 +158,12 @@ try {
   check((await items()).map((t) => t.trim()).join() === 'Ständchen für Anna', 'Wiederherstellen bringt sie zurück in „Lieder“');
 
   // Offene Partitur in den Papierkorb → leerer Zustand
-  await view('Alle Partituren');
+  await view('Alle');
   await itemMenu('Erste Skizze', 'In den Papierkorb');
-  await type('Escape');
   check((await page.textContent('.empty-state h2')) === 'Keine Partitur geöffnet', 'Offene Partitur weggeworfen → „Keine Partitur geöffnet“');
-  await type('c', 'Enter');
-  check((await page.locator('.empty-state').count()) === 1, 'Ohne Partitur machen Notentasten nichts kaputt');
+  check((await page.locator('.home__back').isHidden()) && (await items()).map((t) => t.trim()).join() === 'Ständchen für Anna', 'Kein Zurück-Knopf mehr, die Kachel ist weg');
+  await type('Escape');
+  check(await page.locator('#library').isVisible(), 'Ohne offene Partitur bleibt die Bibliothek stehen (Esc führt nicht ins Leere)');
   await page.screenshot({ path: join(outDir, 'leer.png') });
 
   await openLibrary();
@@ -168,7 +174,7 @@ try {
 
   // ── Neustart: zuletzt geöffnete Partitur kommt wieder ──
   await view('Lieder');
-  await page.locator('.library__item', { hasText: 'Ständchen' }).click();
+  await page.locator('.tile-item', { hasText: 'Ständchen' }).locator('.tile').click();
   await page.waitForFunction(() => document.querySelector('#doc-title')?.textContent === 'Ständchen für Anna');
   await page.reload();
   await page.waitForSelector('.page svg');
@@ -177,7 +183,7 @@ try {
   // ── Neue Partitur in der gerade angezeigten Sammlung ──
   await openLibrary();
   await view('Lieder');
-  await page.click('.library__header-actions .is-primary');
+  await page.click('.tile--new');
   await page.waitForSelector('.modal h2:text("Neue Partitur")');
   await page.fill('#f-title', 'Wiegenlied');
   await page.click('.instruments li:nth-child(3) button[aria-label$="entfernen"]');
@@ -197,17 +203,17 @@ try {
   // ── Sammlung umbenennen: offene Partitur wandert mit ──
   await openLibrary();
   await view('Lieder');
-  await page.click('.library__header .library__more');
+  await page.click('.home__pills .round');
   await page.locator('.menu button', { hasText: 'Umbenennen' }).click();
   await page.fill('#prompt-input', 'Volkslieder');
   await type('Enter');
-  await page.waitForSelector('.library__heading:text("Volkslieder")');
+  await page.waitForSelector('.pill.is-active:has-text("Volkslieder")');
   await type('Escape', 'Enter', '7', 'g');
   await saved();
   check('/Icastico/Volkslieder/Wiegenlied.icastico' in (await files()), 'Sammlung umbenannt, offene Partitur speichert am neuen Ort');
   await openLibrary();
   await view('Volkslieder');
-  await page.click('.library__header .library__more');
+  await page.click('.home__pills .round');
   await page.locator('.menu button', { hasText: 'Sammlung löschen' }).click();
   await page.waitForSelector('.modal');
   check((await page.textContent('.modal p')).includes('enthält noch Partituren'), 'Volle Sammlung lässt sich nicht löschen');

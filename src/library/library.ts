@@ -37,6 +37,8 @@ export interface LibraryItem {
   readonly summary: string;
   /** Set when the file could not be read. */
   readonly broken: string | null;
+  /** The parsed score (for the preview picture); null if broken. */
+  readonly score: Score | null;
 }
 
 export interface LibraryIndex {
@@ -124,10 +126,10 @@ export function indexLibrary(scan: RawScan): LibraryIndex {
     try {
       if (e.contents === null) throw new Error('zu groß');
       const score = parseScoreFile(e.contents);
-      return { ...base, title: score.title, composer: score.composer ?? '', summary: scoreSummary(score), broken: null };
+      return { ...base, title: score.title, composer: score.composer ?? '', summary: scoreSummary(score), broken: null, score };
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
-      return { ...base, title: stem(fileName), composer: '', summary: 'Datei kann nicht gelesen werden', broken: reason };
+      return { ...base, title: stem(fileName), composer: '', summary: 'Datei kann nicht gelesen werden', broken: reason, score: null };
     }
   });
   items.sort((a, b) => b.modified - a.modified || a.title.localeCompare(b.title, 'de'));

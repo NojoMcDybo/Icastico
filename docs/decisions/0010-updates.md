@@ -17,7 +17,9 @@ dürfen aber nie ungefragt seine Arbeit unterbrechen.
   gelöscht hat, bekommt sie nicht zurück.
 - **Updates:** `tauri-plugin-updater` fragt beim Start (nach 4 Sekunden,
   still) `latest.json` der neuesten GitHub-Release ab. Gibt es eine neuere
-  Version: Dialog „Jetzt aktualisieren / Später“. Vor der Installation wird
+  Version: wie in Folio **kein Dialog**, sondern ein Hinweis oben in der
+  Bibliothek („Installieren“) und ein Knopf „Update“ in der Kopfzeile. Erst
+  ein Klick darauf fragt „Jetzt aktualisieren / Später“. Vor der Installation wird
   die offene Partitur gespeichert. Windows installiert im Modus „passive“
   (Fortschrittsbalken, keine Fragen) und startet Icastico neu.
 - **Manuell:** „Nach Updates suchen“ unten in der Bibliothek.

@@ -32,14 +32,39 @@ beforeEach(() => {
 });
 
 describe('UpdateChecker', () => {
+  it('quiet check: no dialog, only tells the banner', async () => {
+    const seen: (string | null)[] = [];
+    const checker = new UpdateChecker(fake('9.9.9', []), async () => undefined, () => undefined);
+    checker.onAvailable((u) => seen.push(u?.version ?? null));
+    await checker.quietCheck();
+    expect(seen).toEqual([null, '9.9.9']);
+    expect(dialogs.asked).toEqual([]);
+  });
+
+  it('quiet check offline: silent', async () => {
+    const offline: Updater = { check: async () => Promise.reject(new Error('offline')), install: async () => undefined };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await new UpdateChecker(offline, async () => undefined, () => undefined).quietCheck();
+    expect(dialogs.informed).toEqual([]);
+    warn.mockRestore();
+  });
+
   it('saves the open score BEFORE installing', async () => {
     const log: string[] = [];
     const status: string[] = [];
     const checker = new UpdateChecker(fake('9.9.9', log), async () => void log.push('flush'), (t) => status.push(t));
     await checker.checkNow();
-    expect(dialogs.asked).toEqual(['Neue Version 9.9.9 verfügbar']);
+    expect(dialogs.asked).toEqual(['Version 9.9.9 installieren?']);
     expect(log).toEqual(['flush', 'install']);
     expect(status).toContain('Update wird geladen … 50 %');
+  });
+
+  it('banner click after quiet check asks, then installs', async () => {
+    const log: string[] = [];
+    const checker = new UpdateChecker(fake('9.9.9', log), async () => void log.push('flush'), () => undefined);
+    await checker.quietCheck();
+    await checker.confirmAndInstall();
+    expect(log).toEqual(['flush', 'install']);
   });
 
   it('says so when everything is up to date (only when asked)', async () => {
@@ -54,17 +79,15 @@ describe('UpdateChecker', () => {
     expect(log).toEqual([]);
   });
 
-  it('a failed download after "Jetzt aktualisieren" is always reported, also from the quiet check', async () => {
+  it('a failed download after "Jetzt aktualisieren" is always reported', async () => {
     const broken: Updater = {
       check: async () => ({ version: '9.9.9', notes: '' }),
       install: async () => Promise.reject(new Error('Signatur ungültig')),
     };
     const status: string[] = [];
     const checker = new UpdateChecker(broken, async () => undefined, (t) => status.push(t));
-    vi.useFakeTimers();
-    checker.scheduleQuietCheck();
-    await vi.runAllTimersAsync();
-    vi.useRealTimers();
+    await checker.quietCheck();
+    await checker.confirmAndInstall();
     expect(dialogs.informed).toEqual(['Update fehlgeschlagen']);
     expect(status.at(-1)).toMatch(/bisherigen Version/);
   });

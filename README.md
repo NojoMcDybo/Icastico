@@ -6,7 +6,7 @@ Open Source, angelehnt an Finale, aber neu gedacht.
 
 *Music notation software built as a customizable workstation. Early development.*
 
-> **Status:** v0.5.0 – Noteneingabe wie in Finale (Simple Entry), eigene
+> **Status:** v0.6.0 – Noteneingabe wie in Finale (Simple Entry), eigene
 > Bibliothek in `Dokumente/Icastico` mit Sammlungen und Papierkorb,
 > automatisches Speichern, automatische Updates, neue Partitur mit Titel, Instrumenten, Tonart,
 > Taktart und Auftakt. Strg+O Bibliothek, Strg+N neu, F1 alle Tasten.

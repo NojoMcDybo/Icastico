@@ -87,7 +87,8 @@ ausführlich getestet.
   Speicher um (Browser, Tests) mit denselben Regeln wie Rust.
 - `store.ts` – „Bibliothekar“: anlegen, speichern (+ umbenennen), duplizieren,
   verschieben, Papierkorb mit Herkunft, Sammlungen.
-- UI: `src/ui/libraryPanel.ts` (Seitenleiste), Workstation speichert
+- UI: `src/ui/libraryHome.ts` (Startbildschirm, Kacheln, Folio-Design),
+  `src/ui/thumbnails.ts` (erste Seite als Bild, zwischengespeichert), Workstation speichert
   Bibliotheks-Partituren automatisch und folgt verschobenen Dateien.
 
 ### 8. Updates – `src/platform/updater.ts`, `src/ui/updates.ts` (ADR 0010)

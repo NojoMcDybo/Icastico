@@ -44,6 +44,7 @@ async function start(): Promise<void> {
       help: $('help'),
       library: $('library'),
       libraryButton: $('library-button'),
+      updateButton: $('update-button'),
     },
     engraver,
     FINALE_KEYMAP,
