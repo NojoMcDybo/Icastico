@@ -134,7 +134,7 @@ export function notateVoice(voice: Voice, measures: readonly Measure[]): Notated
 
     const pushRests = (from: Fraction, to: Fraction) => {
       let onset = from;
-      for (const w of decomposeRest(sub(from, m.start), sub(to, from))) {
+      for (const w of decomposeRest(sub(from, m.gridStart), sub(to, from))) {
         items.push({ kind: 'rest', id: `${voice.id}-m${m.number}-r${++restCount}`, onset, duration: w });
         onset = add(onset, writtenValue(w));
       }
@@ -195,7 +195,7 @@ export function beatLength(sig: TimeSignature): Fraction {
 export function beamGroups(items: readonly NotatedItem[], measure: Measure): [number, number][] {
   const beat = beatLength(measure.sig);
   const beatOf = (t: Fraction) => {
-    const q = div(sub(t, measure.start), beat);
+    const q = div(sub(t, measure.gridStart), beat);
     return Math.floor(q.n / q.d);
   };
   const groups: [number, number][] = [];

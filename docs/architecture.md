@@ -27,7 +27,9 @@
 - `time.ts` – exakte Brüche. Ganze Note = 1. Nie Gleitkomma für Musikzeit.
 - `pitch.ts` – Tonhöhe mit Schreibweise (Stufe, Alteration, Oktave), klingend.
 - `instruments.ts` – Instrumente als Daten (Systeme, Schlüssel, Umfang, MIDI-Programm).
-- `model.ts` – `Score → Part → Voice → NoteEvent`.
+- `model.ts` – `Score → Part → Voice → NoteEvent`, optional mit Auftakt (`pickup`).
+- `templates.ts` – Partitur aus dem Neu-Dialog anlegen, globale Änderungen
+  (Titel, Tonart/Taktart ab Takt, Auftakt), deutsche Tonartnamen (ADR 0008).
 
 **Zeitstrahl statt Takte** (ADR 0003): Ein `NoteEvent` hat `onset` und
 `duration`. Ein Event kann über Taktstriche gehen – es bleibt *ein* Event.
@@ -74,6 +76,8 @@ ausführlich getestet.
   (native Dialoge, Dateien über Rust, Fenstertitel, Schließen-Schutz,
   Doppelklick-Dateien) und Browser (Download/Upload, für Entwicklung und Tests).
 - `src/ui/dialog.ts` – eigene Dialoge (überall gleich, testbar).
+- `src/ui/scoreDialog.ts` – „Neue Partitur“ / „Partitur-Einstellungen“.
+- `src/ui/preferences.ts` – letzte Auswahl im Neu-Dialog (lokal gespeichert).
 
 ### 7. Native Hülle – `src-tauri/`
 

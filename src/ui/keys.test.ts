@@ -39,13 +39,15 @@ describe('comboOf', () => {
   it('names special keys and ignores unknown ones', () => {
     expect(comboOf(ev('ArrowUp', 'ArrowUp', { ctrlKey: true }))).toBe('Mod+ArrowUp');
     expect(comboOf(ev('Enter', 'NumpadEnter'))).toBe('Enter');
+    expect(comboOf(ev(',', 'Comma', { ctrlKey: true }))).toBe('Mod+Comma');
+    expect(comboOf(ev(',', 'NumpadDecimal'))).toBe('Period');
     expect(comboOf(ev('Shift', 'ShiftLeft', { shiftKey: true }))).toBeNull();
   });
 });
 
 describe('Finale keymap', () => {
   it('only points at existing commands and has no duplicate keys', () => {
-    const ui = new Set(['history.undo', 'history.redo', 'view.help', 'file.new', 'file.open', 'file.save', 'file.saveAs']);
+    const ui = new Set(['history.undo', 'history.redo', 'view.help', 'file.new', 'file.open', 'file.save', 'file.saveAs', 'score.settings']);
     const combos = new Set<string>();
     for (const b of FINALE_KEYMAP.bindings) {
       expect(b.command in COMMANDS || ui.has(b.command), b.command).toBe(true);

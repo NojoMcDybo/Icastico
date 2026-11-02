@@ -411,9 +411,9 @@ function toggleInsert(s: EditorState): EditorState {
   };
 }
 
-/** Fresh editor on an empty score, caret ready in the first staff. */
-export function newScoreState(): EditorState {
-  const s = createEditorState(emptyScore());
+/** Fresh editor on a (by default empty) score, caret ready in the first staff. */
+export function newScoreState(score: Score = emptyScore()): EditorState {
+  const s = createEditorState(score);
   const first = allVoiceRefs(s.score)[0]!;
   return { ...s, caret: { ...first, time: ZERO }, message: 'Neue Partitur – einfach lostippen.' };
 }

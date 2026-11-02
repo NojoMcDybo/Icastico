@@ -66,7 +66,8 @@ npx tauri build        # Installer bauen
   was wir ausliefern, muss laufen.
 - Native Funktionen (Rust, Berechtigungen, Fenster) in der echten App prüfen:
   `npx tauri build --bundles deb`, dann unter `xvfb-run` (mit `openbox` für
-  Fensterereignisse) starten und mit `xdotool`/`wmctrl` bedienen.
+  Fensterereignisse) starten und mit `xdotool`/`wmctrl` bedienen
+  (`xdotool type` kann dort keine Umlaute – Umlaute im Browser-Test prüfen).
 - **Dateiformat ändern** = Version in `src/core/file/format.ts` erhöhen,
   Migration schreiben, Test mit Datei der alten Version (ADR 0007).
 - Neue Musiklogik bekommt Tests (Notationsregeln sind leicht falsch zu machen).
@@ -79,12 +80,12 @@ npx tauri build        # Installer bauen
 ## Projektstruktur
 
 ```
-src/core/            Modell, Zeit, Tonhöhen, Instrumente (reines TypeScript)
+src/core/            Modell, Zeit, Tonhöhen, Instrumente, Vorlagen/Einstellungen (reines TypeScript)
 src/core/notation/   Zeitstrahl → Notation (Takte, Bögen, Pausen, Balken)
 src/core/editor/     EditorState, Commands (reine Funktionen), Undo/Redo
 src/core/file/       Dateiformat .icastico
 src/render/          Modell → MEI → Verovio → SVG
-src/ui/              Workstation (Rendering, Cursor, Auswahl), Tastatur
+src/ui/              Workstation (Rendering, Cursor, Auswahl), Tastatur, Dialoge
 src/ui/keymaps/      Tastenbelegungen als Daten (Finale Simple Entry)
 src/platform/        Desktop vs. Browser (Dateien, Fenster) hinter einer Schnittstelle
 src/main.ts          Start

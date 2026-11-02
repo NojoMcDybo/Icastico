@@ -196,7 +196,9 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
   measures.forEach((m, mi) => {
     const change = mi > 0 ? scoreDefChange(measures[mi - 1]!, m) : null;
     if (change) body.push(change);
-    body.push(`      <measure xml:id="m${m.number}" n="${m.number}">`);
+    // An upbeat is shorter than its meter: metcon="false" tells Verovio it is intended.
+    const metcon = m.number === 0 ? ' metcon="false"' : '';
+    body.push(`      <measure xml:id="m${m.number}" n="${m.number}"${metcon}>`);
     for (const slot of slots) {
       body.push(`        <staff xml:id="${staffElementId(m.number, slot.n)}" n="${slot.n}">`);
       const voices = slot.part.voices.filter((v) => v.staff === slot.staffIndex);

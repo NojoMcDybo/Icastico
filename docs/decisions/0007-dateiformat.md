@@ -38,6 +38,13 @@ die Datei (Windows/Linux: Programmargument, macOS: Systemereignis).
 
 **Verlauf:** Öffnen und Neu beginnen einen frischen Rückgängig-Verlauf.
 
+## Versionen
+
+| Version | Icastico | Änderung |
+|---|---|---|
+| 1 | 0.2.0 | erstes Format |
+| 2 | 0.3.0 | optionales Feld `pickup` (Auftakt, ADR 0008) |
+
 ## Alternativen
 
 - **MusicXML als Hauptformat:** Austauschstandard, aber taktbasiert – passt

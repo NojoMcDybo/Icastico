@@ -50,6 +50,14 @@ describe('scoreToMei', () => {
   });
 });
 
+describe('upbeat in MEI', () => {
+  it('writes measure 0 as intentionally short', () => {
+    const { mei } = scoreToMei({ ...demoScore(), pickup: frac(1, 4) });
+    expect(mei).toContain('<measure xml:id="m0" n="0" metcon="false">');
+    expect(mei).toContain('<measure xml:id="m1" n="1">');
+  });
+});
+
 describe('Verovio renders our MEI', () => {
   let engraver: Engraver;
   beforeAll(async () => {
@@ -63,5 +71,17 @@ describe('Verovio renders our MEI', () => {
     expect(pages.length).toBeGreaterThan(0);
     expect(pages[0]).toContain('id="v6-m2-1"');
     expect(pages[0]).toContain('Erste Skizze');
+  });
+
+  it('with an upbeat and key/meter changes, still without warnings', () => {
+    const score = {
+      ...demoScore(),
+      pickup: frac(1, 4),
+      keys: [{ at: frac(0), fifths: 1 }, { at: frac(9, 4), fifths: -2 }],
+      meter: [{ at: frac(0), sig: { count: 4, unit: 4 } }, { at: frac(5, 4), sig: { count: 3, unit: 4 } }],
+    };
+    const { log, pages } = engraver.engrave(scoreToMei(score).mei);
+    expect(log).toBe('');
+    expect(pages[0]).toContain('id="m0"');
   });
 });

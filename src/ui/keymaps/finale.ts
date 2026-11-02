@@ -15,7 +15,8 @@ export type UiCommandId =
   | 'file.new'
   | 'file.open'
   | 'file.save'
-  | 'file.saveAs';
+  | 'file.saveAs'
+  | 'score.settings';
 
 export interface KeyBinding {
   readonly combo: string;
@@ -73,6 +74,7 @@ export const FINALE_KEYMAP: Keymap = {
     { combo: 'Mod+O', command: 'file.open' },
     { combo: 'Mod+S', command: 'file.save' },
     { combo: 'Mod+Shift+S', command: 'file.saveAs' },
+    { combo: 'Mod+Comma', command: 'score.settings' },
     { combo: 'F1', command: 'view.help' },
     { combo: '?', command: 'view.help' },
   ],
@@ -104,7 +106,8 @@ export const FINALE_KEYMAP: Keymap = {
     {
       title: 'Datei',
       entries: [
-        { keys: 'Strg+N', text: 'Neue leere Partitur' },
+        { keys: 'Strg+N', text: 'Neue Partitur (Titel, Instrumente, Tonart, Taktart, Auftakt)' },
+        { keys: 'Strg+, / Klick auf Titel', text: 'Partitur-Einstellungen: Titel, Tonart, Taktart, Auftakt' },
         { keys: 'Strg+O', text: 'Partitur öffnen' },
         { keys: 'Strg+S', text: 'Speichern' },
         { keys: 'Strg+Umschalt+S', text: 'Speichern unter …' },

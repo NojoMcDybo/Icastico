@@ -6,9 +6,10 @@ Open Source, angelehnt an Finale, aber neu gedacht.
 
 *Music notation software built as a customizable workstation. Early development.*
 
-> **Status:** v0.2.0 – Noteneingabe per Tastatur wie in Finale (Simple Entry),
-> Speichern und Öffnen (`.icastico`). Strg+N neu, Strg+S speichern,
-> Strg+O öffnen, F1 zeigt alle Tasten. Siehe [Roadmap](docs/roadmap.md).
+> **Status:** v0.3.0 – Noteneingabe per Tastatur wie in Finale (Simple Entry),
+> Speichern und Öffnen (`.icastico`), neue Partitur mit Titel, Instrumenten,
+> Tonart, Taktart und Auftakt. Strg+N neu, Strg+, Einstellungen, F1 zeigt
+> alle Tasten. Siehe [Roadmap](docs/roadmap.md).
 
 ## Ausprobieren
 

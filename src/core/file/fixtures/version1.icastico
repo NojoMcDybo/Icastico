@@ -1,0 +1,31 @@
+{
+  "format": "icastico",
+  "version": 1,
+  "app": "0.2.0",
+  "score": {
+    "title": "Gespeichert mit 0.2.0",
+    "meter": [
+      { "at": "0", "count": 3, "unit": 4 }
+    ],
+    "keys": [
+      { "at": "0", "fifths": -1 }
+    ],
+    "parts": [
+      {
+        "id": "voice",
+        "name": "Gesang",
+        "instrument": "voice",
+        "voices": [
+          {
+            "id": "voice-v1",
+            "staff": 0,
+            "events": [
+              { "id": "voice-v1-n1", "at": "0", "dur": "1/4", "pitches": ["F4"] },
+              { "id": "voice-v1-n2", "at": "1/4", "dur": "1/2", "pitches": ["Bb4"] }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

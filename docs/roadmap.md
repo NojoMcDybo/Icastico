@@ -14,7 +14,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Verovio-Rendering, Klick auf Note → Modell-Event (mit Toleranz)
 - [x] Demo-Partitur „Erste Skizze“
 
-## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.2.0)
+## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.3.0)
 
 - [x] Command-System (reine Funktionen) mit Undo/Redo
 - [x] Eingabe-Cursor (blinkend; gestrichelt im Einfügemodus), springt hinter Schlüssel/Taktart
@@ -24,7 +24,6 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Überschreiben (Standard) und Einfügen
 - [x] Navigation: vor/zurück, System wechseln, Klick setzt Cursor
 - [x] Tastenhilfe (F1 / ?), Statuszeile mit Modus
-- [x] Neue leere Partitur (Strg+N) mit Gesang, Gitarre, Klavier
 - [x] Sicherheitsnetz: Befehl, der nicht darstellbar ist, wird automatisch rückgängig gemacht
 - [x] Speichern/Öffnen: Format `.icastico` (lesbar, versioniert, streng geprüft), ADR 0007
 - [x] Absturzsicheres Speichern (Zwischendatei + Umbenennen, in Rust)
@@ -32,9 +31,11 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Doppelklick auf `.icastico` öffnet Icastico (Dateizuordnung im Installer)
 - [x] Ende-zu-Ende-Test der Oberfläche (`npm run e2e`)
 - [ ] Owner prüft die als „Annahme“ markierten Tasten (ADR 0006)
-- [ ] Titel und Komponist bearbeiten (aktuell heißt jede neue Partitur „Neue Partitur“)
-- [ ] Neue Partitur mit Auswahl: Instrumente, Tonart, Taktart, Titel
-- [ ] Tonart/Taktart ändern
+- [x] Neue Partitur (Strg+N) mit Dialog: Titel, Komponist, Instrumente (Reihenfolge, mehrfach), Tonart, Taktart, Auftakt; merkt sich die letzte Wahl
+- [x] Partitur-Einstellungen (Strg+, oder Klick auf den Titel): Titel, Komponist, Tonart/Taktart ab Takt, Auftakt – rückgängig machbar (ADR 0008)
+- [x] Auftakt im Modell, in der Notation und im Dateiformat (Version 2, alte Dateien werden weiter geöffnet)
+- [ ] Instrumente in bestehender Partitur hinzufügen/entfernen/umbenennen
+- [ ] Transponieren
 - [ ] Wiederherstellung nach Absturz (automatische Sicherung)
 - [ ] Zuletzt geöffnete Dateien
 - [ ] Notationsregeln verfeinern (Synkopen, Halbtakt-Balken in 4/4)

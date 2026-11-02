@@ -63,16 +63,26 @@ export interface Score {
   readonly meter: readonly MeterChange[];
   /** Sorted by `at`; the first entry must be at 0. */
   readonly keys: readonly KeyChange[];
+  /**
+   * Upbeat (Auftakt): length of the incomplete first measure. Absent = none.
+   * Must be shorter than a full measure of the first meter.
+   */
+  readonly pickup?: Fraction;
   readonly parts: readonly Part[];
 }
 
 export interface Measure {
   /** 0-based index. */
   readonly index: number;
-  /** 1-based number as printed. */
+  /** Number as printed: 1 = first full measure, 0 = upbeat (Auftakt). */
   readonly number: number;
   readonly start: Fraction;
   readonly end: Fraction;
+  /**
+   * Where the beat grid of this measure starts. Equal to `start`, except for
+   * an upbeat, which is the END of a full measure: its grid starts earlier.
+   */
+  readonly gridStart: Fraction;
   readonly sig: TimeSignature;
   /** Key in effect at the start of this measure. */
   readonly fifths: number;
@@ -106,6 +116,9 @@ function entryAt<T extends { at: Fraction }>(list: readonly T[], time: Fraction)
 /** Key signature (fifths) in effect at a time. */
 export const keyAt = (score: Score, time: Fraction): number => entryAt(score.keys, time).fifths;
 
+/** Time signature in effect at a time. */
+export const meterAt = (score: Score, time: Fraction): TimeSignature => entryAt(score.meter, time).sig;
+
 /**
  * Derives the measures from the meter map. Produces at least `minMeasures`
  * measures, always enough to hold all content, and – if given – a measure
@@ -116,15 +129,29 @@ export function measuresOf(score: Score, minMeasures = 1, coverTime?: Fraction):
   const result: Measure[] = [];
   let start = ZERO;
   let index = 0;
+  const pickup = score.pickup && gt(score.pickup, ZERO) ? score.pickup : null;
+  if (pickup) {
+    const sig = score.meter[0]!.sig;
+    const fifths = score.keys[0]!.fifths;
+    result.push({ index, number: 0, start, end: pickup, gridStart: sub(pickup, measureLength(sig)), sig, fifths });
+    start = pickup;
+    index++;
+  }
   while (index < minMeasures || lt(start, end) || (coverTime !== undefined && le(start, coverTime))) {
     const sig = entryAt(score.meter, start).sig;
     const fifths = entryAt(score.keys, start).fifths;
     const mEnd = add(start, measureLength(sig));
-    result.push({ index, number: index + 1, start, end: mEnd, sig, fifths });
+    result.push({ index, number: pickup ? index : index + 1, start, end: mEnd, gridStart: start, sig, fifths });
     start = mEnd;
     index++;
   }
   return result;
+}
+
+/** Start time of the measure with this printed number (0 = upbeat). */
+export function measureStart(score: Score, number: number): Fraction | null {
+  const ms = measuresOf(score, number + 1);
+  return ms.find((m) => m.number === number)?.start ?? null;
 }
 
 /** IDs end up as XML ids in MEI/SVG, so they must be XML-safe. */
@@ -141,12 +168,20 @@ export function validateScore(score: Score): string[] {
   }
   if (problems.length > 0) return problems;
 
-  // Meter changes must fall on barlines of the preceding meter.
+  const pickup = score.pickup;
+  if (pickup && (lt(pickup, ZERO) || !lt(pickup, measureLength(score.meter[0]!.sig)))) {
+    problems.push('Der Auftakt muss kürzer als ein ganzer Takt sein.');
+  }
+
+  // Meter changes must fall on barlines of the preceding meter
+  // (with an upbeat, the first barline is at the end of the upbeat).
   for (let i = 1; i < score.meter.length; i++) {
     const prev = score.meter[i - 1]!;
     const here = score.meter[i]!;
-    const measures = div(sub(here.at, prev.at), measureLength(prev.sig));
-    if (measures.d !== 1 || measures.n <= 0) {
+    const from = i === 1 && pickup && gt(pickup, ZERO) ? pickup : prev.at;
+    const measures = div(sub(here.at, from), measureLength(prev.sig));
+    const minimum = from === prev.at ? 1 : 0;
+    if (measures.d !== 1 || measures.n < minimum) {
       problems.push(`Taktwechsel bei ${here.at.n}/${here.at.d} liegt nicht auf einem Taktstrich.`);
     }
   }

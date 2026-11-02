@@ -9,15 +9,18 @@ import { History } from '../core/editor/history';
 import { type EditorState, createEditorState, getVoice, inputLength } from '../core/editor/state';
 import { FILE_EXTENSION, FileFormatError, parseScoreFile, serializeScore } from '../core/file/format';
 import { getInstrument } from '../core/instruments';
-import { type Score, measuresOf } from '../core/model';
+import { type Score, keyAt, measuresOf, meterAt } from '../core/model';
 import { durationName } from '../core/notation/notate';
 import { pitchToString } from '../core/pitch';
-import { eq, lt } from '../core/time';
+import { type Fraction, ZERO, eq, le, lt } from '../core/time';
+import { applyScoreChanges, createScore } from '../core/templates';
 import { type ElementRef, type MeiResult, scoreToMei, staffElementId } from '../render/mei';
 import type { Engraver } from '../render/verovio';
 import type { Platform } from '../platform/files';
 import { APP_VERSION } from '../version';
 import { ask, inform, isDialogOpen } from './dialog';
+import { loadNewScoreDefaults, saveNewScoreDefaults } from './preferences';
+import { scoreDialog } from './scoreDialog';
 import { comboOf } from './keys';
 import { type Keymap, type UiCommandId, findBinding } from './keymaps/finale';
 
@@ -73,6 +76,9 @@ export class Workstation {
     platform.onFileOpened((path) => void this.fileOpen(path));
     window.addEventListener('keydown', (e) => this.onKey(e));
     el.pages.addEventListener('click', (e) => this.onClick(e));
+    el.title.addEventListener('click', () => {
+      if (!isDialogOpen() && !this.busy) void this.scoreSettings();
+    });
     let timer = 0;
     new ResizeObserver(() => {
       clearTimeout(timer);
@@ -132,6 +138,9 @@ export class Workstation {
         return;
       case 'file.saveAs':
         void this.fileSave(true);
+        return;
+      case 'score.settings':
+        void this.scoreSettings();
         return;
       default:
         try {
@@ -199,9 +208,58 @@ export class Workstation {
     return choice === 'discard';
   }
 
+  /** Asks for title, instruments, key, meter and upbeat, then starts a new score. */
   async fileNew(): Promise<void> {
     if (!(await this.confirmDiscard())) return;
-    this.load(newScoreState(), null, null);
+    const setup = await scoreDialog({ mode: 'new', initial: loadNewScoreDefaults() });
+    if (!setup) return this.update();
+    saveNewScoreDefaults(setup);
+    this.load(newScoreState(createScore(setup)), null, null);
+  }
+
+  /** Time the user is looking at: caret, else selection, else the start. */
+  private focusTime(): Fraction {
+    const s = this.state;
+    if (s.caret) return s.caret.time;
+    const sel = s.selection;
+    if (sel?.kind === 'gap') return sel.time;
+    if (sel?.kind === 'event') {
+      return getVoice(s.score, sel).voice.events.find((e) => e.id === sel.eventId)?.onset ?? ZERO;
+    }
+    return ZERO;
+  }
+
+  /** Title, key, meter, upbeat of the open score – an undoable change. */
+  async scoreSettings(): Promise<void> {
+    const score = this.state.score;
+    const time = this.focusTime();
+    const measures = measuresOf(score, 1, time);
+    const here = measures.find((m) => le(m.start, time) && lt(time, m.end)) ?? measures[0]!;
+    const at = here.number <= 1 ? ZERO : here.start;
+    const content = measuresOf(score);
+    const changes = await scoreDialog({
+      mode: 'edit',
+      initial: {
+        title: score.title,
+        composer: score.composer ?? '',
+        pickup: score.pickup ?? ZERO,
+        firstMeter: score.meter[0]!.sig,
+        fromMeasure: Math.max(1, here.number),
+        lastMeasure: content[content.length - 1]!.number,
+        fifths: keyAt(score, at),
+        meter: meterAt(score, at),
+      },
+      check: (c) => {
+        const r = applyScoreChanges(this.state.score, c);
+        return 'error' in r ? r.error : null;
+      },
+    });
+    if (!changes) return this.update();
+    const result = applyScoreChanges(this.state.score, changes);
+    if ('score' in result && result.score !== this.state.score) {
+      this.history.apply({ ...this.state, score: result.score, message: 'Partitur-Einstellungen übernommen' });
+    }
+    this.update();
   }
 
   /** Opens `path`, or lets the user pick a file. */
@@ -418,11 +476,12 @@ export class Workstation {
     const measures = measuresOf(s.score, 1, s.caret?.time);
     const bar = (t: Parameters<typeof eq>[0]) =>
       measures.find((m) => !lt(t, m.start) && lt(t, m.end))?.number ?? measures.length;
-    if (sel.kind === 'gap') return `${part.name}${staff} · Takt ${bar(sel.time)} · Pause`;
+    const barName = (t: Fraction) => (bar(t) === 0 ? 'Auftakt' : `Takt ${bar(t)}`);
+    if (sel.kind === 'gap') return `${part.name}${staff} · ${barName(sel.time)} · Pause`;
     const ev = voice.events.find((e) => e.id === sel.eventId);
     if (!ev) return null;
     const what = ev.pitches.length > 1 ? 'Akkord' : 'Note';
-    return `${part.name}${staff} · Takt ${bar(ev.onset)} · ${what} ${ev.pitches.map(pitchToString).join(' ')} · ${durationName(ev.duration)}`;
+    return `${part.name}${staff} · ${barName(ev.onset)} · ${what} ${ev.pitches.map(pitchToString).join(' ')} · ${durationName(ev.duration)}`;
   }
 
   private buildHelp(): void {

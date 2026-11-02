@@ -15,7 +15,8 @@ import { type InstrumentId, INSTRUMENTS } from '../instruments';
 import { type NoteEvent, type Part, type Score, type Voice, validateScore } from '../model';
 
 export const FILE_EXTENSION = 'icastico';
-export const FORMAT_VERSION = 1;
+/** History: 1 = first format (v0.2.0), 2 = optional upbeat "pickup" (v0.3.0). */
+export const FORMAT_VERSION = 2;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -30,6 +31,7 @@ function scoreToJson(score: Score): unknown {
     ...(score.composer !== undefined ? { composer: score.composer } : {}),
     meter: score.meter.map((m) => ({ at: fracToString(m.at), count: m.sig.count, unit: m.sig.unit })),
     keys: score.keys.map((k) => ({ at: fracToString(k.at), fifths: k.fifths })),
+    ...(score.pickup ? { pickup: fracToString(score.pickup) } : {}),
     parts: score.parts.map((p) => ({
       id: p.id,
       name: p.name,
@@ -164,6 +166,7 @@ function readScore(v: unknown): Score {
       if (fifths < -7 || fifths > 7) fail(`Tonart mit ${fifths} Vorzeichen ist ungültig.`);
       return { at: time(e.at, `Tonart ${i + 1}`), fifths };
     }),
+    ...(o.pickup !== undefined ? { pickup: time(o.pickup, 'Auftakt') } : {}),
     parts: arr(o.parts, 'Instrumente').map((p, i) => readPart(p, `Instrument ${i + 1}`)),
   };
   const problems = validateScore(score);
@@ -171,9 +174,17 @@ function readScore(v: unknown): Score {
   return score;
 }
 
-/** Upgrades older file versions step by step. Version 1 is the first. */
-function migrate(doc: Obj): Obj {
-  return doc;
+/** Upgrades a document from version `n` to `n + 1`. */
+const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
+  // 1 → 2: adds the optional "pickup" (Auftakt). Version-1 files have none.
+  1: (doc) => ({ ...doc, version: 2 }),
+};
+
+/** Upgrades older file versions step by step to FORMAT_VERSION. */
+function migrate(doc: Obj, version: number): Obj {
+  let current = doc;
+  for (let v = version; v < FORMAT_VERSION; v++) current = MIGRATIONS[v]!(current);
+  return current;
 }
 
 export function parseScoreFile(text: string): Score {
@@ -189,5 +200,6 @@ export function parseScoreFile(text: string): Score {
   if (version > FORMAT_VERSION) {
     fail('Diese Datei wurde mit einer neueren Icastico-Version gespeichert. Bitte Icastico aktualisieren.');
   }
-  return readScore(migrate(doc).score);
+  if (version < 1) fail(`Unbekannte Dateiversion ${version}.`);
+  return readScore(migrate(doc, version).score);
 }

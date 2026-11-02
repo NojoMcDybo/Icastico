@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { FileFormatError, FORMAT_VERSION, parseScoreFile, serializeScore } from './format';
+import { frac } from '../time';
+import { applyScoreChanges } from '../templates';
+import version1File from './fixtures/version1.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -27,6 +30,22 @@ describe('.icastico format', () => {
   it('keeps titles with quotes and commas intact', () => {
     const score = { ...emptyScore(), title: 'Lied "eins", zwei', composer: 'Ä. Ö' };
     expect(parseScoreFile(serializeScore(score, '0')).title).toBe('Lied "eins", zwei');
+  });
+
+  it('opens files saved by Icastico 0.2.0 (format version 1)', () => {
+    const score = parseScoreFile(version1File);
+    expect(score.title).toBe('Gespeichert mit 0.2.0');
+    expect(score.keys[0]!.fifths).toBe(-1);
+    expect(score.pickup).toBeUndefined();
+    expect(score.parts[0]!.voices[0]!.events[1]!.pitches[0]).toEqual({ step: 'B', alter: -1, octave: 4 });
+  });
+
+  it('stores the upbeat', () => {
+    const r = applyScoreChanges(demoScore(), { pickup: frac(1, 4) });
+    if ('error' in r) throw new Error(r.error);
+    const text = serializeScore(r.score, '0');
+    expect(text).toContain('"pickup": "1/4"');
+    expect(parseScoreFile(text)).toEqual(r.score);
   });
 
   it('accepts notes in any order in the file', () => {
