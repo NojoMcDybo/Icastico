@@ -5,21 +5,25 @@
  * Rendering is skipped when only caret/selection changed (decorate only).
  */
 import { type CommandId, newScoreState, runCommand } from '../core/editor/commands';
+import { demoScore } from '../core/demo';
 import { History } from '../core/editor/history';
 import { type EditorState, createEditorState, getVoice, inputLength } from '../core/editor/state';
-import { FILE_EXTENSION, FileFormatError, parseScoreFile, serializeScore } from '../core/file/format';
+import { FileFormatError, parseScoreFile, serializeScore } from '../core/file/format';
 import { getInstrument } from '../core/instruments';
 import { type Score, keyAt, measuresOf, meterAt } from '../core/model';
 import { durationName } from '../core/notation/notate';
 import { pitchToString } from '../core/pitch';
 import { type Fraction, ZERO, eq, le, lt } from '../core/time';
-import { applyScoreChanges, createScore } from '../core/templates';
+import { applyScoreChanges, createScore, emptyScore } from '../core/templates';
+import { dirOf, fileNameOf, preferredFileName } from '../library/library';
+import type { LibraryStore } from '../library/store';
 import { type ElementRef, type MeiResult, scoreToMei, staffElementId } from '../render/mei';
 import type { Engraver } from '../render/verovio';
 import type { Platform } from '../platform/files';
 import { APP_VERSION } from '../version';
 import { ask, inform, isDialogOpen } from './dialog';
-import { loadNewScoreDefaults, saveNewScoreDefaults } from './preferences';
+import { LibraryPanel } from './libraryPanel';
+import { loadNewScoreDefaults, saveLastOpened, saveNewScoreDefaults } from './preferences';
 import { scoreDialog } from './scoreDialog';
 import { comboOf } from './keys';
 import { type Keymap, type UiCommandId, findBinding } from './keymaps/finale';
@@ -30,28 +34,52 @@ export interface WorkstationElements {
   readonly mode: HTMLElement;
   readonly title: HTMLElement;
   readonly help: HTMLElement;
+  /** Container for the library drawer. */
+  readonly library: HTMLElement;
+  readonly libraryButton: HTMLElement;
 }
+
+interface DocumentLocation {
+  readonly path: string;
+  /** In the library folder: saved automatically, renamed with the title. */
+  readonly inLibrary: boolean;
+}
+
+/** Milliseconds after the last change before a library score saves itself. */
+const AUTOSAVE_DELAY = 1000;
+
+/** Commands that make sense without an open score. */
+const WITHOUT_DOCUMENT = new Set<string>(['file.new', 'file.open', 'library.toggle', 'view.help']);
+
+const isInside = (root: string, path: string): boolean => {
+  const norm = (p: string) => p.replace(/\\/g, '/').toLowerCase();
+  return norm(path).startsWith(`${norm(root).replace(/\/$/, '')}/`);
+};
 
 /** Notation size in percent of Verovio's default. */
 const SCALE = 55;
 /** Clicks this close (px) to a symbol still hit it, e.g. inside a hollow notehead. */
 const HIT_TOLERANCE = 10;
-const HINT = 'Enter: Eingabe · Strg+N: neu · Strg+O: öffnen · Strg+S: speichern · F1: alle Tasten';
+const HINT = 'Enter: Eingabe · Strg+N: neu · Strg+O: Bibliothek · F1: alle Tasten';
+const EMPTY_HINT = 'Strg+N: neue Partitur · Strg+O: Bibliothek · F1: alle Tasten';
 
 const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
-/** A file name derived from the score title, safe on Windows and macOS. */
-const fileNameFor = (title: string): string =>
-  `${title.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Partitur'}.${FILE_EXTENSION}`;
 
 export class Workstation {
   private history: History;
   private result: MeiResult | null = null;
-  /** Where the current score lives on disk (null = never saved / browser). */
-  private filePath: string | null = null;
-  private fileName: string | null = null;
+  /** Where the current score lives (null = not saved anywhere yet). */
+  private location: DocumentLocation | null = null;
+  /** Display name of an external file in the browser (no path there). */
+  private externalName: string | null = null;
+  /** No score open (start without library content, or after trashing it). */
+  private empty = true;
   /** The score as last saved or opened – unsaved changes = anything else. */
   private savedScore: Score;
+  private saving: Promise<boolean> = Promise.resolve(true);
+  private autosaveTimer = 0;
+  private readonly library: LibraryPanel | null;
   /** A file dialog is open; ignore shortcuts meanwhile. */
   private busy = false;
   private windowTitle = '';
@@ -64,16 +92,29 @@ export class Workstation {
     private readonly engraver: Engraver,
     private readonly keymap: Keymap,
     private readonly platform: Platform,
-    initial: EditorState,
+    private readonly store: LibraryStore | null,
   ) {
-    this.history = new History(initial);
-    this.savedScore = initial.score;
+    const blank = createEditorState(emptyScore());
+    this.history = new History(blank);
+    this.savedScore = blank.score;
     this.buildHelp();
+    this.library = store
+      ? new LibraryPanel(el.library, store, {
+          currentPath: () => (this.empty ? null : (this.location?.path ?? null)),
+          flush: () => this.flush(),
+          open: (path) => this.openLibraryItem(path),
+          newScore: (collection) => this.fileNew(collection),
+          openExternal: () => this.fileOpen(),
+          relocated: (from, to) => this.relocated(from, to),
+          closedByTrash: () => this.closeDocument(),
+        })
+      : null;
+    el.libraryButton.hidden = !this.library;
+    el.libraryButton.addEventListener('click', () => this.run('library.toggle'));
     platform.guardClose(
       () => this.dirty,
       () => this.confirmDiscard(),
     );
-    platform.onFileOpened((path) => void this.fileOpen(path));
     window.addEventListener('keydown', (e) => this.onKey(e));
     el.pages.addEventListener('click', (e) => this.onClick(e));
     el.title.addEventListener('click', () => {
@@ -93,7 +134,7 @@ export class Workstation {
 
   /** Unsaved changes? Undoing back to the saved state counts as clean. */
   get dirty(): boolean {
-    return this.state.score !== this.savedScore;
+    return !this.empty && this.state.score !== this.savedScore;
   }
 
   // ── Input ────────────────────────────────────────────────────────────────
@@ -102,6 +143,21 @@ export class Workstation {
     if (isDialogOpen() || this.busy) return;
     const helpOpen = !this.el.help.hidden;
     const combo = comboOf(e);
+    if (this.library?.isOpen) {
+      // The drawer handles its own keys (search, arrows, Enter, Esc).
+      if (combo === 'Escape') {
+        // Focus got lost somewhere (e.g. after a menu action): still close.
+        e.preventDefault();
+        this.library.hide();
+        return;
+      }
+      const binding = combo ? findBinding(this.keymap, combo) : undefined;
+      if (binding && (binding.command === 'library.toggle' || binding.command === 'file.new')) {
+        e.preventDefault();
+        this.run(binding.command);
+      }
+      return;
+    }
     if (helpOpen) {
       if (combo === 'Escape' || combo === 'F1' || combo === '?') {
         e.preventDefault();
@@ -117,7 +173,11 @@ export class Workstation {
   }
 
   run(command: CommandId | UiCommandId, arg = 0): void {
+    if (this.empty && !WITHOUT_DOCUMENT.has(command)) return;
     switch (command) {
+      case 'library.toggle':
+        void this.library?.toggle();
+        return;
       case 'history.undo':
         this.history.undo();
         break;
@@ -152,7 +212,7 @@ export class Workstation {
     this.update();
   }
 
-  // ── Files ────────────────────────────────────────────────────────────────
+  // ── Documents: library, external files, autosave ─────────────────────────
 
   /** Runs a file action with shortcuts blocked; errors become a dialog. */
   private async withBusy<T>(action: () => Promise<T>, errorTitle: string): Promise<T | null> {
@@ -167,15 +227,49 @@ export class Workstation {
     }
   }
 
-  /** Saves; asks for a place if never saved or `saveAs`. False if cancelled or failed. */
+  /** Opens the last edited score (or the newest), then listens for double-clicked files. */
+  async openInitial(lastOpened: string | null): Promise<void> {
+    if (this.store) {
+      const items = this.store.index.items.filter((i) => !i.trashed && !i.broken);
+      const item = items.find((i) => i.path === lastOpened) ?? items[0];
+      if (item) await this.openLibraryItem(item.path);
+      else void this.library?.show();
+    } else {
+      this.load(createEditorState(demoScore()), null);
+    }
+    this.platform.onFileOpened((path) => void this.fileOpen(path));
+  }
+
+  /** Collection (sub-folder) of the open library score; null = top level. */
+  private get currentCollection(): string | null {
+    if (!this.store || !this.location?.inLibrary) return null;
+    const dir = dirOf(this.location.path);
+    return dir === this.store.root ? null : fileNameOf(dir);
+  }
+
+  /** Ctrl+S: library scores save in place (they also save automatically). */
   async fileSave(saveAs: boolean): Promise<boolean> {
+    if (this.empty) return false;
+    if (!saveAs && this.location?.inLibrary) return this.saveLibrary(true);
+    if (!saveAs && !this.location && this.store) {
+      // A score without a home (e.g. the demo without library) moves into the library.
+      const path = await this.withBusy(() => this.store!.createScore(this.state.score, null), 'Speichern fehlgeschlagen');
+      if (!path) return false;
+      this.location = { path, inLibrary: true };
+      this.savedScore = this.state.score;
+      this.history.apply({ ...this.state, message: 'In der Bibliothek gespeichert' });
+      this.update();
+      return true;
+    }
+    // External file, or "save a copy as" for library scores.
     const score = this.state.score;
+    const external = this.location && !this.location.inLibrary ? this.location.path : null;
     const saved = await this.withBusy(
       () =>
         this.platform.write(
           serializeScore(score, APP_VERSION),
-          saveAs ? null : this.filePath,
-          this.fileName ?? fileNameFor(score.title),
+          saveAs ? null : external,
+          preferredFileName(score.title),
         ),
       'Speichern fehlgeschlagen',
     );
@@ -183,16 +277,66 @@ export class Workstation {
       this.update();
       return false;
     }
-    this.filePath = saved.path;
-    this.fileName = saved.name;
-    this.savedScore = score;
-    this.history.apply({ ...this.state, message: `Gespeichert: ${saved.name}` });
+    if (this.location?.inLibrary) {
+      this.history.apply({ ...this.state, message: `Kopie gespeichert: ${saved.name}` });
+    } else {
+      this.location = saved.path ? { path: saved.path, inLibrary: false } : null;
+      this.savedScore = score;
+      this.history.apply({ ...this.state, message: `Gespeichert: ${saved.name}` });
+    }
     this.update();
     return true;
   }
 
-  /** True if the current score may be replaced (saved, discarded or clean). */
+  /** Saves the open library score (queued, so saves never overlap). */
+  private saveLibrary(explicit: boolean): Promise<boolean> {
+    clearTimeout(this.autosaveTimer);
+    this.saving = this.saving.then(async () => {
+      const location = this.location;
+      const score = this.state.score;
+      if (!this.store || !location?.inLibrary) return false;
+      if (score === this.savedScore) {
+        if (explicit) this.history.apply({ ...this.state, message: 'Gespeichert' });
+        return true;
+      }
+      try {
+        const path = await this.store.saveScore(location.path, score);
+        if (this.location === location) this.location = { path, inLibrary: true };
+        this.savedScore = score;
+        saveLastOpened(path);
+        if (explicit) this.history.apply({ ...this.state, message: 'Gespeichert' });
+        return true;
+      } catch (err) {
+        this.history.apply({ ...this.state, message: `Automatisches Speichern fehlgeschlagen: ${errorText(err)}` });
+        if (explicit) await inform('Speichern fehlgeschlagen', errorText(err));
+        return false;
+      } finally {
+        this.renderStatus();
+      }
+    });
+    return this.saving;
+  }
+
+  private scheduleAutosave(): void {
+    clearTimeout(this.autosaveTimer);
+    if (this.location?.inLibrary && this.dirty && !this.empty) {
+      this.autosaveTimer = window.setTimeout(() => void this.saveLibrary(false), AUTOSAVE_DELAY);
+    }
+  }
+
+  /** Writes pending changes of a library score now. */
+  async flush(): Promise<void> {
+    if (this.location?.inLibrary && this.dirty) await this.saveLibrary(false);
+    await this.saving;
+  }
+
+  /** True if the current score may be replaced. Library scores just save; others ask. */
   private async confirmDiscard(): Promise<boolean> {
+    if (this.empty) return true;
+    if (this.location?.inLibrary) {
+      await this.flush();
+      if (!this.dirty) return true;
+    }
     if (!this.dirty) return true;
     const choice = await ask({
       title: 'Ungespeicherte Änderungen',
@@ -208,13 +352,97 @@ export class Workstation {
     return choice === 'discard';
   }
 
-  /** Asks for title, instruments, key, meter and upbeat, then starts a new score. */
-  async fileNew(): Promise<void> {
+  /** Asks for title, instruments, key, meter and upbeat; the new score lands in the library. */
+  async fileNew(collection: string | null = this.library?.isOpen ? this.library.collection : this.currentCollection): Promise<void> {
     if (!(await this.confirmDiscard())) return;
+    this.library?.hide();
     const setup = await scoreDialog({ mode: 'new', initial: loadNewScoreDefaults() });
     if (!setup) return this.update();
     saveNewScoreDefaults(setup);
-    this.load(newScoreState(createScore(setup)), null, null);
+    const score = createScore(setup);
+    if (!this.store) return this.load(newScoreState(score), null);
+    const path = await this.withBusy(() => this.store!.createScore(score, collection), 'Partitur konnte nicht angelegt werden');
+    if (!path) return this.update();
+    saveLastOpened(path);
+    this.load(newScoreState(score), { path, inLibrary: true });
+  }
+
+  async openLibraryItem(path: string): Promise<void> {
+    if (!this.store) return;
+    if (this.location?.path === path && !this.empty) return this.update();
+    if (!(await this.confirmDiscard())) return;
+    const score = await this.withBusy(() => this.store!.readScore(path), 'Partitur konnte nicht geöffnet werden');
+    if (!score) return;
+    saveLastOpened(path);
+    this.load(createEditorState(score), { path, inLibrary: true });
+  }
+
+  /** Opens a file from anywhere (Ctrl+Shift+O, double-click). Library files open as library scores. */
+  async fileOpen(path?: string): Promise<void> {
+    if (path && this.store && isInside(this.store.root, path)) {
+      await this.store.refresh();
+      return this.openLibraryItem(path);
+    }
+    if (!(await this.confirmDiscard())) return;
+    const file = await this.withBusy(
+      () => (path ? this.platform.read(path) : this.platform.pickAndRead()),
+      'Datei konnte nicht geöffnet werden',
+    );
+    if (!file) return;
+    let score: Score;
+    try {
+      score = parseScoreFile(file.text);
+    } catch (err) {
+      const reason = err instanceof FileFormatError ? err.message : `Unerwarteter Fehler: ${errorText(err)}`;
+      await inform(`„${file.name}“ konnte nicht geöffnet werden`, reason);
+      return;
+    }
+    this.externalName = file.name;
+    this.load(
+      { ...createEditorState(score), message: `Geöffnet: ${file.name}` },
+      file.path ? { path: file.path, inLibrary: false } : null,
+    );
+  }
+
+  /** Replaces the document; undo history starts fresh. */
+  private load(state: EditorState, location: DocumentLocation | null): void {
+    clearTimeout(this.autosaveTimer);
+    this.history = new History(state);
+    this.savedScore = state.score;
+    this.location = location;
+    this.empty = false;
+    if (location?.inLibrary) this.externalName = null;
+    this.renderedScore = null;
+    this.update();
+  }
+
+  /** No document open (e.g. the open score went to the trash). */
+  private closeDocument(): void {
+    clearTimeout(this.autosaveTimer);
+    const blank = createEditorState(emptyScore());
+    this.history = new History(blank);
+    this.savedScore = blank.score;
+    this.location = null;
+    this.empty = true;
+    this.update();
+  }
+
+  /** A file or folder was moved/renamed in the library: follow the open document. */
+  private relocated(from: string, to: string): void {
+    const path = this.location?.path;
+    if (!path) return;
+    const sep = path.includes('\\') ? '\\' : '/';
+    const next = path === from ? to : path.startsWith(from + sep) ? to + path.slice(from.length) : null;
+    if (next && this.location) {
+      this.location = { ...this.location, path: next };
+      saveLastOpened(next);
+      this.renderStatus();
+    }
+  }
+
+  private get displayName(): string {
+    if (this.location && !this.location.inLibrary) return this.externalName ?? fileNameOf(this.location.path);
+    return this.state.score.title;
   }
 
   /** Time the user is looking at: caret, else selection, else the start. */
@@ -231,6 +459,7 @@ export class Workstation {
 
   /** Title, key, meter, upbeat of the open score – an undoable change. */
   async scoreSettings(): Promise<void> {
+    if (this.empty) return;
     const score = this.state.score;
     const time = this.focusTime();
     const measures = measuresOf(score, 1, time);
@@ -260,38 +489,6 @@ export class Workstation {
       this.history.apply({ ...this.state, score: result.score, message: 'Partitur-Einstellungen übernommen' });
     }
     this.update();
-  }
-
-  /** Opens `path`, or lets the user pick a file. */
-  async fileOpen(path?: string): Promise<void> {
-    if (!(await this.confirmDiscard())) return;
-    const file = await this.withBusy(
-      () => (path ? this.platform.read(path) : this.platform.pickAndRead()),
-      'Datei konnte nicht geöffnet werden',
-    );
-    if (!file) return;
-    let score: Score;
-    try {
-      score = parseScoreFile(file.text);
-    } catch (err) {
-      const reason = err instanceof FileFormatError ? err.message : `Unerwarteter Fehler: ${errorText(err)}`;
-      await inform(`„${file.name}“ konnte nicht geöffnet werden`, reason);
-      return;
-    }
-    this.load({ ...createEditorState(score), message: `Geöffnet: ${file.name}` }, file.path, file.name);
-  }
-
-  /** Replaces the document; undo history starts fresh. */
-  private load(state: EditorState, path: string | null, name: string | null): void {
-    this.history = new History(state);
-    this.savedScore = state.score;
-    this.filePath = path;
-    this.fileName = name;
-    this.update();
-  }
-
-  private get displayName(): string {
-    return this.fileName ?? this.state.score.title;
   }
 
   private onClick(e: MouseEvent): void {
@@ -351,9 +548,40 @@ export class Workstation {
     }
     this.decorate();
     this.renderStatus();
+    this.scheduleAutosave();
+  }
+
+  /** Shown in the canvas when no score is open. */
+  private renderEmpty(): void {
+    const box = document.createElement('div');
+    box.className = 'empty-state';
+    const title = document.createElement('h2');
+    title.textContent = 'Keine Partitur geöffnet';
+    const text = document.createElement('p');
+    text.textContent = 'Lege eine neue Partitur an oder öffne eine aus der Bibliothek.';
+    const row = document.createElement('div');
+    row.className = 'modal__buttons';
+    const create = document.createElement('button');
+    create.type = 'button';
+    create.className = 'is-primary';
+    create.textContent = 'Neue Partitur (Strg+N)';
+    create.addEventListener('click', () => this.run('file.new'));
+    row.append(create);
+    if (this.library) {
+      const open = document.createElement('button');
+      open.type = 'button';
+      open.textContent = 'Bibliothek (Strg+O)';
+      open.addEventListener('click', () => this.run('library.toggle'));
+      row.append(open);
+    }
+    box.append(title, text, row);
+    this.el.pages.replaceChildren(box);
+    this.result = null;
+    this.renderedScore = null;
   }
 
   private renderIfNeeded(): void {
+    if (this.empty) return this.renderEmpty();
     const s = this.state;
     const coverTime = s.caret?.time;
     const measures = measuresOf(s.score, 1, coverTime).length;
@@ -447,14 +675,17 @@ export class Workstation {
   private renderStatus(): void {
     const s = this.state;
     const dirty = this.dirty;
-    this.el.title.textContent = `${this.displayName}${dirty ? ' •' : ''}`;
-    this.el.title.title = this.filePath ?? (dirty ? 'Nicht gespeichert' : '');
-    const windowTitle = `${this.displayName}${dirty ? ' •' : ''} – Icastico`;
+    const name = this.empty ? 'Keine Partitur' : this.displayName;
+    this.el.title.textContent = `${name}${dirty ? ' •' : ''}`;
+    this.el.title.title = this.empty
+      ? ''
+      : `${this.location?.path ?? 'Noch nicht gespeichert'}${this.location?.inLibrary ? ' (speichert automatisch)' : ''}\nKlick: Partitur-Einstellungen`;
+    const windowTitle = `${name}${dirty ? ' •' : ''} – Icastico`;
     if (windowTitle !== this.windowTitle) {
       this.windowTitle = windowTitle;
       this.platform.setTitle(windowTitle);
     }
-    this.el.status.textContent = s.message ?? this.describeSelection() ?? HINT;
+    this.el.status.textContent = this.empty ? EMPTY_HINT : (s.message ?? this.describeSelection() ?? HINT);
     if (s.caret) {
       const parts = [`Eingabe · ${durationName(inputLength(s.input))}`];
       if (s.input.insert) parts.push('Einfügen');

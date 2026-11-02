@@ -68,6 +68,7 @@ npx tauri build        # Installer bauen
   `npx tauri build --bundles deb`, dann unter `xvfb-run` (mit `openbox` für
   Fensterereignisse) starten und mit `xdotool`/`wmctrl` bedienen
   (`xdotool type` kann dort keine Umlaute – Umlaute im Browser-Test prüfen).
+  Für Bibliothekstests `HOME` auf einen leeren Ordner setzen (= Erststart).
 - **Dateiformat ändern** = Version in `src/core/file/format.ts` erhöhen,
   Migration schreiben, Test mit Datei der alten Version (ADR 0007).
 - Neue Musiklogik bekommt Tests (Notationsregeln sind leicht falsch zu machen).
@@ -84,8 +85,9 @@ src/core/            Modell, Zeit, Tonhöhen, Instrumente, Vorlagen/Einstellunge
 src/core/notation/   Zeitstrahl → Notation (Takte, Bögen, Pausen, Balken)
 src/core/editor/     EditorState, Commands (reine Funktionen), Undo/Redo
 src/core/file/       Dateiformat .icastico
+src/library/         Bibliothek (Dokumente/Icastico): Logik, Speicher-Variante, Bibliothekar
 src/render/          Modell → MEI → Verovio → SVG
-src/ui/              Workstation (Rendering, Cursor, Auswahl), Tastatur, Dialoge
+src/ui/              Workstation (Rendering, Cursor, Auswahl, Autosave), Tastatur, Dialoge, Bibliothek
 src/ui/keymaps/      Tastenbelegungen als Daten (Finale Simple Entry)
 src/platform/        Desktop vs. Browser (Dateien, Fenster) hinter einer Schnittstelle
 src/main.ts          Start

@@ -4,6 +4,8 @@
 //! webview cannot do well or at all: files, later MIDI devices, low-latency
 //! audio and audio-to-notes inference. See docs/architecture.md.
 
+mod library;
+
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -62,8 +64,21 @@ pub fn run() {
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(PendingFile(Mutex::new(initial)))
-        .invoke_handler(tauri::generate_handler![read_score_file, write_score_file, take_pending_file])
+        .manage(library::LibraryRoot::default())
+        .invoke_handler(tauri::generate_handler![
+            read_score_file,
+            write_score_file,
+            take_pending_file,
+            library::library_root,
+            library::library_scan,
+            library::library_create_file,
+            library::library_rename,
+            library::library_create_dir,
+            library::library_delete_file,
+            library::library_remove_dir,
+        ])
         .build(tauri::generate_context!())
         .expect("Icastico konnte nicht gestartet werden");
 

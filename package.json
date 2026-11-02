@@ -1,7 +1,7 @@
 {
   "name": "icastico",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Icastico – Notensatz als individuelle Workstation",
   "license": "GPL-3.0-or-later",
   "type": "module",
@@ -19,6 +19,7 @@
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-dialog": "^2.8.4",
+    "@tauri-apps/plugin-opener": "^2.7.2",
     "verovio": "6.3.0"
   },
   "devDependencies": {

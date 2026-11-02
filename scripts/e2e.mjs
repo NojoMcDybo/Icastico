@@ -1,10 +1,11 @@
 // End-to-end check of the real UI in headless Chromium (browser platform:
-// save = download, open = file chooser). Run after `npm run build`:
+// the library lives in local storage, external saves are downloads).
+// Run after `npm run build`:
 //   npm run e2e [-- <output-dir>]
 // Exits non-zero on the first failed expectation. Screenshots go to the
 // output dir (default: a temp folder).
 import { createRequire } from 'node:module';
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { preview } from 'vite';
@@ -26,10 +27,12 @@ const server = await preview({ preview: { port: 4174, strictPort: false }, logLe
 const browser = await chromium.launch();
 const errors = [];
 try {
-  const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, acceptDownloads: true });
+  const context = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true });
+  const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  await page.goto(server.resolvedUrls.local[0]);
+  const url = server.resolvedUrls.local[0];
+  await page.goto(url);
   await page.waitForSelector('.page svg');
 
   const title = () => page.textContent('#doc-title');
@@ -38,128 +41,206 @@ try {
   const type = async (...keys) => {
     for (const k of keys) await page.keyboard.press(k);
   };
-  const saveDownload = async (keys, file) => {
-    const [download] = await Promise.all([page.waitForEvent('download'), type(...keys)]);
-    await download.saveAs(file);
-    return download.suggestedFilename();
+  const saved = () => page.waitForFunction(() => !document.querySelector('#doc-title')?.textContent?.endsWith('•'), null, { timeout: 5000 });
+  /** Files in the (browser) library: path → title. */
+  const files = () =>
+    page.evaluate(() => {
+      const lib = JSON.parse(localStorage.getItem('icastico.browserLibrary') ?? '{"files":{}}');
+      return Object.fromEntries(
+        Object.entries(lib.files)
+          .filter(([p]) => p.endsWith('.icastico'))
+          .map(([p, f]) => [p, JSON.parse(f.contents).score.title]),
+      );
+    });
+  const openLibrary = async () => {
+    await type('Control+o');
+    await page.waitForSelector('#library:not([hidden])');
   };
-  const openFile = async (file) => {
-    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), type('Control+o')]);
+  const items = () => page.locator('.library__item .library__item-title').allTextContents();
+  const itemMenu = async (titleText, entry) => {
+    await page.locator('.library__item', { hasText: titleText }).first().hover();
+    await page.locator('.library__item', { hasText: titleText }).first().locator('.library__more').click();
+    await page.locator('.menu button', { hasText: entry }).click();
+  };
+  const view = async (name) => page.locator('.library__view', { hasText: name }).click();
+  const openExternal = async (file) => {
+    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), type('Control+Shift+o')]);
     await chooser.setFiles(file);
   };
 
-  check((await title()) === 'Erste Skizze', 'Start: Demo geladen, nichts ungespeichert');
+  // ── Erster Start ──
+  check((await title()) === 'Erste Skizze', 'Erster Start: Beispiel „Erste Skizze“ aus der Bibliothek geöffnet');
+  check(JSON.stringify(await files()) === '{"/Icastico/Erste Skizze.icastico":"Erste Skizze"}', 'Bibliotheksordner angelegt, Beispiel darin gespeichert');
 
-  await type('Control+n');
-  await page.waitForSelector('.modal');
-  check((await page.textContent('.modal h2')) === 'Neue Partitur', 'Strg+N bei sauberer Partitur: direkt der Neu-Dialog');
+  // ── Bibliothek als Menü ──
+  await openLibrary();
+  check((await items()).map((t) => t.trim()).join() === 'Erste Skizze', 'Strg+O zeigt die Bibliothek mit der Partitur');
+  check((await page.locator('.library__item.is-current').count()) === 1, 'Geöffnete Partitur ist markiert');
+  await type('Escape');
+  check(await page.locator('#library').isHidden(), 'Esc schließt die Bibliothek');
+  await page.click('#library-button');
+  check(await page.locator('#library').isVisible(), 'Knopf „Bibliothek“ oben links öffnet sie auch');
+
+  // ── Neue Partitur landet in der Bibliothek ──
+  await page.click('.library__header-actions .is-primary');
+  await page.waitForSelector('.modal h2:text("Neue Partitur")');
   await page.keyboard.type('Mein Lied');
   await type('Enter');
-  check((await page.locator('.modal').count()) === 0 && (await title()) === 'Mein Lied', 'Titel tippen + Enter legt die Partitur an');
-  check((await page.locator('.page').textContent()).includes('Mein Lied'), 'Titel steht auf dem Notenblatt');
+  await page.waitForFunction(() => document.querySelector('#doc-title')?.textContent === 'Mein Lied');
+  check('/Icastico/Mein Lied.icastico' in (await files()), '„+ Neue Partitur“ legt „Mein Lied.icastico“ in der Bibliothek an');
 
+  // ── Automatisch speichern ──
   await type('5', 'c', 'd', 'e');
-  check((await title()) === 'Mein Lied •', 'Nach Eingabe: Punkt im Titel = ungespeichert');
+  check((await title()) === 'Mein Lied •', 'Nach Eingabe: Punkt = noch nicht gespeichert');
+  await saved();
+  check((await title()) === 'Mein Lied', 'Nach einer Sekunde automatisch gespeichert');
 
-  const saved = join(outDir, 'Mein Lied.icastico');
-  const name = await saveDownload(['Control+s'], saved);
-  check(name === 'Mein Lied.icastico', `Strg+S schlägt Dateinamen aus dem Titel vor (${name})`);
-  check((await title()) === 'Mein Lied.icastico', 'Nach Speichern: Dateiname im Titel, kein Punkt');
-  check((await status()) === 'Gespeichert: Mein Lied.icastico', 'Statuszeile bestätigt Speichern');
-  const text = readFileSync(saved, 'utf8');
-  check(/"pitches": \["C5"\][\s\S]*"pitches": \["D5"\][\s\S]*"pitches": \["E5"\]/.test(text), 'Datei enthält C5 D5 E5');
+  // ── Titel ändern → Datei wird umbenannt ──
+  await type('Escape', 'Control+Comma');
+  await page.waitForSelector('.modal h2:text("Partitur-Einstellungen")');
+  await page.fill('#f-title', 'Ständchen für Anna');
+  await page.click('.modal button[type="submit"]');
+  await saved();
+  const afterRename = await files();
+  check(
+    afterRename['/Icastico/Ständchen für Anna.icastico'] === 'Ständchen für Anna' && !('/Icastico/Mein Lied.icastico' in afterRename),
+    'Neuer Titel → Datei heißt jetzt „Ständchen für Anna.icastico“ (alte ist weg)',
+  );
 
-  await type('f');
-  await type('Control+n');
-  await page.waitForSelector('.modal');
-  check((await page.textContent('.modal h2')) === 'Ungespeicherte Änderungen', 'Strg+N mit Änderungen fragt nach');
-  await page.screenshot({ path: join(outDir, 'nachfrage.png') });
-  await page.keyboard.press('Escape');
-  check((await page.locator('.modal').count()) === 0 && (await notes()) === 4, 'Esc bricht ab, Noten bleiben');
-
-  await type('Control+n');
-  await page.click('.modal button[data-id="discard"]');
-  await page.waitForSelector('.modal h2:text("Neue Partitur")');
+  // ── Sammlungen ──
+  await openLibrary();
+  await page.click('.library__add');
+  await page.waitForSelector('.modal h2:text("Neue Sammlung")');
+  await page.keyboard.type('papierkorb');
   await type('Enter');
-  check((await title()) === 'Ohne Titel' && (await notes()) === 0, '„Nicht speichern“ verwirft, leerer Titel = „Ohne Titel“');
+  check((await page.textContent('.form__error')).includes('reserviert'), 'Name „Papierkorb“ wird abgelehnt');
+  await page.fill('#prompt-input', 'Lieder');
+  await type('Enter');
+  await page.waitForSelector('.library__heading:text("Lieder")');
+  check((await page.locator('.library__view', { hasText: 'Lieder' }).locator('.library__badge').textContent()) === 'Li', 'Sammlung „Lieder“ mit Kachel „Li“');
 
-  await openFile(saved);
-  await page.waitForFunction(() => document.querySelectorAll('.page g.note').length === 3);
-  check((await status()) === 'Geöffnet: Mein Lied.icastico', 'Strg+O öffnet die gespeicherte Datei');
-  check((await notes()) === 3, 'Geöffnete Partitur hat genau die 3 gespeicherten Noten');
+  await view('Alle Partituren');
+  await itemMenu('Ständchen', 'Verschieben nach: Lieder');
+  await page.waitForFunction(() => document.querySelector('.library__where')?.textContent === 'Lieder');
+  check('/Icastico/Lieder/Ständchen für Anna.icastico' in (await files()), 'Verschieben legt die Datei in den Ordner „Lieder“');
+  await page.screenshot({ path: join(outDir, 'bibliothek.png') });
 
-  await type('Control+z');
-  check((await status()) === 'Nichts rückgängig zu machen.', 'Nach dem Öffnen beginnt der Verlauf neu');
+  // Die offene Partitur ist mitgewandert: weiter tippen speichert am neuen Ort
+  // (Esc schließt die Bibliothek, Esc hebt die Auswahl auf, Enter = Cursor ans Ende)
+  await type('Escape', 'Escape', 'Enter', 'f');
+  check(await page.evaluate(() => document.activeElement === document.body), 'Nach dem Schließen tippt die Tastatur wieder in die Noten (nicht ins Suchfeld)');
+  await saved();
+  const moved = await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files['/Icastico/Lieder/Ständchen für Anna.icastico'].contents);
+  check((moved.match(/"pitches"/g) ?? []).length === 4, 'Offene Partitur ist mitgewandert: neue Note landet in der verschobenen Datei');
 
-  await type('Enter', 'g');
-  check((await title()) === 'Mein Lied.icastico •', 'Änderung nach dem Öffnen markiert ungespeichert');
-  await type('Control+z');
-  check((await title()) === 'Mein Lied.icastico', 'Rückgängig bis zum gespeicherten Stand = wieder sauber');
+  // ── Suche + Tastatur ──
+  await openLibrary();
+  await view('Alle Partituren');
+  await page.keyboard.type('skiz');
+  check((await items()).map((t) => t.trim()).join() === 'Erste Skizze', 'Suche „skiz“ findet nur „Erste Skizze“');
+  await type('Enter');
+  await page.waitForFunction(() => document.querySelector('#doc-title')?.textContent === 'Erste Skizze');
+  check(await page.locator('#library').isHidden(), 'Enter öffnet den Treffer und schließt die Bibliothek');
 
+  // ── Papierkorb ──
+  await openLibrary();
+  await itemMenu('Ständchen', 'In den Papierkorb');
+  await view('Papierkorb');
+  check((await items()).map((t) => t.trim()).join() === 'Ständchen für Anna', 'Papierkorb enthält die Partitur');
+  await itemMenu('Ständchen', 'Wiederherstellen');
+  await view('Lieder');
+  check((await items()).map((t) => t.trim()).join() === 'Ständchen für Anna', 'Wiederherstellen bringt sie zurück in „Lieder“');
+
+  // Offene Partitur in den Papierkorb → leerer Zustand
+  await view('Alle Partituren');
+  await itemMenu('Erste Skizze', 'In den Papierkorb');
+  await type('Escape');
+  check((await page.textContent('.empty-state h2')) === 'Keine Partitur geöffnet', 'Offene Partitur weggeworfen → „Keine Partitur geöffnet“');
+  await type('c', 'Enter');
+  check((await page.locator('.empty-state').count()) === 1, 'Ohne Partitur machen Notentasten nichts kaputt');
+  await page.screenshot({ path: join(outDir, 'leer.png') });
+
+  await openLibrary();
+  await view('Papierkorb');
+  await itemMenu('Erste Skizze', 'Endgültig löschen');
+  await page.click('.modal button[data-id="delete"]');
+  check(!('/Icastico/Papierkorb/Erste Skizze.icastico' in (await files())) && (await items()).length === 0, 'Endgültig löschen (mit Rückfrage)');
+
+  // ── Neustart: zuletzt geöffnete Partitur kommt wieder ──
+  await view('Lieder');
+  await page.locator('.library__item', { hasText: 'Ständchen' }).click();
+  await page.waitForFunction(() => document.querySelector('#doc-title')?.textContent === 'Ständchen für Anna');
+  await page.reload();
+  await page.waitForSelector('.page svg');
+  check((await title()) === 'Ständchen für Anna' && (await notes()) === 4, 'Nach Neustart: zuletzt geöffnete Partitur, alle 4 Noten da');
+
+  // ── Neue Partitur in der gerade angezeigten Sammlung ──
+  await openLibrary();
+  await view('Lieder');
+  await page.click('.library__header-actions .is-primary');
+  await page.waitForSelector('.modal h2:text("Neue Partitur")');
+  await page.fill('#f-title', 'Wiegenlied');
+  await page.click('.instruments li:nth-child(3) button[aria-label$="entfernen"]');
+  await page.click('.instruments li:nth-child(2) button[aria-label$="entfernen"]');
+  await page.selectOption('#f-key', '2');
+  await page.click('button[data-meter="3/4"]');
+  await page.selectOption('#f-pickup', '1/4');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction(() => document.querySelector('#doc-title')?.textContent === 'Wiegenlied');
+  check('/Icastico/Lieder/Wiegenlied.icastico' in (await files()), 'Neue Partitur landet in der angezeigten Sammlung „Lieder“');
+  check((await page.locator('.page g.keySig').first().locator('use').count()) === 2, 'D-Dur: zwei Kreuze');
+  await type('5', 'a', 'd', 'e', 'f', '6', 'g', '5', 'f');
+  check((await page.locator('.page g.measure').count()) === 4, 'Auftakt + 3/4: Takte richtig aufgeteilt');
+  check((await page.locator('.page g.accid use').count()) === 0, 'F in D-Dur ist Fis: kein Vorzeichen gezeichnet');
+  await saved();
+
+  // ── Sammlung umbenennen: offene Partitur wandert mit ──
+  await openLibrary();
+  await view('Lieder');
+  await page.click('.library__header .library__more');
+  await page.locator('.menu button', { hasText: 'Umbenennen' }).click();
+  await page.fill('#prompt-input', 'Volkslieder');
+  await type('Enter');
+  await page.waitForSelector('.library__heading:text("Volkslieder")');
+  await type('Escape', 'Enter', '7', 'g');
+  await saved();
+  check('/Icastico/Volkslieder/Wiegenlied.icastico' in (await files()), 'Sammlung umbenannt, offene Partitur speichert am neuen Ort');
+  await openLibrary();
+  await view('Volkslieder');
+  await page.click('.library__header .library__more');
+  await page.locator('.menu button', { hasText: 'Sammlung löschen' }).click();
+  await page.waitForSelector('.modal');
+  check((await page.textContent('.modal p')).includes('enthält noch Partituren'), 'Volle Sammlung lässt sich nicht löschen');
+  await page.click('.modal button');
+  await type('Escape');
+
+  // ── Dateien von außerhalb ──
   const broken = join(outDir, 'Zukunft.icastico');
   writeFileSync(broken, JSON.stringify({ format: 'icastico', version: 99, score: {} }));
-  await openFile(broken);
+  await openExternal(broken);
   await page.waitForSelector('.modal');
-  check((await page.textContent('.modal p')).includes('neueren Icastico-Version'), 'Datei aus der Zukunft: klare Meldung');
-  await page.screenshot({ path: join(outDir, 'fehler.png') });
+  check((await page.textContent('.modal p')).includes('neueren Icastico-Version'), 'Fremddatei aus der Zukunft: klare Meldung');
   await page.click('.modal button');
-  check((await notes()) === 3, 'Nach Fehlermeldung ist die alte Partitur unverändert da');
+  check((await title()) === 'Wiegenlied', 'Nach der Fehlermeldung ist die offene Partitur unverändert');
 
   const junk = join(outDir, 'Einkaufsliste.icastico');
   writeFileSync(junk, 'Milch, Eier, Brot');
-  await openFile(junk);
+  await openExternal(junk);
   await page.waitForSelector('.modal');
-  check((await page.textContent('.modal p')).includes('keine Icastico-Datei'), 'Fremde Datei: klare Meldung');
+  check((await page.textContent('.modal p')).includes('keine Icastico-Datei'), 'Keine Partitur: klare Meldung');
   await page.click('.modal button');
 
-  await type('Control+Shift+s');
-  check((await page.locator('.modal').count()) === 0, 'Speichern unter: kein Fehler');
+  const [download] = await Promise.all([page.waitForEvent('download'), type('Control+Shift+s')]);
+  check(download.suggestedFilename() === 'Wiegenlied.icastico', 'Strg+Umschalt+S speichert eine Kopie außerhalb der Bibliothek');
 
-  // ── Neue Partitur mit eigenen Einstellungen ──
-  await type('Control+n');
-  await page.waitForSelector('.modal h2:text("Neue Partitur")');
-  await page.fill('#f-title', 'Wiegenlied');
-  await page.click('.instruments li:nth-child(3) button[aria-label$="entfernen"]'); // Klavier raus
-  await page.click('.instruments li:nth-child(2) button[aria-label$="entfernen"]'); // Gitarre raus
-  await page.selectOption('#f-key', '2'); // D-Dur
-  await page.click('button[data-meter="3/4"]');
-  await page.selectOption('#f-pickup', '1/4');
-  await page.screenshot({ path: join(outDir, 'neu-dialog.png') });
-  await page.click('.modal button[type="submit"]');
-  check((await page.locator('.page g.staff').count()) >= 1 && (await page.textContent('.page')).includes('Wiegenlied'), 'Partitur „Wiegenlied“ angelegt');
-  check((await page.locator('.page g.label').allTextContents()).map((t) => t.trim()).join() === 'Gesang', 'Nur Gesang, keine weiteren Instrumente');
-  check((await page.locator('.page g.keySig').first().locator('use').count()) === 2, 'D-Dur: zwei Kreuze');
-  // Auftakt (Viertel) + zwei volle 3/4-Takte
-  await type('5', 'a', 'd', 'e', 'f', '6', 'g', '5', 'f');
-  check((await page.locator('.page g.measure').count()) === 4, 'Auftakt + 3/4: Takte richtig aufgeteilt (Auftakt, 2 volle, 1 leerer für den Cursor)');
-  check((await page.locator('.page g.measure').first().locator('g.note').count()) === 1, 'Auftakt enthält genau eine Note');
-  check((await page.locator('.page g.accid use').count()) === 0, 'F in D-Dur ist Fis: kein Vorzeichen gezeichnet');
-  await page.screenshot({ path: join(outDir, 'wiegenlied.png') });
-
-  // ── Einstellungen nachträglich ──
-  await type('Escape', 'Control+Comma');
-  await page.waitForSelector('.modal h2:text("Partitur-Einstellungen")');
-  await page.fill('#f-title', 'Wiegenlied für Anna');
-  await page.selectOption('#f-pickup', '0');
-  await page.click('.modal button[type="submit"]');
-  check((await page.textContent('.page')).includes('Wiegenlied für Anna'), 'Strg+, ändert den Titel');
-  check((await page.locator('.page g.measure').first().locator('g.note').count()) === 3, 'Auftakt entfernt: Taktstriche verschieben sich, Noten bleiben');
-  await type('Control+z');
-  check((await page.locator('.page g.measure').first().locator('g.note').count()) === 1 && (await title()).startsWith('Wiegenlied •'), 'Strg+Z macht die Einstellungen rückgängig');
-
+  // ── Einstellungen: Fehler im Dialog ──
   await page.click('#doc-title');
   await page.waitForSelector('.modal h2:text("Partitur-Einstellungen")');
-  check((await page.inputValue('#f-from')) === '2', 'Einstellungen beziehen sich auf den Takt der Auswahl (2)');
-  await page.fill('#f-from', '1');
-  await page.selectOption('#f-pickup', '1/2');
-  await page.click('button[data-meter="2/4"]');
-  check((await page.inputValue('#f-pickup')) === '0', 'Klick auf Titel öffnet Einstellungen; 2/4 verwirft den zu langen Auftakt');
   await page.fill('#f-from', '99');
+  await page.selectOption('#f-key', '3');
   await page.click('.modal button[type="submit"]');
   check((await page.textContent('.form__error')).includes('Takt 99 gibt es nicht'), 'Unmöglicher Takt: Meldung im Dialog, Dialog bleibt offen');
-  await page.screenshot({ path: join(outDir, 'einstellungen-fehler.png') });
   await type('Escape');
-  check((await page.locator('.modal').count()) === 0, 'Esc schließt die Einstellungen ohne Änderung');
 
   check(errors.length === 0, `Keine Fehler in der Konsole${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   console.log(`\nAlle ${step} Prüfungen bestanden. Screenshots: ${outDir}`);

@@ -28,7 +28,7 @@ Partituren müssen gespeichert und wieder geöffnet werden. Das Format bleibt
 Ziel, auf die Platte gezwungen (`sync_all`), dann per Umbenennen ersetzt.
 Ein Absturz oder Stromausfall beim Speichern zerstört nie die alte Datei.
 
-**Ungespeicherte Änderungen:** Neu, Öffnen und Fenster-Schließen fragen nach
+**Ungespeicherte Änderungen** (gilt seit ADR 0009 nur noch für Dateien außerhalb der Bibliothek; Bibliotheks-Partituren speichern automatisch): Neu, Öffnen und Fenster-Schließen fragen nach
 (Speichern / Nicht speichern / Abbrechen). „Ungespeichert“ heißt: Die
 aktuelle Partitur ist nicht dieselbe wie die zuletzt gespeicherte – wer per
 Rückgängig zum gespeicherten Stand zurückkehrt, hat keine Änderungen mehr.

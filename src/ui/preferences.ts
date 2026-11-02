@@ -47,3 +47,22 @@ export function saveNewScoreDefaults(setup: ScoreSetup): void {
     // Storage unavailable – next time the defaults apply.
   }
 }
+
+const LAST = 'icastico.lastOpened';
+
+/** Path of the score that was open last (to reopen it on start). */
+export function loadLastOpened(): string | null {
+  try {
+    return localStorage.getItem(LAST);
+  } catch {
+    return null;
+  }
+}
+
+export function saveLastOpened(path: string): void {
+  try {
+    localStorage.setItem(LAST, path);
+  } catch {
+    // not remembered – the newest score opens instead
+  }
+}

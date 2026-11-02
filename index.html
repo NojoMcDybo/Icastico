@@ -8,6 +8,9 @@
   <body>
     <div class="workstation">
       <header class="topbar">
+        <button class="library-button" id="library-button" type="button" title="Bibliothek (Strg+O)" aria-label="Bibliothek öffnen">
+          <span class="library-button__icon" aria-hidden="true"></span>Bibliothek
+        </button>
         <span class="brand">Icastico</span>
         <span class="doc-title" id="doc-title"></span>
         <span class="mode" id="mode">Auswahl</span>
@@ -21,6 +24,7 @@
         <span class="meta" id="meta"></span>
       </footer>
       <div class="help" id="help" hidden></div>
+      <div id="library" hidden></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

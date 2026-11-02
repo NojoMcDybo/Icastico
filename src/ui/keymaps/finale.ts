@@ -16,7 +16,8 @@ export type UiCommandId =
   | 'file.open'
   | 'file.save'
   | 'file.saveAs'
-  | 'score.settings';
+  | 'score.settings'
+  | 'library.toggle';
 
 export interface KeyBinding {
   readonly combo: string;
@@ -71,7 +72,8 @@ export const FINALE_KEYMAP: Keymap = {
     { combo: 'Mod+Y', command: 'history.redo' },
     { combo: 'Mod+Shift+Z', command: 'history.redo' },
     { combo: 'Mod+N', command: 'file.new' },
-    { combo: 'Mod+O', command: 'file.open' },
+    { combo: 'Mod+O', command: 'library.toggle' },
+    { combo: 'Mod+Shift+O', command: 'file.open' },
     { combo: 'Mod+S', command: 'file.save' },
     { combo: 'Mod+Shift+S', command: 'file.saveAs' },
     { combo: 'Mod+Comma', command: 'score.settings' },
@@ -108,9 +110,10 @@ export const FINALE_KEYMAP: Keymap = {
       entries: [
         { keys: 'Strg+N', text: 'Neue Partitur (Titel, Instrumente, Tonart, Taktart, Auftakt)' },
         { keys: 'Strg+, / Klick auf Titel', text: 'Partitur-Einstellungen: Titel, Tonart, Taktart, Auftakt' },
-        { keys: 'Strg+O', text: 'Partitur öffnen' },
-        { keys: 'Strg+S', text: 'Speichern' },
-        { keys: 'Strg+Umschalt+S', text: 'Speichern unter …' },
+        { keys: 'Strg+O', text: 'Bibliothek: alle Partituren, Sammlungen, Papierkorb' },
+        { keys: 'Strg+S', text: 'Speichern (Partituren in der Bibliothek speichern sich auch selbst)' },
+        { keys: 'Strg+Umschalt+S', text: 'Kopie speichern unter …' },
+        { keys: 'Strg+Umschalt+O', text: 'Datei von außerhalb der Bibliothek öffnen' },
       ],
     },
     {

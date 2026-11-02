@@ -40,6 +40,12 @@ Eingabewegen, die zum Instrument passen – bis hin zu Audio→Noten.
 
 **Melodie einsingen** (bestätigt) – einstimmig, technisch am verlässlichsten.
 
+## Ablage
+
+Icastico verwaltet seine Partituren selbst in `Dokumente/Icastico`
+(Sammlungen = Ordner), speichert automatisch und zeigt alles in einer
+Bibliothek – angelehnt an „Folio“ (ADR 0009).
+
 ## Eingabe
 
 **Erstmal wie Finale** (Simple Entry): Zahlen für Notenwerte, Buchstaben für

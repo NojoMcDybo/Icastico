@@ -1,11 +1,12 @@
 import './styles.css';
 import { demoScore } from './core/demo';
-import { createEditorState } from './core/editor/state';
+import { LibraryStore } from './library/store';
 import { Engraver } from './render/verovio';
 import { FINALE_KEYMAP } from './ui/keymaps/finale';
 import { Workstation } from './ui/workstation';
 import { currentPlatform } from './platform/files';
 import { APP_VERSION } from './version';
+import { loadLastOpened } from './ui/preferences';
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -13,13 +14,35 @@ async function start(): Promise<void> {
   $('status').textContent = 'Notensatz wird geladen …';
   const engraver = await Engraver.create();
   $('meta').textContent = `Icastico ${APP_VERSION} · Verovio ${engraver.version.split('-')[0]}`;
-  new Workstation(
-    { pages: $('pages'), status: $('status'), mode: $('mode'), title: $('doc-title'), help: $('help') },
+  const platform = currentPlatform();
+
+  // The library folder (Documents/Icastico). On the very first start the
+  // demo score is saved there as an example.
+  let store: LibraryStore | null = new LibraryStore(platform.library, APP_VERSION);
+  try {
+    await store.open(demoScore());
+  } catch (err) {
+    console.error('Bibliothek nicht verfügbar:', err);
+    store = null;
+  }
+
+  const workstation = new Workstation(
+    {
+      pages: $('pages'),
+      status: $('status'),
+      mode: $('mode'),
+      title: $('doc-title'),
+      help: $('help'),
+      library: $('library'),
+      libraryButton: $('library-button'),
+    },
     engraver,
     FINALE_KEYMAP,
-    currentPlatform(),
-    createEditorState(demoScore()),
+    platform,
+    store,
   );
+  await workstation.openInitial(loadLastOpened());
+  if (!store) $('status').textContent = 'Bibliothek nicht verfügbar – Speichern nur über „Speichern unter“.';
 }
 
 start().catch((err: unknown) => {

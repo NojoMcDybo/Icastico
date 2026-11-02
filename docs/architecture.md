@@ -79,9 +79,22 @@ ausführlich getestet.
 - `src/ui/scoreDialog.ts` – „Neue Partitur“ / „Partitur-Einstellungen“.
 - `src/ui/preferences.ts` – letzte Auswahl im Neu-Dialog (lokal gespeichert).
 
-### 7. Native Hülle – `src-tauri/`
+### 7. Bibliothek – `src/library/` (ADR 0009)
 
-Tauri 2. Dateien lesen und absturzsicher schreiben (`read_score_file`,
+- `library.ts` – reine Logik: Dateinamen aus Titeln, Übersicht pro Partitur,
+  Filtern/Suchen, Anzeige-Helfer.
+- `service.ts` – Schnittstelle für Dateioperationen; `memory.ts` setzt sie im
+  Speicher um (Browser, Tests) mit denselben Regeln wie Rust.
+- `store.ts` – „Bibliothekar“: anlegen, speichern (+ umbenennen), duplizieren,
+  verschieben, Papierkorb mit Herkunft, Sammlungen.
+- UI: `src/ui/libraryPanel.ts` (Seitenleiste), Workstation speichert
+  Bibliotheks-Partituren automatisch und folgt verschobenen Dateien.
+
+### 8. Native Hülle – `src-tauri/`
+
+Tauri 2. `library.rs`: Bibliotheksordner finden/anlegen, durchsuchen,
+anlegen/umbenennen/löschen – nur innerhalb des Ordners. `lib.rs`:
+Dateien lesen und absturzsicher schreiben (`read_score_file`,
 `write_score_file`), per Doppelklick übergebene Dateien (`take_pending_file`,
 macOS-Ereignis `open-file`), Dialog-Plugin. Geplant: MIDI (`midir`),
 Audio-Ein/Ausgabe (`cpal`), Synthesizer, ONNX-Inferenz für Audio→Noten.

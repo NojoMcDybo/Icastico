@@ -8,7 +8,11 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open, save } from '@tauri-apps/plugin-dialog';
+import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { FILE_EXTENSION } from '../core/file/format';
+import type { RawScan } from '../library/library';
+import { MemoryLibrary } from '../library/memory';
+import type { LibraryService } from '../library/service';
 
 export interface OpenedFile {
   readonly name: string;
@@ -24,6 +28,8 @@ export interface SavedFile {
 
 export interface Platform {
   readonly kind: 'desktop' | 'browser';
+  /** The score library (Documents/Icastico). */
+  readonly library: LibraryService;
   /** Lets the user pick a file; null if cancelled. */
   pickAndRead(): Promise<OpenedFile | null>;
   read(path: string): Promise<OpenedFile>;
@@ -46,8 +52,22 @@ export const baseName = (path: string): string => path.split(/[\\/]/).pop() ?? p
 const withExtension = (path: string): string =>
   path.toLowerCase().endsWith(`.${FILE_EXTENSION}`) ? path : `${path}.${FILE_EXTENSION}`;
 
+const desktopLibrary: LibraryService = {
+  root: () => invoke<{ path: string; created: boolean }>('library_root'),
+  scan: () => invoke<RawScan>('library_scan'),
+  read: (path) => invoke<string>('read_score_file', { path }),
+  write: (path, contents) => invoke('write_score_file', { path, contents }),
+  createFile: (path, contents) => invoke('library_create_file', { path, contents }),
+  rename: (from, to) => invoke('library_rename', { from, to }),
+  createDir: (path) => invoke('library_create_dir', { path }),
+  deleteFile: (path) => invoke('library_delete_file', { path }),
+  removeDir: (path) => invoke('library_remove_dir', { path }),
+  reveal: (path) => revealItemInDir(path),
+};
+
 const desktop: Platform = {
   kind: 'desktop',
+  library: desktopLibrary,
 
   async pickAndRead() {
     const path = await open({ multiple: false, directory: false, filters: FILTERS, title: 'Partitur öffnen' });
@@ -92,8 +112,32 @@ const desktop: Platform = {
   },
 };
 
+/** Browser: the library lives in local storage (development and Claude's tests). */
+function browserLibrary(): LibraryService {
+  const KEY = 'icastico.browserLibrary';
+  return new MemoryLibrary('/Icastico', {
+    load: () => {
+      try {
+        return localStorage.getItem(KEY);
+      } catch {
+        return null;
+      }
+    },
+    save: (data) => {
+      try {
+        localStorage.setItem(KEY, data);
+      } catch {
+        // storage full or blocked: the library still works for this session
+      }
+    },
+  });
+}
+
 const browser: Platform = {
   kind: 'browser',
+  get library() {
+    return (browserLibraryInstance ??= browserLibrary());
+  },
 
   pickAndRead() {
     return new Promise((resolve, reject) => {
@@ -138,6 +182,8 @@ const browser: Platform = {
     // Browsers have no "open with".
   },
 };
+
+let browserLibraryInstance: LibraryService | undefined;
 
 export function currentPlatform(): Platform {
   return isTauri() ? desktop : browser;

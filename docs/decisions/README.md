@@ -36,3 +36,4 @@ Was wird dadurch leichter, was schwerer?
 | 0006 | [Noteneingabe nach Finale (Simple Entry)](0006-eingabe-nach-finale.md) | angenommen – Annahmen vom Owner zu prüfen |
 | 0007 | [Dateiformat `.icastico` und Speichern](0007-dateiformat.md) | angenommen |
 | 0008 | [Auftakt und globale Partitur-Einstellungen](0008-auftakt-und-einstellungen.md) | angenommen |
+| 0009 | [Bibliothek: eigener Ordner, Sammlungen, automatisches Speichern](0009-bibliothek.md) | angenommen – Design-Referenz „Folio“ vom Owner zu bestätigen |
