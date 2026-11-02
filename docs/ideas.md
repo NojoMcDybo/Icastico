@@ -38,64 +38,95 @@ schneller oder einfacher? Wenn nein, wandert es nach unten.
 | Akkordsymbole schnell tippen („Am7“, „F#m/C#“) | 💡 | M | Vorschlag | Für Gitarre/Gesang wichtig, siehe Abschnitt 4 |
 | Gitarre: Eingabe am Griffbrett (Bund anklicken) | 💡 | L | Vision | Setzt Tabulatur-Überlegungen voraus |
 | Auswahl erweitern (Takte markieren, kopieren, einfügen, wiederholen) | ❓ | M | Vorschlag | Fehlt bisher komplett – ohne Kopieren ist kein Lied in vertretbarer Zeit fertig |
-| **Diktierfunktion**: Noten per Sprache eingeben („c, Viertel, d, Achtel, Pause …“) | ❓ | L | Owner | Siehe Abschnitt „Diktieren“ unten |
+| **Sprachbefehle**: Notenwerte, Pause, Punkt, Navigation per Sprache, mit Synonymen (Zahlen oder Wörter) | ❓ | M | Owner | Nur Befehle, kein freies Diktat. Siehe „Diktieren“ unten |
 | Eigene Tastenbelegung | 📌 | M | Vision | Schritt 2 |
 | Makros („mach das, was ich gerade getan habe, nochmal“) | 💡 | L | Owner/Vision | Bauen auf den Commands auf (ADR 0004) |
 
 ### Diktieren (Idee vom Owner)
 
-**Gemeint ist:** Du sprichst, Icastico führt dieselben Befehle aus wie bei der
-Tastatureingabe. Nicht zu verwechseln mit *Einsingen* (Abschnitt 2) – dort
-kommt Musik rein, hier kommen Wörter rein.
+**Entscheidung des Owners:** am liebsten **nur Befehle**, kein freies Diktat.
+Verbessern über **Synonyme** (z. B. Zahlen statt Wörter).
 
-**Warum das gut passt:** Die Eingabe läuft schon über Befehle (ADR 0004,
-ADR 0006). „Sprache“ wäre nur ein weiterer Weg zu denselben Befehlen – wie die
-Tastenbelegung, nur mit Mund statt Fingern. Keine neue Notenlogik nötig.
+**Gemeint ist:** Du sprichst kurze Befehle, Icastico führt dieselben Aktionen
+aus wie bei der Tastatur (ADR 0004, 0006). Sprache ist nur ein weiterer Weg
+zu denselben Befehlen, wie die Tastenbelegung, nur mit Mund statt Fingern.
+Keine neue Notenlogik nötig. Nicht zu verwechseln mit *Einsingen* (Abschnitt 2):
+dort kommt Musik rein, hier kommen Wörter rein.
 
-**Mögliche Befehle** (Beispiele, Wortschatz bewusst klein und festgelegt):
+**Warum „nur Befehle“ die richtige Wahl ist:** Eine kleine, feste Wortliste zu
+erkennen ist viel leichter und zuverlässiger als freie Sprache. Das Programm
+muss nicht verstehen, *was du sagst*, sondern nur, *welches von ~30 Wörtern*.
 
-| Du sagst | Wirkt wie |
-|---|---|
-| „c“, „d“, „es“, „fis“ … | Note mit dieser Tonhöhe |
-| „Viertel“, „Achtel“, „halbe“ | Notenwert wählen |
-| „Punkt“, „Pause“, „Bindebogen“ | Punktierung, Pause, Haltebogen |
-| „höher“, „tiefer“, „Oktave hoch“ | letzte Note ändern |
-| „zurück“, „weiter“, „rückgängig“ | Navigation, Undo |
+**Synonyme: ja, mit einer Einschränkung.** Pro Befehl gibt es mehrere
+Auslösewörter, als Daten gepflegt (wie die Tastenbelegung). Die Zahlen sind
+dieselben wie in Finale (ADR 0006), die du schon im Kopf hast:
 
-**Harte Punkte (ehrlich):**
+| Befehl | Du kannst sagen | Taste heute |
+|---|---|---|
+| Notenwert Viertel | „fünf“ · „Viertel“ | 5 |
+| Notenwert Achtel | „vier“ · „Achtel“ | 4 |
+| Notenwert Sechzehntel | „drei“ · „Sechzehntel“ | 3 |
+| Notenwert Halbe | „sechs“ · „Halbe“ | 6 |
+| Notenwert Ganze | „sieben“ · „Ganze“ | 7 |
+| Pause | „null“ · „Pause“ | 0 |
+| Punktierung | „Punkt“ | . |
+| Haltebogen | „Bogen“ · „Haltebogen“ | T |
+| Note ↔ Pause | „Pause machen“ | R |
+| Halbton höher / tiefer | „Kreuz“ · „Be“ | + / − |
+| Stufe höher / tiefer | „hoch“ · „runter“ | ↑ / ↓ |
+| Oktave höher / tiefer | „Oktave hoch“ · „Oktave runter“ | Strg + ↑ / ↓ |
+| Letzte Note löschen | „weg“ · „löschen“ | ⌫ |
+| Rückgängig | „zurück“ · „rückgängig“ | Strg + Z |
+| Cursor vor / zurück | „weiter“ · „davor“ | → / ← |
 
-- **Kurze Einzelbuchstaben sind das Schwierigste für Spracherkennung.**
-  „d/t“, „e/ä“, „b/p“, „h/a“ klingen ähnlich. Ein freies Diktat („schreib mir
-  c d e“) ist unzuverlässig; ein *fester kleiner Wortschatz* mit
-  Rückmeldung funktioniert deutlich besser.
-- **Lösungsansatz:** nicht „c“, sondern eigene, unverwechselbare Wörter
-  (wie das Funkalphabet: z. B. „Cäsar“, „Dora“ …) – oder Tonnamen *und*
-  sofortige Anzeige, was verstanden wurde, mit Sprachbefehl „nein“ zum
-  Verwerfen.
-- **Offline oder online?** Ein Dienst in der Cloud ist laut Vision ein
-  Nicht-Ziel (Datenschutz, Internet nötig). Offline-Erkennung läuft nativ
-  (Regel 7: in Rust), kostet Speicherplatz für das Modell und braucht ein
-  brauchbares Deutsch-Modell. Konkrete Optionen prüfe ich erst, wenn es
-  ansteht, und lege sie dir mit Empfehlung vor (neues ADR).
-- **Alternative/Zwischenstufe:** die Diktierfunktion des Betriebssystems
-  nutzen (Windows: Win+H, macOS: Diktat). Kostet fast nichts, aber wir
-  haben keine Kontrolle über Wortschatz und Verzögerung. Wahrscheinlich nur
-  für Texte brauchbar (**Liedtext diktieren** – eigentlich der sinnvollere
-  Einstieg).
+(Beispiele, kein beschlossener Wortschatz; der wird beim Ausprobieren
+festgelegt.)
+
+**Die Einschränkung beim Synonym-Prinzip:** Synonyme helfen nur, wenn sie
+*anders klingen*. Kurze Zahlen sind selbst Verwechslungskandidaten:
+„zwei“ und „drei“ klingen fast gleich (Sechzehntel vs. 32stel!), das gilt
+auch für Dialekt und schlechtes Mikrofon. Heißt: Wörter wie „Viertel“ und
+„Achtel“ sind sicherer als die Zahl; die Zahl ist schneller. Darum beides
+erlauben, und **wenn die Erkennung unsicher ist, passiert nichts** (lieber
+ein Befehl zu wenig als ein falscher mitten im Satz).
+
+**Tonhöhen:** Wenn du „nur Befehle“ sagst, verstehe ich: **Tonnamen bleiben
+auf Tastatur oder MIDI-Keyboard**, die Stimme übernimmt Rhythmus, Zeichen und
+Navigation. Das ist auch die sinnvolle Arbeitsteilung: Tonnamen sind die
+unzuverlässigsten Wörter überhaupt („d/t“, „e/ä“, „h/a“), Notenwerte die
+zuverlässigsten. Stimmt das, oder willst du auch Tonnamen sprechen?
+
+**Praktische Punkte:**
+
+- **Taste zum Sprechen statt Dauer-Mikrofon.** Wer Gitarre oder Klavier
+  spielt, hat Musik im Mikrofon; die darf keine Befehle auslösen. Vorschlag:
+  Sprechtaste gedrückt halten, ggf. Fußschalter. Gleiche Taste kann später
+  für Einsingen dienen.
+- **Offline**, nicht Cloud (Vision: Cloud ist Nicht-Ziel). Läuft nativ in
+  Rust (Regel 7), Modell wird mitgeliefert oder einmalig geladen. Die
+  konkrete Technik prüfe ich erst, wenn es ansteht, und lege sie dir mit
+  Empfehlung vor (neues ADR).
+- **Rückmeldung:** erkanntes Wort kurz in der Statuszeile anzeigen, damit man
+  sieht, was verstanden wurde.
 - **Mikrofonrechte:** Windows/macOS fragen nach Erlaubnis; kommt ohnehin für
   Audio→Noten.
+- **Sprache:** zuerst Deutsch (passend zum Rest); weitere Sprachen später
+  nur als zusätzliche Wortliste.
 
-**Ehrliche Einschätzung:** Für *Noten* schneller als die Tastatur wird es
-vermutlich nicht – Finale-Simple-Entry ist mit zwei Händen sehr fix. Der
-echte Gewinn liegt dort, wo die Hände **nicht** frei sind (Gitarre in der
-Hand, Klavier spielen und nebenbei Notenwerte ansagen) und bei **Liedtext**.
+**Ehrliche Einschätzung:** Für reines Notenschreiben am Computer ist die
+Tastatur kaum zu schlagen. Der Gewinn liegt dort, wo die **Hände nicht frei**
+sind (Instrument in der Hand), oder wenn eine Hand auf der Maus liegt. Der
+**Aufwand ist mit festem Wortschatz kleiner** als anfangs gedacht (Aufwand
+jetzt M statt L), das Risiko ist die Erkennungsqualität im Alltag, die man nur
+mit echten Aufnahmen prüfen kann.
 
-**Fragen an den Owner:**
+**Offen:**
 
-- Wann würdest du das benutzen: am Instrument mit beiden Händen belegt? Oder
-  einfach, weil es sich schneller anfühlt?
-- Nur Befehle („Achtel“, „Punkt“) oder auch Tonnamen?
-- Auch Liedtext diktieren?
+- Tonnamen auch sprechen, oder bleibt es bei Befehlen?
+- Wann würdest du es nutzen: Instrument in den Händen oder einfach schneller?
+- Liedtext diktieren ist eine **eigene Idee** (Abschnitt 4, Liedtext), weil
+  dort freie Sprache nötig ist; dafür reicht das Betriebssystem-Diktat
+  (Windows: Win+H, macOS: Diktat).
 
 ## 2. Audio → Noten
 
@@ -129,7 +160,7 @@ nativ in Rust, die Musiklogik danach (Quantisieren, Schreibweise) in TypeScript.
 
 | Idee | Status | Aufwand | Herkunft | Notiz |
 |---|---|---|---|---|
-| Liedtext unter den Noten (Silben, Bindestriche, Melismen) | 💡 | M | Vision | **Gesang ist das erste Instrument** – ohne Text ist es kein Lied. Empfehlung: vor Audio→Noten |
+| Liedtext unter den Noten (Silben, Bindestriche, Melismen) | 💡 | M | Vision | **Gesang ist das erste Instrument** – ohne Text ist es kein Lied. Empfehlung: vor Audio→Noten. Texteingabe per Betriebssystem-Diktat denkbar |
 | Akkordsymbole über den Noten | 💡 | M | Vision | Gitarre + Gesang |
 | Griffbilder (Akkorddiagramme) | ❓ | M | Vision | Offene Frage in `vision.md` |
 | Tabulatur | 💡 | L | Vision | „Vorerst nicht nötig“ |
