@@ -45,7 +45,7 @@ describe('comboOf', () => {
 
 describe('Finale keymap', () => {
   it('only points at existing commands and has no duplicate keys', () => {
-    const ui = new Set(['history.undo', 'history.redo', 'view.help']);
+    const ui = new Set(['history.undo', 'history.redo', 'view.help', 'file.new', 'file.open', 'file.save', 'file.saveAs']);
     const combos = new Set<string>();
     for (const b of FINALE_KEYMAP.bindings) {
       expect(b.command in COMMANDS || ui.has(b.command), b.command).toBe(true);

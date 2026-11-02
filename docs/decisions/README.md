@@ -34,3 +34,4 @@ Was wird dadurch leichter, was schwerer?
 | 0004 | [Commands und Workspaces als Daten](0004-commands-workspaces.md) | angenommen (Umsetzung ab Schritt 1) |
 | 0005 | [Lizenz GPL-3.0-or-later](0005-lizenz-gpl3.md) | angenommen |
 | 0006 | [Noteneingabe nach Finale (Simple Entry)](0006-eingabe-nach-finale.md) | angenommen – Annahmen vom Owner zu prüfen |
+| 0007 | [Dateiformat `.icastico` und Speichern](0007-dateiformat.md) | angenommen |

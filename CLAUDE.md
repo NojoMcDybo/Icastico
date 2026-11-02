@@ -51,6 +51,9 @@ npm run typecheck      # TypeScript strikt
 npm run build          # Typecheck + Web-Build nach dist/
 npm run screenshot -- out.png [--click=<svg-id>] [--keys=Control+n,5,c,d]
                        # App im Headless-Chromium, optional mit Klick/Tastendrücken
+npm run e2e            # Ende-zu-Ende-Test der Oberfläche (nach npm run build;
+                       # braucht das global installierte Playwright der Claude-Umgebung)
+cargo test --manifest-path src-tauri/Cargo.toml   # Rust-Tests
 npm run tauri dev      # Desktop-App lokal (braucht Rust + Systemlibs)
 npx tauri build        # Installer bauen
 ```
@@ -58,8 +61,14 @@ npx tauri build        # Installer bauen
 ## Arbeitsweise
 
 - **Jede Änderung verifizieren**: `npm test` + `npm run typecheck`. Bei UI-
-  Änderungen zusätzlich `npm run build && npm run screenshot` und den Screenshot
-  ansehen. Der Owner kann nicht debuggen – was wir ausliefern, muss laufen.
+  Änderungen zusätzlich `npm run build && npm run e2e` und
+  `npm run screenshot`, Screenshot ansehen. Der Owner kann nicht debuggen –
+  was wir ausliefern, muss laufen.
+- Native Funktionen (Rust, Berechtigungen, Fenster) in der echten App prüfen:
+  `npx tauri build --bundles deb`, dann unter `xvfb-run` (mit `openbox` für
+  Fensterereignisse) starten und mit `xdotool`/`wmctrl` bedienen.
+- **Dateiformat ändern** = Version in `src/core/file/format.ts` erhöhen,
+  Migration schreiben, Test mit Datei der alten Version (ADR 0007).
 - Neue Musiklogik bekommt Tests (Notationsregeln sind leicht falsch zu machen).
 - Neue grundsätzliche Entscheidung → neues ADR in `docs/decisions/`
   (fortlaufende Nummer, Vorlage siehe `docs/decisions/README.md`).
@@ -73,11 +82,13 @@ npx tauri build        # Installer bauen
 src/core/            Modell, Zeit, Tonhöhen, Instrumente (reines TypeScript)
 src/core/notation/   Zeitstrahl → Notation (Takte, Bögen, Pausen, Balken)
 src/core/editor/     EditorState, Commands (reine Funktionen), Undo/Redo
+src/core/file/       Dateiformat .icastico
 src/render/          Modell → MEI → Verovio → SVG
 src/ui/              Workstation (Rendering, Cursor, Auswahl), Tastatur
 src/ui/keymaps/      Tastenbelegungen als Daten (Finale Simple Entry)
+src/platform/        Desktop vs. Browser (Dateien, Fenster) hinter einer Schnittstelle
 src/main.ts          Start
 src-tauri/           Native Desktop-Hülle (Rust/Tauri 2)
 docs/                Vision, Architektur, Roadmap, Entscheidungen
-scripts/             Hilfsskripte (Screenshot)
+scripts/             Screenshot- und Ende-zu-Ende-Skripte
 ```

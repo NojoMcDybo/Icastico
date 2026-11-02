@@ -14,7 +14,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Verovio-Rendering, Klick auf Note → Modell-Event (mit Toleranz)
 - [x] Demo-Partitur „Erste Skizze“
 
-## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.1.0)
+## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.2.0)
 
 - [x] Command-System (reine Funktionen) mit Undo/Redo
 - [x] Eingabe-Cursor (blinkend; gestrichelt im Einfügemodus), springt hinter Schlüssel/Taktart
@@ -26,10 +26,17 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Tastenhilfe (F1 / ?), Statuszeile mit Modus
 - [x] Neue leere Partitur (Strg+N) mit Gesang, Gitarre, Klavier
 - [x] Sicherheitsnetz: Befehl, der nicht darstellbar ist, wird automatisch rückgängig gemacht
+- [x] Speichern/Öffnen: Format `.icastico` (lesbar, versioniert, streng geprüft), ADR 0007
+- [x] Absturzsicheres Speichern (Zwischendatei + Umbenennen, in Rust)
+- [x] Nachfrage bei ungespeicherten Änderungen: Neu, Öffnen, Fenster schließen
+- [x] Doppelklick auf `.icastico` öffnet Icastico (Dateizuordnung im Installer)
+- [x] Ende-zu-Ende-Test der Oberfläche (`npm run e2e`)
 - [ ] Owner prüft die als „Annahme“ markierten Tasten (ADR 0006)
+- [ ] Titel und Komponist bearbeiten (aktuell heißt jede neue Partitur „Neue Partitur“)
 - [ ] Neue Partitur mit Auswahl: Instrumente, Tonart, Taktart, Titel
 - [ ] Tonart/Taktart ändern
-- [ ] Speichern/Öffnen (eigenes JSON-Format, versioniert)
+- [ ] Wiederherstellung nach Absturz (automatische Sicherung)
+- [ ] Zuletzt geöffnete Dateien
 - [ ] Notationsregeln verfeinern (Synkopen, Halbtakt-Balken in 4/4)
 
 ## Schritt 2 – Workstation

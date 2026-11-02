@@ -67,10 +67,20 @@ ausführlich getestet.
   und Auswahl über das SVG, Statuszeile, Tastenhilfe. Fehler in einem
   Command werden abgefangen und rückgängig gemacht.
 
-### 6. Native Hülle – `src-tauri/`
+### 6. Datei & Plattform
 
-Tauri 2. Aktuell nur Fenster. Geplant: MIDI (`midir`), Audio-Ein/Ausgabe
-(`cpal`), Synthesizer, ONNX-Inferenz für Audio→Noten, Dateien.
+- `src/core/file/format.ts` – Format `.icastico` lesen/schreiben (ADR 0007).
+- `src/platform/files.ts` – eine Schnittstelle, zwei Umsetzungen: Desktop
+  (native Dialoge, Dateien über Rust, Fenstertitel, Schließen-Schutz,
+  Doppelklick-Dateien) und Browser (Download/Upload, für Entwicklung und Tests).
+- `src/ui/dialog.ts` – eigene Dialoge (überall gleich, testbar).
+
+### 7. Native Hülle – `src-tauri/`
+
+Tauri 2. Dateien lesen und absturzsicher schreiben (`read_score_file`,
+`write_score_file`), per Doppelklick übergebene Dateien (`take_pending_file`,
+macOS-Ereignis `open-file`), Dialog-Plugin. Geplant: MIDI (`midir`),
+Audio-Ein/Ausgabe (`cpal`), Synthesizer, ONNX-Inferenz für Audio→Noten.
 
 ## Geplant: Workstation als Daten (ADR 0004)
 

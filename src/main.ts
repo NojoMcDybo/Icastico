@@ -4,8 +4,9 @@ import { createEditorState } from './core/editor/state';
 import { Engraver } from './render/verovio';
 import { FINALE_KEYMAP } from './ui/keymaps/finale';
 import { Workstation } from './ui/workstation';
+import { currentPlatform } from './platform/files';
+import { APP_VERSION } from './version';
 
-const APP_VERSION = '0.1.0';
 const $ = (id: string) => document.getElementById(id)!;
 
 async function start(): Promise<void> {
@@ -16,6 +17,7 @@ async function start(): Promise<void> {
     { pages: $('pages'), status: $('status'), mode: $('mode'), title: $('doc-title'), help: $('help') },
     engraver,
     FINALE_KEYMAP,
+    currentPlatform(),
     createEditorState(demoScore()),
   );
 }

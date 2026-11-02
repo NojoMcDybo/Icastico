@@ -35,6 +35,7 @@ jobs:
           workspaces: src-tauri
       - run: npm ci
       - run: npm test
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npx tauri build --bundles ${{ matrix.bundles }}
       - uses: actions/upload-artifact@v7
         with:

@@ -4,9 +4,10 @@
  *
  * Rendering is skipped when only caret/selection changed (decorate only).
  */
-import { type CommandId, runCommand } from '../core/editor/commands';
+import { type CommandId, newScoreState, runCommand } from '../core/editor/commands';
 import { History } from '../core/editor/history';
-import { type EditorState, getVoice, inputLength } from '../core/editor/state';
+import { type EditorState, createEditorState, getVoice, inputLength } from '../core/editor/state';
+import { FILE_EXTENSION, FileFormatError, parseScoreFile, serializeScore } from '../core/file/format';
 import { getInstrument } from '../core/instruments';
 import { type Score, measuresOf } from '../core/model';
 import { durationName } from '../core/notation/notate';
@@ -14,6 +15,9 @@ import { pitchToString } from '../core/pitch';
 import { eq, lt } from '../core/time';
 import { type ElementRef, type MeiResult, scoreToMei, staffElementId } from '../render/mei';
 import type { Engraver } from '../render/verovio';
+import type { Platform } from '../platform/files';
+import { APP_VERSION } from '../version';
+import { ask, inform, isDialogOpen } from './dialog';
 import { comboOf } from './keys';
 import { type Keymap, type UiCommandId, findBinding } from './keymaps/finale';
 
@@ -29,11 +33,25 @@ export interface WorkstationElements {
 const SCALE = 55;
 /** Clicks this close (px) to a symbol still hit it, e.g. inside a hollow notehead. */
 const HIT_TOLERANCE = 10;
-const HINT = 'Enter: Eingabe starten · Strg+N: neue Partitur · F1: alle Tasten';
+const HINT = 'Enter: Eingabe · Strg+N: neu · Strg+O: öffnen · Strg+S: speichern · F1: alle Tasten';
+
+const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err));
+
+/** A file name derived from the score title, safe on Windows and macOS. */
+const fileNameFor = (title: string): string =>
+  `${title.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Partitur'}.${FILE_EXTENSION}`;
 
 export class Workstation {
-  private readonly history: History;
+  private history: History;
   private result: MeiResult | null = null;
+  /** Where the current score lives on disk (null = never saved / browser). */
+  private filePath: string | null = null;
+  private fileName: string | null = null;
+  /** The score as last saved or opened – unsaved changes = anything else. */
+  private savedScore: Score;
+  /** A file dialog is open; ignore shortcuts meanwhile. */
+  private busy = false;
+  private windowTitle = '';
   private renderedScore: Score | null = null;
   private renderedMeasures = 0;
   private renderedWidth = 0;
@@ -42,10 +60,17 @@ export class Workstation {
     private readonly el: WorkstationElements,
     private readonly engraver: Engraver,
     private readonly keymap: Keymap,
+    private readonly platform: Platform,
     initial: EditorState,
   ) {
     this.history = new History(initial);
+    this.savedScore = initial.score;
     this.buildHelp();
+    platform.guardClose(
+      () => this.dirty,
+      () => this.confirmDiscard(),
+    );
+    platform.onFileOpened((path) => void this.fileOpen(path));
     window.addEventListener('keydown', (e) => this.onKey(e));
     el.pages.addEventListener('click', (e) => this.onClick(e));
     let timer = 0;
@@ -60,9 +85,15 @@ export class Workstation {
     return this.history.state;
   }
 
+  /** Unsaved changes? Undoing back to the saved state counts as clean. */
+  get dirty(): boolean {
+    return this.state.score !== this.savedScore;
+  }
+
   // ── Input ────────────────────────────────────────────────────────────────
 
   private onKey(e: KeyboardEvent): void {
+    if (isDialogOpen() || this.busy) return;
     const helpOpen = !this.el.help.hidden;
     const combo = comboOf(e);
     if (helpOpen) {
@@ -90,6 +121,18 @@ export class Workstation {
       case 'view.help':
         this.el.help.hidden = false;
         return;
+      case 'file.new':
+        void this.fileNew();
+        return;
+      case 'file.open':
+        void this.fileOpen();
+        return;
+      case 'file.save':
+        void this.fileSave(false);
+        return;
+      case 'file.saveAs':
+        void this.fileSave(true);
+        return;
       default:
         try {
           this.history.apply(runCommand(this.state, command, arg));
@@ -98,6 +141,99 @@ export class Workstation {
         }
     }
     this.update();
+  }
+
+  // ── Files ────────────────────────────────────────────────────────────────
+
+  /** Runs a file action with shortcuts blocked; errors become a dialog. */
+  private async withBusy<T>(action: () => Promise<T>, errorTitle: string): Promise<T | null> {
+    this.busy = true;
+    try {
+      return await action();
+    } catch (err) {
+      await inform(errorTitle, errorText(err));
+      return null;
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** Saves; asks for a place if never saved or `saveAs`. False if cancelled or failed. */
+  async fileSave(saveAs: boolean): Promise<boolean> {
+    const score = this.state.score;
+    const saved = await this.withBusy(
+      () =>
+        this.platform.write(
+          serializeScore(score, APP_VERSION),
+          saveAs ? null : this.filePath,
+          this.fileName ?? fileNameFor(score.title),
+        ),
+      'Speichern fehlgeschlagen',
+    );
+    if (!saved) {
+      this.update();
+      return false;
+    }
+    this.filePath = saved.path;
+    this.fileName = saved.name;
+    this.savedScore = score;
+    this.history.apply({ ...this.state, message: `Gespeichert: ${saved.name}` });
+    this.update();
+    return true;
+  }
+
+  /** True if the current score may be replaced (saved, discarded or clean). */
+  private async confirmDiscard(): Promise<boolean> {
+    if (!this.dirty) return true;
+    const choice = await ask({
+      title: 'Ungespeicherte Änderungen',
+      text: `„${this.displayName}“ wurde geändert. Änderungen speichern?`,
+      buttons: [
+        { id: 'save', label: 'Speichern', primary: true },
+        { id: 'discard', label: 'Nicht speichern' },
+        { id: 'cancel', label: 'Abbrechen' },
+      ],
+      cancel: 'cancel',
+    });
+    if (choice === 'save') return this.fileSave(false);
+    return choice === 'discard';
+  }
+
+  async fileNew(): Promise<void> {
+    if (!(await this.confirmDiscard())) return;
+    this.load(newScoreState(), null, null);
+  }
+
+  /** Opens `path`, or lets the user pick a file. */
+  async fileOpen(path?: string): Promise<void> {
+    if (!(await this.confirmDiscard())) return;
+    const file = await this.withBusy(
+      () => (path ? this.platform.read(path) : this.platform.pickAndRead()),
+      'Datei konnte nicht geöffnet werden',
+    );
+    if (!file) return;
+    let score: Score;
+    try {
+      score = parseScoreFile(file.text);
+    } catch (err) {
+      const reason = err instanceof FileFormatError ? err.message : `Unerwarteter Fehler: ${errorText(err)}`;
+      await inform(`„${file.name}“ konnte nicht geöffnet werden`, reason);
+      return;
+    }
+    this.load({ ...createEditorState(score), message: `Geöffnet: ${file.name}` }, file.path, file.name);
+  }
+
+  /** Replaces the document; undo history starts fresh. */
+  private load(state: EditorState, path: string | null, name: string | null): void {
+    this.history = new History(state);
+    this.savedScore = state.score;
+    this.filePath = path;
+    this.fileName = name;
+    this.update();
+  }
+
+  private get displayName(): string {
+    return this.fileName ?? this.state.score.title;
   }
 
   private onClick(e: MouseEvent): void {
@@ -184,7 +320,6 @@ export class Workstation {
     this.renderedScore = s.score;
     this.renderedMeasures = measures;
     this.renderedWidth = width;
-    this.el.title.textContent = s.score.title;
   }
 
   private decorate(): void {
@@ -253,6 +388,14 @@ export class Workstation {
 
   private renderStatus(): void {
     const s = this.state;
+    const dirty = this.dirty;
+    this.el.title.textContent = `${this.displayName}${dirty ? ' •' : ''}`;
+    this.el.title.title = this.filePath ?? (dirty ? 'Nicht gespeichert' : '');
+    const windowTitle = `${this.displayName}${dirty ? ' •' : ''} – Icastico`;
+    if (windowTitle !== this.windowTitle) {
+      this.windowTitle = windowTitle;
+      this.platform.setTitle(windowTitle);
+    }
     this.el.status.textContent = s.message ?? this.describeSelection() ?? HINT;
     if (s.caret) {
       const parts = [`Eingabe · ${durationName(inputLength(s.input))}`];

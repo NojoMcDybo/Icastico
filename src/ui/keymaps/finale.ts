@@ -8,7 +8,14 @@
  */
 import type { CommandId } from '../../core/editor/commands';
 
-export type UiCommandId = 'history.undo' | 'history.redo' | 'view.help';
+export type UiCommandId =
+  | 'history.undo'
+  | 'history.redo'
+  | 'view.help'
+  | 'file.new'
+  | 'file.open'
+  | 'file.save'
+  | 'file.saveAs';
 
 export interface KeyBinding {
   readonly combo: string;
@@ -63,6 +70,9 @@ export const FINALE_KEYMAP: Keymap = {
     { combo: 'Mod+Y', command: 'history.redo' },
     { combo: 'Mod+Shift+Z', command: 'history.redo' },
     { combo: 'Mod+N', command: 'file.new' },
+    { combo: 'Mod+O', command: 'file.open' },
+    { combo: 'Mod+S', command: 'file.save' },
+    { combo: 'Mod+Shift+S', command: 'file.saveAs' },
     { combo: 'F1', command: 'view.help' },
     { combo: '?', command: 'view.help' },
   ],
@@ -92,13 +102,21 @@ export const FINALE_KEYMAP: Keymap = {
       ],
     },
     {
+      title: 'Datei',
+      entries: [
+        { keys: 'Strg+N', text: 'Neue leere Partitur' },
+        { keys: 'Strg+O', text: 'Partitur öffnen' },
+        { keys: 'Strg+S', text: 'Speichern' },
+        { keys: 'Strg+Umschalt+S', text: 'Speichern unter …' },
+      ],
+    },
+    {
       title: 'Bewegen & Allgemein',
       entries: [
         { keys: '← / →', text: 'vor / zurück' },
         { keys: 'Alt + ↑ / ↓', text: 'System wechseln' },
         { keys: 'Klick', text: 'Note auswählen (in der Eingabe: Cursor dorthin)' },
         { keys: 'Strg+Z / Strg+Y', text: 'Rückgängig / Wiederholen' },
-        { keys: 'Strg+N', text: 'Neue leere Partitur' },
         { keys: 'Esc', text: 'Eingabe beenden, dann Auswahl aufheben' },
         { keys: 'F1 / ?', text: 'Diese Hilfe' },
       ],

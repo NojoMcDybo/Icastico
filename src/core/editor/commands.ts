@@ -411,7 +411,8 @@ function toggleInsert(s: EditorState): EditorState {
   };
 }
 
-function newScore(): EditorState {
+/** Fresh editor on an empty score, caret ready in the first staff. */
+export function newScoreState(): EditorState {
   const s = createEditorState(emptyScore());
   const first = allVoiceRefs(s.score)[0]!;
   return { ...s, caret: { ...first, time: ZERO }, message: 'Neue Partitur – einfach lostippen.' };
@@ -443,7 +444,6 @@ export const COMMANDS = {
   'edit.tie': { title: 'Haltebogen', run: tie },
   'nav.horizontal': { title: 'Vor / zurück', run: navHorizontal },
   'nav.staff': { title: 'System wechseln', run: navStaff },
-  'file.new': { title: 'Neue Partitur', run: newScore },
 } satisfies Record<string, CommandDef>;
 
 export type CommandId = keyof typeof COMMANDS;
