@@ -192,13 +192,46 @@ function toggleDot(s: EditorState): EditorState {
   return setEventDuration(s, t.ref, t.event, length);
 }
 
+/**
+ * Spelling of a pitch class (0 = C … 11 = B) in a key: naturals stay natural,
+ * black keys follow the key signature (flats in flat keys, sharps in sharp
+ * keys). In C major the common choice: C#, Eb, F#, G#, Bb.
+ */
+export function spellPitchClass(pc: number, fifths: number): { step: Pitch['step']; alter: number } {
+  const naturals: Record<number, Pitch['step']> = { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' };
+  const p = ((pc % 12) + 12) % 12;
+  const natural = naturals[p];
+  if (natural) {
+    // A natural the key alters away (e.g. F in G major) stays F natural.
+    return { step: natural, alter: 0 };
+  }
+  const sharp = { step: naturals[p - 1]!, alter: 1 };
+  const flat = { step: naturals[p + 1]!, alter: -1 };
+  if (fifths > 0) return sharp;
+  if (fifths < 0) return flat;
+  return p === 3 || p === 10 ? flat : sharp;
+}
+
 function enterNote(s0: EditorState, stepIndex: number): EditorState {
   const step = STEPS[stepIndex];
   if (!step) return s0;
+  return enterPitch(s0, step, null);
+}
+
+/** Logic's step input: keys laid out like a piano (A = C, W = C#, …). */
+function enterPitchClass(s0: EditorState, pc: number): EditorState {
+  const s = ensureCaret(s0);
+  if (!s.caret) return say(s, 'Die Partitur hat keine Stimme.');
+  const { step, alter } = spellPitchClass(pc, keyAt(s.score, s.caret.time));
+  return enterPitch(s, step, alter);
+}
+
+/** Enters a note at the caret; `alter` null = as the key signature says. */
+function enterPitch(s0: EditorState, step: Pitch['step'], alterOverride: number | null): EditorState {
   const s = ensureCaret(s0);
   const caret = s.caret;
   if (!caret) return say(s, 'Die Partitur hat keine Stimme.');
-  const alter = keyAlteration(keyAt(s.score, caret.time), step);
+  const alter = alterOverride ?? keyAlteration(keyAt(s.score, caret.time), step);
   const pitch = nearestOctave(step, alter, referencePitch(s, caret));
   const length = inputLength(s.input);
   const insert = s.input.insert;
@@ -324,6 +357,16 @@ function alter(s: EditorState, delta: number): EditorState {
   return replacePitches(s, (p) => ({ ...p, alter: Math.max(-2, Math.min(2, p.alter + delta)) }));
 }
 
+/** Real semitone transposition (Logic: Alt+↑/↓): E + 1 = F, respelled in the key. */
+function semitone(s: EditorState, delta: number): EditorState {
+  return replacePitches(s, (p, ev) => {
+    const midi = midiOf(p) + delta;
+    const { step, alter } = spellPitchClass(midi % 12, keyAt(s.score, ev.onset));
+    // Octave from the MIDI number; B#/Cb cannot occur from spellPitchClass.
+    return { step, alter, octave: Math.floor(midi / 12) - 1 };
+  });
+}
+
 function editDuration(s: EditorState, n: number): EditorState {
   const length = finaleDuration(n);
   const t = target(s);
@@ -434,6 +477,7 @@ export const COMMANDS = {
   'input.duration': { title: 'Notenwert für die nächste Note', run: inputDuration },
   'input.dot': { title: 'Punktierung', run: toggleDot },
   'input.note': { title: 'Note eingeben', run: enterNote },
+  'input.pitchClass': { title: 'Note nach Klaviertaste eingeben', run: enterPitchClass },
   'input.chordNote': { title: 'Ton zum Akkord hinzufügen', run: addChordNote },
   'input.rest': { title: 'Pause eingeben', run: enterRest },
   'input.insertMode': { title: 'Einfügen / Überschreiben', run: toggleInsert },
@@ -444,6 +488,7 @@ export const COMMANDS = {
   'edit.step': { title: 'Tonhöhe um eine Stufe', run: step },
   'edit.octave': { title: 'Tonhöhe um eine Oktave', run: octave },
   'edit.alter': { title: 'Vorzeichen: Halbton höher/tiefer', run: alter },
+  'edit.semitone': { title: 'Um einen Halbton transponieren', run: semitone },
   'edit.duration': { title: 'Notenwert der Note ändern', run: editDuration },
   'edit.tie': { title: 'Haltebogen', run: tie },
   'nav.horizontal': { title: 'Vor / zurück', run: navHorizontal },

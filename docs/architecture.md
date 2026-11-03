@@ -28,7 +28,7 @@
 - `pitch.ts` – Tonhöhe mit Schreibweise (Stufe, Alteration, Oktave), klingend.
 - `instruments.ts` – Instrumente als Daten (Systeme, Schlüssel, Umfang, MIDI-Programm).
 - `model.ts` – `Score → Part → Voice → NoteEvent → Tone`, optional mit Auftakt (`pickup`).
-  Jeder Ton hat eine dauerhafte, partiturweit eindeutige ID (ADR 0011).
+  Jeder Ton hat eine dauerhafte, partiturweit eindeutige ID (ADR 0012).
 - `templates.ts` – Partitur aus dem Neu-Dialog anlegen, globale Änderungen
   (Titel, Tonart/Taktart ab Takt, Auftakt), deutsche Tonartnamen (ADR 0008).
 
@@ -67,7 +67,8 @@ ausführlich getestet.
 ### 5. UI – `src/ui/`
 
 - `keys.ts` – Tastendruck → layoutunabhängige Kombination („Alt+5“, „Plus“).
-- `keymaps/finale.ts` – Tastenbelegung als Daten (ADR 0006).
+- `keymaps/library.json` + `library.ts` – Bibliothek der Tastenbelegungen
+  (Finale, Logic Pro), daraus Belegungen, Tastenhilfe und Doku (ADR 0012).
 - `workstation.ts` – rendert nur bei Partitur-Änderungen neu, zeichnet Cursor
   und Auswahl über das SVG, Statuszeile, Tastenhilfe. Fehler in einem
   Command werden abgefangen und rückgängig gemacht.

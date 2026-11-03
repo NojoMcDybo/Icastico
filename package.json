@@ -1,7 +1,7 @@
 {
   "name": "icastico",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Icastico – Notensatz als individuelle Workstation",
   "license": "GPL-3.0-or-later",
   "type": "module",
@@ -14,6 +14,7 @@
     "test:watch": "vitest",
     "screenshot": "node scripts/screenshot.mjs",
     "e2e": "node scripts/e2e.mjs",
+    "keys:doc": "vitest run src/ui/keys.test.ts -u",
     "tauri": "tauri"
   },
   "dependencies": {

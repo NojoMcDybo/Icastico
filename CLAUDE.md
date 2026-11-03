@@ -60,6 +60,7 @@ npm run typecheck      # TypeScript strikt
 npm run build          # Typecheck + Web-Build nach dist/
 npm run screenshot -- out.png [--click=<svg-id>] [--keys=Control+n,5,c,d]
                        # App im Headless-Chromium, optional mit Klick/Tastendrücken
+npm run keys:doc       # docs/tastenbelegung.md aus library.json neu erzeugen
 npm run e2e            # Ende-zu-Ende-Test der Oberfläche (nach npm run build;
                        # braucht das global installierte Playwright der Claude-Umgebung)
 cargo test --manifest-path src-tauri/Cargo.toml   # Rust-Tests
@@ -81,6 +82,9 @@ npx tauri build        # Installer bauen
 - **Dateiformat ändern** = Version in `src/core/file/format.ts` erhöhen,
   Migration schreiben, Test mit Datei der alten Version (ADR 0007).
 - Neue Musiklogik bekommt Tests (Notationsregeln sind leicht falsch zu machen).
+- **Neue Funktion = Eintrag in `src/ui/keymaps/library.json`** (Finale- und
+  Logic-Taste mit Herkunft doku/annahme/icastico), dann `npm run keys:doc`.
+  Tasten nie raten und als `doku` ausgeben.
 - Neue grundsätzliche Entscheidung → neues ADR in `docs/decisions/`
   (fortlaufende Nummer, Vorlage siehe `docs/decisions/README.md`).
 - Nach jedem Arbeitspaket `docs/roadmap.md` aktualisieren.
@@ -118,7 +122,7 @@ src/library/         Bibliothek (Dokumente/Icastico): Logik, Speicher-Variante, 
 src/render/          Modell → MEI → Verovio → SVG
 src/ui/              Workstation (Rendering, Cursor, Auswahl, Autosave), Tastatur, Dialoge,
                      Bibliothek als Startbildschirm, Vorschaubilder, Updates
-src/ui/keymaps/      Tastenbelegungen als Daten (Finale Simple Entry)
+src/ui/keymaps/      Bibliothek der Tastenbelegungen (library.json: Finale + Logic, ADR 0011)
 src/platform/        Desktop vs. Browser (Dateien, Fenster) hinter einer Schnittstelle
 src/main.ts          Start
 src-tauri/           Native Desktop-Hülle (Rust/Tauri 2)

@@ -4,7 +4,7 @@ import { pitchToString } from '../pitch';
 import { eventEnd, validateScore, type Score } from '../model';
 import { emptyScore } from '../templates';
 import { parseLine } from '../line';
-import { type CommandId, runCommand } from './commands';
+import { type CommandId, runCommand, spellPitchClass } from './commands';
 import { createEditorState, getVoice, type EditorState, type VoiceRef } from './state';
 import { History } from './history';
 
@@ -245,5 +245,36 @@ describe('History', () => {
     h.undo();
     h.undo();
     expect(h.state.message).toMatch(/Nichts/);
+  });
+});
+
+describe('Logic-style input (piano-key letters, real semitones)', () => {
+  const withKey = (fifths: number): EditorState => {
+    const b = fresh();
+    return { ...b, score: { ...b.score, keys: [{ at: ZERO, fifths }] } };
+  };
+  const pcs = (s: EditorState, ...list: number[]) =>
+    list.reduce((st, pc) => runCommand(st, 'input.pitchClass', pc), runCommand(s, 'input.duration', 5));
+
+  it('spells black keys after the key signature', () => {
+    expect(spellPitchClass(1, 0)).toEqual({ step: 'C', alter: 1 }); // C#
+    expect(spellPitchClass(10, 0)).toEqual({ step: 'B', alter: -1 }); // Bb in C major
+    expect(spellPitchClass(1, -1)).toEqual({ step: 'D', alter: -1 }); // Db in F major
+    expect(spellPitchClass(10, 2)).toEqual({ step: 'A', alter: 1 }); // A# in D major
+    expect(spellPitchClass(5, 1)).toEqual({ step: 'F', alter: 0 }); // F natural stays F in G major
+  });
+
+  it('enters notes by piano key', () => {
+    expect(dump(pcs(withKey(-1), 0, 1, 5).score)).toBe('C5:1/4 Db5:1/4 F5:1/4');
+  });
+
+  it('transposes by real semitones (E + 1 = F, not E#)', () => {
+    let s = play(fresh(), '5 E');
+    s = runCommand(s, 'edit.semitone', 1);
+    expect(dump(s.score)).toBe('F5:1/4');
+    s = runCommand(s, 'edit.semitone', 1);
+    expect(dump(s.score)).toBe('F#5:1/4');
+    s = runCommand(runCommand(s, 'edit.semitone', -7), 'edit.semitone', 0);
+    expect(dump(s.score)).toBe('B4:1/4');
   });
 });

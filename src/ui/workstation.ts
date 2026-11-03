@@ -25,10 +25,10 @@ import { ask, inform, isDialogOpen } from './dialog';
 import { LibraryHome } from './libraryHome';
 import { Thumbnails } from './thumbnails';
 import type { UpdateChecker } from './updates';
-import { loadNewScoreDefaults, saveLastOpened, saveNewScoreDefaults } from './preferences';
+import { loadNewScoreDefaults, saveKeymapPreset, saveLastOpened, saveNewScoreDefaults } from './preferences';
 import { scoreDialog } from './scoreDialog';
 import { comboOf } from './keys';
-import { type Keymap, type UiCommandId, findBinding } from './keymaps/finale';
+import { type Keymap, type PresetId, type UiCommandId, buildKeymap, findBinding, KEY_LIBRARY, PRESETS } from './keymaps/library';
 
 export interface WorkstationElements {
   readonly pages: HTMLElement;
@@ -82,6 +82,20 @@ export class Workstation {
   /** The score as last saved or opened – unsaved changes = anything else. */
   private savedScore: Score;
   private saving: Promise<boolean> = Promise.resolve(true);
+  /** A note being dragged up/down with the mouse. */
+  private drag: {
+    readonly pointerId: number;
+    readonly startY: number;
+    /** Pixels per staff step (half the distance between two staff lines). */
+    readonly stepPx: number;
+    /** State before the drag, with the dragged note selected. */
+    readonly base: EditorState;
+    steps: number;
+    moved: boolean;
+    preview: EditorState | null;
+  } | null = null;
+  /** The click that ends a drag must not select something else. */
+  private swallowClick = false;
   private autosaveTimer = 0;
   private readonly library: LibraryHome | null;
   /** A file dialog is open; ignore shortcuts meanwhile. */
@@ -94,7 +108,7 @@ export class Workstation {
   constructor(
     private readonly el: WorkstationElements,
     private readonly engraver: Engraver,
-    private readonly keymap: Keymap,
+    private keymap: Keymap,
     private readonly platform: Platform,
     private readonly store: LibraryStore | null,
     updates: UpdateChecker | null = null,
@@ -103,6 +117,9 @@ export class Workstation {
     this.history = new History(blank);
     this.savedScore = blank.score;
     this.buildHelp();
+    this.el.help.addEventListener('click', (e) => {
+      if (e.target === this.el.help) this.el.help.hidden = true;
+    });
     this.library = store
       ? new LibraryHome(el.library, store, new Thumbnails(engraver), {
           currentPath: () => (this.empty ? null : (this.location?.path ?? null)),
@@ -134,6 +151,10 @@ export class Workstation {
     );
     window.addEventListener('keydown', (e) => this.onKey(e));
     el.pages.addEventListener('click', (e) => this.onClick(e));
+    el.pages.addEventListener('pointerdown', (e) => this.onPointerDown(e));
+    el.pages.addEventListener('pointermove', (e) => this.onPointerMove(e));
+    el.pages.addEventListener('pointerup', (e) => this.onPointerUp(e));
+    el.pages.addEventListener('pointercancel', (e) => this.onPointerUp(e, true));
     el.title.addEventListener('click', () => {
       if (!isDialogOpen() && !this.busy) void this.scoreSettings();
     });
@@ -145,8 +166,9 @@ export class Workstation {
     this.update();
   }
 
+  /** While a note is dragged, the live preview; otherwise the real state. */
   private get state(): EditorState {
-    return this.history.state;
+    return this.drag?.preview ?? this.history.state;
   }
 
   /** Unsaved changes? Undoing back to the saved state counts as clean. */
@@ -340,7 +362,7 @@ export class Workstation {
 
   private scheduleAutosave(): void {
     clearTimeout(this.autosaveTimer);
-    if (this.location?.inLibrary && this.dirty && !this.empty) {
+    if (this.location?.inLibrary && this.dirty && !this.empty && !this.drag) {
       this.autosaveTimer = window.setTimeout(() => void this.saveLibrary(false), AUTOSAVE_DELAY);
     }
   }
@@ -512,7 +534,75 @@ export class Workstation {
     this.update();
   }
 
+  // ── Dragging notes up/down ───────────────────────────────────────────────
+
+  /** Half the distance between two staff lines of the staff a symbol sits on, in pixels. */
+  private stepPixels(ref: ElementRef): number {
+    const staff = document.getElementById(staffElementId(ref.measureNumber, ref.staffN));
+    const lines = staff ? [...staff.children].filter((c) => c.tagName.toLowerCase() === 'path').slice(0, 5) : [];
+    if (lines.length === 5) {
+      const top = lines[0]!.getBoundingClientRect();
+      const bottom = lines[4]!.getBoundingClientRect();
+      const gap = (bottom.top + bottom.height / 2 - (top.top + top.height / 2)) / 4;
+      if (gap > 1) return gap / 2;
+    }
+    return 5;
+  }
+
+  private onPointerDown(e: PointerEvent): void {
+    if (e.button !== 0 || this.empty || this.drag) return;
+    const ref = this.hitTest(e);
+    if (!ref?.eventId) return;
+    const s = this.history.state;
+    const voice = { partId: ref.partId, voiceId: ref.voiceId };
+    this.drag = {
+      pointerId: e.pointerId,
+      startY: e.clientY,
+      stepPx: this.stepPixels(ref),
+      base: { ...s, selection: { kind: 'event', ...voice, eventId: ref.eventId }, message: null },
+      steps: 0,
+      moved: false,
+      preview: null,
+    };
+    this.el.pages.setPointerCapture(e.pointerId);
+  }
+
+  private onPointerMove(e: PointerEvent): void {
+    const d = this.drag;
+    if (!d || e.pointerId !== d.pointerId) return;
+    const dy = d.startY - e.clientY;
+    if (!d.moved && Math.abs(dy) < 4) return;
+    d.moved = true;
+    document.body.classList.add('is-dragging-note');
+    const steps = Math.round(dy / d.stepPx);
+    if (steps === d.steps && d.preview) return;
+    d.steps = steps;
+    // Alt = semitones (like Logic), otherwise staff steps in the key (like Finale).
+    const command = e.altKey ? 'edit.semitone' : 'edit.step';
+    d.preview = steps === 0 ? d.base : runCommand(d.base, command, steps);
+    this.update();
+  }
+
+  private onPointerUp(e: PointerEvent, cancelled = false): void {
+    const d = this.drag;
+    if (!d || e.pointerId !== d.pointerId) return;
+    this.drag = null;
+    document.body.classList.remove('is-dragging-note');
+    if (this.el.pages.hasPointerCapture(e.pointerId)) this.el.pages.releasePointerCapture(e.pointerId);
+    if (!d.moved) return; // a plain click: handled by onClick
+    this.swallowClick = true;
+    window.setTimeout(() => (this.swallowClick = false), 80);
+    const final = cancelled ? d.base : (d.preview ?? d.base);
+    // One undo step for the whole drag.
+    this.history.apply(final.score === d.base.score ? d.base : { ...final, message: null });
+    this.update();
+  }
+
   private onClick(e: MouseEvent): void {
+    if (this.swallowClick) {
+      this.swallowClick = false;
+      return;
+    }
     const ref = this.hitTest(e);
     const s = this.state;
     if (!ref) {
@@ -560,7 +650,8 @@ export class Workstation {
       this.renderIfNeeded();
     } catch (err) {
       // Never leave the user with a broken score: take back the last change (and only that one).
-      this.history.rollback();
+      if (this.drag?.preview) this.drag.preview = this.drag.base; // only the drag preview was faulty
+      else this.history.rollback();
       this.history.apply({
         ...this.state,
         message: `Interner Fehler, Änderung rückgängig gemacht: ${err instanceof Error ? err.message : String(err)}`,
@@ -739,12 +830,40 @@ export class Workstation {
     return `${part.name}${staff} · ${barName(ev.onset)} · ${label} · ${durationName(ev.duration)}`;
   }
 
+  /** Switches between the Finale and the Logic key layout (remembered). */
+  setKeymap(id: PresetId): void {
+    this.keymap = buildKeymap(id);
+    saveKeymapPreset(id);
+    this.buildHelp();
+    this.el.help.querySelector<HTMLButtonElement>(`[data-preset="${id}"]`)?.focus();
+  }
+
   private buildHelp(): void {
     const box = document.createElement('div');
     box.className = 'help__box';
+    const head = document.createElement('div');
+    head.className = 'help__head';
     const title = document.createElement('h2');
-    title.textContent = `Tastenbelegung: ${this.keymap.name}`;
-    box.appendChild(title);
+    title.textContent = 'Tastenbelegung';
+    const switcher = document.createElement('div');
+    switcher.className = 'help__presets';
+    switcher.setAttribute('role', 'group');
+    switcher.setAttribute('aria-label', 'Tastenbelegung wählen');
+    for (const id of PRESETS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `pill${id === this.keymap.id ? ' is-active' : ''}`;
+      b.textContent = KEY_LIBRARY.presets[id].name;
+      b.dataset.preset = id;
+      b.setAttribute('aria-pressed', String(id === this.keymap.id));
+      b.addEventListener('click', () => this.setKeymap(id));
+      switcher.append(b);
+    }
+    head.append(title, switcher);
+    const desc = document.createElement('p');
+    desc.className = 'help__desc';
+    desc.textContent = this.keymap.description;
+    box.append(head, desc);
     for (const group of this.keymap.help) {
       const h = document.createElement('h3');
       h.textContent = group.title;
@@ -763,8 +882,5 @@ export class Workstation {
     close.textContent = 'Esc schließt';
     box.appendChild(close);
     this.el.help.replaceChildren(box);
-    this.el.help.addEventListener('click', (e) => {
-      if (e.target === this.el.help) this.el.help.hidden = true;
-    });
   }
 }

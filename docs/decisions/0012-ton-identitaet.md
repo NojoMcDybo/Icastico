@@ -1,4 +1,4 @@
-# 0011 – Jeder Ton hat eine dauerhafte Nummer (Ton-ID)
+# 0012 – Jeder Ton hat eine dauerhafte Nummer (Ton-ID)
 
 - Status: angenommen (Vorbereitung für Piano-Roll, explizite Haltebögen und gleitende Töne)
 - Datum: 2026-11-03

@@ -35,7 +35,7 @@ export interface KeyChange {
 
 /**
  * One sounding note of an event. The id is permanent and unique within the
- * score (ADR 0011): editing the pitch, adding or removing other tones of the
+ * score (ADR 0012): editing the pitch, adding or removing other tones of the
  * chord never changes it. Array position or MIDI number are NOT identities.
  */
 export interface Tone {

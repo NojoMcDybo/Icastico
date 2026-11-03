@@ -18,7 +18,7 @@ import { type NoteEvent, type Part, type Score, type Tone, type Voice, validateS
 export const FILE_EXTENSION = 'icastico';
 /**
  * History: 1 = first format (v0.2.0), 2 = optional upbeat "pickup" (v0.3.0),
- * 3 = tones with permanent ids instead of plain pitch names (ADR 0011).
+ * 3 = tones with permanent ids instead of plain pitch names (ADR 0012).
  */
 export const FORMAT_VERSION = 3;
 

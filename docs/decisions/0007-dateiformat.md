@@ -44,7 +44,7 @@ die Datei (Windows/Linux: Programmargument, macOS: Systemereignis).
 |---|---|---|
 | 1 | 0.2.0 | erstes Format |
 | 2 | 0.3.0 | optionales Feld `pickup` (Auftakt, ADR 0008) |
-| 3 | nach 0.6.0 | `tones` mit Ton-IDs statt `pitches` (ADR 0011); ältere Dateien werden beim Öffnen umgewandelt und vor dem ersten Speichern gesichert |
+| 3 | ab 0.7.0 | `tones` mit Ton-IDs statt `pitches` (ADR 0012); ältere Dateien werden beim Öffnen umgewandelt und vor dem ersten Speichern gesichert |
 
 ## Alternativen
 

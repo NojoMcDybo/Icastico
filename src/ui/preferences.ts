@@ -5,6 +5,7 @@
 import { type InstrumentId, INSTRUMENTS } from '../core/instruments';
 import { type ScoreSetup, DEFAULT_SETUP } from '../core/templates';
 import { ZERO } from '../core/time';
+import type { PresetId } from './keymaps/library';
 
 const KEY = 'icastico.newScore';
 
@@ -64,5 +65,24 @@ export function saveLastOpened(path: string): void {
     localStorage.setItem(LAST, path);
   } catch {
     // not remembered – the newest score opens instead
+  }
+}
+
+const KEYMAP = 'icastico.keymap';
+
+/** Chosen key layout ("finale" or "logic"); Finale by default. */
+export function loadKeymapPreset(): PresetId {
+  try {
+    return localStorage.getItem(KEYMAP) === 'logic' ? 'logic' : 'finale';
+  } catch {
+    return 'finale';
+  }
+}
+
+export function saveKeymapPreset(id: PresetId): void {
+  try {
+    localStorage.setItem(KEYMAP, id);
+  } catch {
+    // not remembered – Finale next time
   }
 }
