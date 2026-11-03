@@ -14,7 +14,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Verovio-Rendering, Klick auf Note → Modell-Event (mit Toleranz)
 - [x] Demo-Partitur „Erste Skizze“
 
-## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.6.0)
+## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.7.0)
 
 - [x] Command-System (reine Funktionen) mit Undo/Redo
 - [x] Eingabe-Cursor (blinkend; gestrichelt im Einfügemodus), springt hinter Schlüssel/Taktart
@@ -43,7 +43,11 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [ ] Rahmenloses Fenster mit schwebenden Glas-Bedienelementen (wie Folio) – mit Owner abstimmen
 - [x] Installer mit Desktop-Verknüpfung, automatische Updates über GitHub Releases (ADR 0010)
 - [x] Owner hat den Update-Schlüssel als GitHub-Secret hinterlegt
-- [ ] Erste Release veröffentlichen (Tag-Push ist aus Claudes Umgebung gesperrt → Owner legt die Release auf GitHub an)
+- [x] Erste Release v0.6.0 veröffentlicht (Owner legt Releases auf GitHub an); Owner hat installiert: „Eingabe ist intuitiv“
+- [x] Noten mit der Maus hoch/runter ziehen (Stufen in der Tonart, mit Alt Halbtöne), ADR 0011
+- [x] Bibliothek der Tastenbelegungen: Finale + Logic Pro, umschaltbar in F1, inkl. geplanter Funktionen (`docs/tastenbelegung.md`), ADR 0011
+- [ ] Owner prüft die Finale-Annahmen und ergänzt unbekannte Finale-Tasten (z. B. Triolen)
+- [ ] Mac-Release nachholen (bei v0.6.0 war kein GitHub-Mac-Rechner frei)
 - [ ] Partituren per Ziehen in Sammlungen verschieben
 - [ ] Notationsregeln verfeinern (Synkopen, Halbtakt-Balken in 4/4)
 
@@ -52,7 +56,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [ ] Befehlspalette (Strg+K)
 - [ ] Panels andockbar, Layout speicherbar
 - [ ] Workspaces pro Instrument/Aufgabe
-- [ ] Tastenbelegung anpassbar
+- [ ] Tastenbelegung frei anpassbar (Grundlage: Bibliothek, ADR 0011)
 
 ## Schritt 3 – Klang & Austausch
 

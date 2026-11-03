@@ -13,7 +13,7 @@ die zugänglichere und passt zu „schnell und simpel“.
 ## Entscheidung
 
 Tastenbelegung nach Finale Simple Entry, als austauschbarer Datensatz
-(`src/ui/keymaps/finale.ts`, ADR 0004). Eine eigene Icastico-Belegung kann
+(seit ADR 0011 in `src/ui/keymaps/library.json`, neben Logic Pro). Eine eigene Icastico-Belegung kann
 später daneben entstehen.
 
 | Taste | Funktion | Quelle |
@@ -63,4 +63,4 @@ die belegten Tasten stammen aus Suchergebnissen zu diesen Seiten:
 
 - Finale-Umsteiger finden sich sofort zurecht.
 - Alle **Annahmen** muss der Owner (Finale-Nutzer) bestätigen oder korrigieren.
-  Korrektur = Änderung in `src/ui/keymaps/finale.ts`, kein Umbau.
+  Korrektur = Änderung in `src/ui/keymaps/library.json`, kein Umbau.

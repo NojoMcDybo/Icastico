@@ -41,6 +41,7 @@ function baseKey(e: KeyLike): { base: string; symbol: boolean } | null {
   if (e.code === 'NumpadDecimal' || e.key === '.') return { base: 'Period', symbol: true };
   if (e.key === '?') return { base: '?', symbol: true };
   if (e.key === ',') return { base: 'Comma', symbol: true };
+  if (e.key === ' ' || e.code === 'Space') return { base: 'Space', symbol: false };
   if (e.code === 'NumpadEnter') return { base: 'Enter', symbol: false };
   if (/^[a-z]$/i.test(e.key) && !e.altKey) return { base: e.key.toUpperCase(), symbol: false };
   const letter = /^Key([A-Z])$/.exec(e.code);

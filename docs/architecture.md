@@ -64,7 +64,8 @@ ausführlich getestet.
 ### 5. UI – `src/ui/`
 
 - `keys.ts` – Tastendruck → layoutunabhängige Kombination („Alt+5“, „Plus“).
-- `keymaps/finale.ts` – Tastenbelegung als Daten (ADR 0006).
+- `keymaps/library.json` + `library.ts` – Bibliothek der Tastenbelegungen
+  (Finale, Logic Pro), daraus Belegungen, Tastenhilfe und Doku (ADR 0011).
 - `workstation.ts` – rendert nur bei Partitur-Änderungen neu, zeichnet Cursor
   und Auswahl über das SVG, Statuszeile, Tastenhilfe. Fehler in einem
   Command werden abgefangen und rückgängig gemacht.

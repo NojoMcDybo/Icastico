@@ -1,0 +1,338 @@
+{
+  "version": 1,
+  "about": "Icastico key-binding library (ADR 0011). Every function a notation editor needs, with its Finale and Logic Pro keys. 'command' = implemented in Icastico; functions without it are planned. Key syntax: Mod = Ctrl (Windows) / Cmd (Mac), Alt = Alt / Option. source: doku = from the program's documentation, annahme = our guess (please verify), icastico = our own addition.",
+  "presets": {
+    "finale": { "name": "Finale", "description": "Simple Entry: Zahlen für Notenwerte, Buchstaben für Tonhöhen" },
+    "logic": { "name": "Logic Pro", "description": "Step-Input-Tastatur: Tasten wie eine Klaviatur (A = C, W = Cis …), 1 = Ganze" }
+  },
+  "groups": [
+    {
+      "title": "Eingabe",
+      "functions": [
+        {
+          "id": "input.toggle",
+          "title": "Eingabe starten / beenden",
+          "command": "input.toggle",
+          "finale": { "keys": ["Enter"], "source": "doku" },
+          "logic": { "keys": ["Enter"], "source": "icastico", "note": "In Logic schaltet der Knopf „MIDI In“ die Schritteingabe ein." }
+        },
+        {
+          "id": "input.duration",
+          "title": "Notenwert der nächsten Note",
+          "command": "input.duration",
+          "args": { "7": "Ganze", "6": "Halbe", "5": "Viertel", "4": "Achtel", "3": "16tel", "2": "32tel", "1": "64tel" },
+          "finale": { "keys": { "7": ["7"], "6": ["6"], "5": ["5"], "4": ["4"], "3": ["3"], "2": ["2"], "1": ["1"] }, "source": "doku" },
+          "logic": { "keys": { "7": ["1"], "6": ["2"], "5": ["3"], "4": ["4"], "3": ["5"], "2": ["6"], "1": ["7"] }, "source": "doku", "note": "Logic: 8 = 128tel (gibt es in Icastico noch nicht)." }
+        },
+        {
+          "id": "input.note",
+          "title": "Note nach Stammton (Tonart wird beachtet)",
+          "command": "input.note",
+          "args": { "0": "C", "1": "D", "2": "E", "3": "F", "4": "G", "5": "A", "6": "H" },
+          "finale": { "keys": { "0": ["C"], "1": ["D"], "2": ["E"], "3": ["F"], "4": ["G"], "5": ["A"], "6": ["B", "H"] }, "source": "doku", "note": "B ist wie in Finale das englische B (= H). H ist eine Icastico-Ergänzung." }
+        },
+        {
+          "id": "input.pitchClass",
+          "title": "Note nach Klaviertaste (schwarze Tasten nach Tonart)",
+          "command": "input.pitchClass",
+          "args": { "0": "C", "1": "Cis/Des", "2": "D", "3": "Dis/Es", "4": "E", "5": "F", "6": "Fis/Ges", "7": "G", "8": "Gis/As", "9": "A", "10": "Ais/B", "11": "H" },
+          "logic": { "keys": { "0": ["A"], "1": ["W"], "2": ["S"], "3": ["E"], "4": ["D"], "5": ["F"], "6": ["T"], "7": ["G"], "8": ["Y"], "9": ["H"], "10": ["U"], "11": ["J"] }, "source": "doku", "note": "Auf deutschen Tastaturen liegt Y unten links (Z und Y sind vertauscht)." }
+        },
+        {
+          "id": "input.rest",
+          "title": "Pause eingeben",
+          "command": "input.rest",
+          "finale": { "keys": ["0"], "source": "doku" },
+          "logic": { "keys": ["Space"], "source": "doku" }
+        },
+        {
+          "id": "input.dot",
+          "title": "Punktierung",
+          "command": "input.dot",
+          "finale": { "keys": ["Period"], "source": "doku", "note": "In der Eingabe gilt der Punkt für die nächste Note (Annahme), sonst für die ausgewählte." },
+          "logic": { "keys": ["0"], "source": "doku", "note": "Logic: „nächste zwei Noten punktiert“; Icastico punktiert die nächste Note." }
+        },
+        {
+          "id": "input.chordNote",
+          "title": "Ton zum Akkord hinzufügen (darüber)",
+          "command": "input.chordNote",
+          "args": { "0": "C", "1": "D", "2": "E", "3": "F", "4": "G", "5": "A", "6": "H" },
+          "finale": { "keys": { "0": ["Shift+C"], "1": ["Shift+D"], "2": ["Shift+E"], "3": ["Shift+F"], "4": ["Shift+G"], "5": ["Shift+A"], "6": ["Shift+B", "Shift+H"] }, "source": "annahme" }
+        },
+        {
+          "id": "input.chordMode",
+          "title": "Akkordmodus an/aus (nächste Töne übereinander)",
+          "logic": { "keys": ["Backquote"], "source": "doku" }
+        },
+        {
+          "id": "input.triplets",
+          "title": "Triolen für die nächsten Noten",
+          "logic": { "keys": ["9"], "source": "doku" },
+          "finale": { "keys": [], "source": "annahme", "note": "Taste in Finale Simple Entry unbekannt – bitte ergänzen." }
+        },
+        {
+          "id": "input.nextSharp",
+          "title": "Kreuz für die nächste Note",
+          "logic": { "keys": ["Shift+3"], "source": "doku", "note": "Auf US-Tastaturen ist Umschalt+3 das #." }
+        },
+        {
+          "id": "input.nextFlat",
+          "title": "B für die nächste Note",
+          "logic": { "keys": ["Shift+B"], "source": "doku" }
+        },
+        {
+          "id": "input.octave",
+          "title": "Eingabe-Oktave höher / tiefer",
+          "args": { "1": "höher", "-1": "tiefer", "2": "zwei höher", "-2": "zwei tiefer" },
+          "logic": { "keys": { "1": ["X"], "-1": ["Z"], "2": ["Shift+X"], "-2": ["Shift+Z"] }, "source": "doku", "note": "Icastico wählt die Oktave automatisch nah an der vorigen Note." }
+        },
+        {
+          "id": "input.insertMode",
+          "title": "Einfügen statt Überschreiben",
+          "command": "input.insertMode",
+          "finale": { "keys": ["Insert", "Mod+I"], "source": "icastico" },
+          "logic": { "keys": ["Insert", "Mod+I"], "source": "icastico" }
+        }
+      ]
+    },
+    {
+      "title": "Letzte / ausgewählte Note ändern",
+      "functions": [
+        {
+          "id": "edit.step",
+          "title": "Eine Stufe höher / tiefer (in der Tonart)",
+          "command": "edit.step",
+          "args": { "1": "höher", "-1": "tiefer" },
+          "finale": { "keys": { "1": ["ArrowUp"], "-1": ["ArrowDown"] }, "source": "annahme" }
+        },
+        {
+          "id": "edit.semitone",
+          "title": "Einen Halbton höher / tiefer (E → F)",
+          "command": "edit.semitone",
+          "args": { "1": "höher", "-1": "tiefer" },
+          "logic": { "keys": { "1": ["Alt+ArrowUp"], "-1": ["Alt+ArrowDown"] }, "source": "doku" }
+        },
+        {
+          "id": "edit.octave",
+          "title": "Eine Oktave höher / tiefer",
+          "command": "edit.octave",
+          "args": { "1": "höher", "-1": "tiefer" },
+          "finale": { "keys": { "1": ["Mod+ArrowUp"], "-1": ["Mod+ArrowDown"] }, "source": "annahme" },
+          "logic": { "keys": { "1": ["Alt+Shift+ArrowUp"], "-1": ["Alt+Shift+ArrowDown"] }, "source": "doku" }
+        },
+        {
+          "id": "edit.alter",
+          "title": "Vorzeichen ändern (E → Eis, E → Es)",
+          "command": "edit.alter",
+          "args": { "1": "Kreuz", "-1": "B" },
+          "finale": { "keys": { "1": ["Plus"], "-1": ["Minus"] }, "source": "annahme" },
+          "logic": { "keys": { "1": ["Plus"], "-1": ["Minus"] }, "source": "icastico" }
+        },
+        {
+          "id": "edit.duration",
+          "title": "Notenwert der Note ändern",
+          "command": "edit.duration",
+          "args": { "7": "Ganze", "6": "Halbe", "5": "Viertel", "4": "Achtel", "3": "16tel", "2": "32tel", "1": "64tel" },
+          "finale": { "keys": { "7": ["Alt+7"], "6": ["Alt+6"], "5": ["Alt+5"], "4": ["Alt+4"], "3": ["Alt+3"], "2": ["Alt+2"], "1": ["Alt+1"] }, "source": "doku" },
+          "logic": { "keys": { "7": ["Alt+1"], "6": ["Alt+2"], "5": ["Alt+3"], "4": ["Alt+4"], "3": ["Alt+5"], "2": ["Alt+6"], "1": ["Alt+7"] }, "source": "icastico" }
+        },
+        {
+          "id": "edit.tie",
+          "title": "Haltebogen zur nächsten Note gleicher Tonhöhe",
+          "command": "edit.tie",
+          "finale": { "keys": ["T"], "source": "doku" },
+          "logic": { "keys": ["Shift+T"], "source": "icastico", "note": "T ist in Logic die Taste für Fis." }
+        },
+        {
+          "id": "edit.toRest",
+          "title": "Note in Pause umwandeln",
+          "command": "edit.toRest",
+          "finale": { "keys": ["R"], "source": "doku" }
+        },
+        {
+          "id": "edit.delete",
+          "title": "Note löschen (wird zur Pause)",
+          "command": "edit.delete",
+          "finale": { "keys": ["Delete"], "source": "annahme" },
+          "logic": { "keys": ["Delete"], "source": "doku" }
+        },
+        {
+          "id": "edit.backspace",
+          "title": "Letzte Note löschen und zurückgehen",
+          "command": "edit.backspace",
+          "finale": { "keys": ["Backspace"], "source": "annahme" },
+          "logic": { "keys": ["Backspace"], "source": "icastico" }
+        },
+        {
+          "id": "edit.drag",
+          "title": "Note mit der Maus nach oben / unten ziehen",
+          "command": "mouse.drag",
+          "finale": { "keys": ["Ziehen"], "source": "icastico", "note": "Stufenweise in der Tonart." },
+          "logic": { "keys": ["Ziehen"], "source": "icastico", "note": "Stufenweise in der Tonart; mit Alt in Halbtönen." }
+        },
+        {
+          "id": "history.undo",
+          "title": "Rückgängig",
+          "command": "history.undo",
+          "finale": { "keys": ["Mod+Z"], "source": "doku" },
+          "logic": { "keys": ["Mod+Z"], "source": "doku" }
+        },
+        {
+          "id": "history.redo",
+          "title": "Wiederholen",
+          "command": "history.redo",
+          "finale": { "keys": ["Mod+Y", "Mod+Shift+Z"], "source": "doku" },
+          "logic": { "keys": ["Mod+Shift+Z"], "source": "doku" }
+        },
+        {
+          "id": "edit.copy",
+          "title": "Kopieren",
+          "finale": { "keys": ["Mod+C"], "source": "doku" },
+          "logic": { "keys": ["Mod+C"], "source": "doku" }
+        },
+        {
+          "id": "edit.paste",
+          "title": "Einfügen",
+          "finale": { "keys": ["Mod+V"], "source": "doku" },
+          "logic": { "keys": ["Mod+V"], "source": "doku" }
+        },
+        {
+          "id": "edit.cut",
+          "title": "Ausschneiden",
+          "finale": { "keys": ["Mod+X"], "source": "doku" },
+          "logic": { "keys": ["Mod+X"], "source": "doku" }
+        },
+        {
+          "id": "edit.selectAll",
+          "title": "Alles auswählen",
+          "finale": { "keys": ["Mod+A"], "source": "doku" },
+          "logic": { "keys": ["Mod+A"], "source": "doku" }
+        },
+        {
+          "id": "edit.quantize",
+          "title": "Quantisieren (eingespielte Noten ins Raster)",
+          "logic": { "keys": ["Q"], "source": "doku" }
+        }
+      ]
+    },
+    {
+      "title": "Bewegen",
+      "functions": [
+        {
+          "id": "nav.horizontal",
+          "title": "Vor / zurück",
+          "command": "nav.horizontal",
+          "args": { "1": "vor", "-1": "zurück" },
+          "finale": { "keys": { "1": ["ArrowRight"], "-1": ["ArrowLeft"] }, "source": "annahme" },
+          "logic": { "keys": { "1": ["ArrowRight"], "-1": ["ArrowLeft"] }, "source": "doku", "note": "Logic: nächstes / voriges Ereignis auswählen." }
+        },
+        {
+          "id": "nav.staff",
+          "title": "System wechseln",
+          "command": "nav.staff",
+          "args": { "-1": "darüber", "1": "darunter" },
+          "finale": { "keys": { "-1": ["Alt+ArrowUp"], "1": ["Alt+ArrowDown"] }, "source": "annahme" },
+          "logic": { "keys": { "-1": ["ArrowUp"], "1": ["ArrowDown"] }, "source": "doku", "note": "Logic: Spur darüber / darunter auswählen." }
+        },
+        {
+          "id": "edit.escape",
+          "title": "Eingabe beenden, dann Auswahl aufheben",
+          "command": "edit.escape",
+          "finale": { "keys": ["Escape"], "source": "icastico" },
+          "logic": { "keys": ["Escape"], "source": "icastico" }
+        },
+        {
+          "id": "view.zoom",
+          "title": "Vergrößern / verkleinern",
+          "args": { "1": "größer", "-1": "kleiner" },
+          "logic": { "keys": { "1": ["Mod+ArrowRight"], "-1": ["Mod+ArrowLeft"] }, "source": "doku" }
+        }
+      ]
+    },
+    {
+      "title": "Datei & Ansicht",
+      "functions": [
+        {
+          "id": "file.new",
+          "title": "Neue Partitur",
+          "command": "file.new",
+          "finale": { "keys": ["Mod+N"], "source": "doku" },
+          "logic": { "keys": ["Mod+N"], "source": "doku" }
+        },
+        {
+          "id": "library.toggle",
+          "title": "Bibliothek",
+          "command": "library.toggle",
+          "finale": { "keys": ["Mod+O"], "source": "icastico", "note": "In Finale/Logic: Öffnen." },
+          "logic": { "keys": ["Mod+O"], "source": "icastico", "note": "In Finale/Logic: Öffnen." }
+        },
+        {
+          "id": "file.open",
+          "title": "Datei von außerhalb der Bibliothek öffnen",
+          "command": "file.open",
+          "finale": { "keys": ["Mod+Shift+O"], "source": "icastico" },
+          "logic": { "keys": ["Mod+Shift+O"], "source": "icastico" }
+        },
+        {
+          "id": "file.save",
+          "title": "Speichern (Bibliothek speichert auch selbst)",
+          "command": "file.save",
+          "finale": { "keys": ["Mod+S"], "source": "doku" },
+          "logic": { "keys": ["Mod+S"], "source": "doku" }
+        },
+        {
+          "id": "file.saveAs",
+          "title": "Kopie speichern unter …",
+          "command": "file.saveAs",
+          "finale": { "keys": ["Mod+Shift+S"], "source": "doku" },
+          "logic": { "keys": ["Mod+Shift+S"], "source": "doku" }
+        },
+        {
+          "id": "score.settings",
+          "title": "Partitur-Einstellungen (Titel, Tonart, Taktart, Auftakt)",
+          "command": "score.settings",
+          "finale": { "keys": ["Mod+Comma"], "source": "icastico" },
+          "logic": { "keys": ["Mod+Comma"], "source": "icastico" }
+        },
+        {
+          "id": "file.print",
+          "title": "Drucken",
+          "finale": { "keys": ["Mod+P"], "source": "doku" },
+          "logic": { "keys": ["Mod+P"], "source": "doku" }
+        },
+        {
+          "id": "view.help",
+          "title": "Tastenhilfe",
+          "command": "view.help",
+          "finale": { "keys": ["F1", "?"], "source": "icastico" },
+          "logic": { "keys": ["F1", "?"], "source": "icastico" }
+        }
+      ]
+    },
+    {
+      "title": "Wiedergabe & Aufnahme",
+      "functions": [
+        {
+          "id": "play.toggle",
+          "title": "Wiedergabe starten / stoppen",
+          "logic": { "keys": ["Space"], "source": "doku", "note": "In Logic hat die Schritteingabe Vorrang: dort ist die Leertaste die Pause." }
+        },
+        {
+          "id": "play.record",
+          "title": "Aufnahme",
+          "logic": { "keys": ["R"], "source": "doku" }
+        },
+        {
+          "id": "play.metronome",
+          "title": "Metronom an / aus",
+          "logic": { "keys": ["K"], "source": "doku" }
+        },
+        {
+          "id": "play.cycle",
+          "title": "Wiederholbereich (Cycle) an / aus",
+          "logic": { "keys": ["C"], "source": "doku" }
+        }
+      ]
+    }
+  ]
+}

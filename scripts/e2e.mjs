@@ -248,6 +248,51 @@ try {
   check((await page.textContent('.form__error')).includes('Takt 99 gibt es nicht'), 'Unmöglicher Takt: Meldung im Dialog, Dialog bleibt offen');
   await type('Escape');
 
+  // ── Noten mit der Maus ziehen ──
+  await type('Escape', 'Escape');
+  const note = page.locator('.page g.note').first();
+  await note.locator('use').first().click({ force: true });
+  const before = await status();
+  const stepPx = await page.evaluate(() => {
+    const staff = document.querySelector('.page g.staff');
+    const lines = [...staff.children].filter((c) => c.tagName.toLowerCase() === 'path').slice(0, 5);
+    const y = (el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; };
+    return (y(lines[4]) - y(lines[0])) / 8;
+  });
+  const box = await note.locator('use').first().boundingBox();
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx, cy - stepPx * 2, { steps: 6 });
+  await page.mouse.up();
+  const after = await status();
+  check(after !== before && /Note /.test(after), `Note zwei Stufen nach oben gezogen (${before.split(' · ').slice(-2, -1)} → ${after.split(' · ').slice(-2, -1)})`);
+  await type('Control+z');
+  check((await status()).split(' · ').slice(-2).join() === before.split(' · ').slice(-2).join() || (await page.textContent('#status')) === 'Rückgängig', 'Strg+Z nimmt das ganze Ziehen in einem Schritt zurück');
+  await page.screenshot({ path: join(outDir, 'ziehen.png') });
+
+  // ── Tastenbelegung umschalten: Logic ──
+  await type('F1');
+  await page.click('[data-preset="logic"]');
+  check((await page.textContent('.help__desc')).includes('Klaviatur'), 'Tastenhilfe: auf Logic umgeschaltet');
+  await page.screenshot({ path: join(outDir, 'tasten-logic.png') });
+  await type('Escape');
+  await type('Control+n');
+  await page.waitForSelector('.modal h2:text("Neue Partitur")');
+  await page.fill('#f-title', 'Logic-Test');
+  await page.selectOption('#f-key', '0');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction(() => document.querySelector('#doc-title')?.textContent === 'Logic-Test');
+  await type('3', 'a', 'w', 'Alt+ArrowUp', 'Space');
+  await saved();
+  const logicFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Logic-Test.icastico'))[1].contents;
+  check(/"dur": "1\/4", "pitches": \["C5"\][\s\S]*"pitches": \["D5"\]/.test(logicFile), 'Logic-Tasten: 3 = Viertel, A = C, W = Cis, Alt+↑ = Halbton (→ D), Leertaste = Pause');
+  check((await page.evaluate(() => localStorage.getItem('icastico.keymap'))) === 'logic', 'Gewählte Belegung wird gemerkt');
+  await type('F1');
+  await page.click('[data-preset="finale"]');
+  await type('Escape');
+
   check(errors.length === 0, `Keine Fehler in der Konsole${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   console.log(`\nAlle ${step} Prüfungen bestanden. Screenshots: ${outDir}`);
 } catch (err) {

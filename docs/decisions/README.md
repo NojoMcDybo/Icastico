@@ -38,3 +38,4 @@ Was wird dadurch leichter, was schwerer?
 | 0008 | [Auftakt und globale Partitur-Einstellungen](0008-auftakt-und-einstellungen.md) | angenommen |
 | 0009 | [Bibliothek: eigener Ordner, Sammlungen, automatisches Speichern](0009-bibliothek.md) | angenommen (Referenz: Owner-App Folio) |
 | 0010 | [Installer, Desktop-Verknüpfung, automatische Updates](0010-updates.md) | angenommen |
+| 0011 | [Bibliothek der Tastenbelegungen (Finale + Logic), Ziehen mit der Maus](0011-tastenbelegung-bibliothek.md) | angenommen |
