@@ -2,7 +2,7 @@
  * The librarian: composite library operations on top of a LibraryService.
  * Every operation that can collide retries with the next free name.
  */
-import { parseScoreFile, serializeScore } from '../core/file/format';
+import { FORMAT_VERSION, fileVersion, parseScoreFile, serializeScore } from '../core/file/format';
 import type { Score } from '../core/model';
 import {
   ORIGIN_FILE,
@@ -19,6 +19,9 @@ import {
   uniqueFileName,
 } from './library';
 import type { LibraryService } from './service';
+
+/** Hidden (the scan ignores dot-folders): untouched copies of files that were upgraded to a newer format. */
+export const BACKUP_DIR = '.sicherungen';
 
 export class LibraryStore {
   private rootPath = '';
@@ -92,6 +95,7 @@ export class LibraryStore {
    * (a free name in the same folder). Returns the (possibly new) path.
    */
   async saveScore(path: string, score: Score): Promise<string> {
+    await this.backUpOldFormat(path);
     let target = path;
     if (fileNameOf(path).toLowerCase() !== preferredFileName(score.title).toLowerCase()) {
       const folder = dirOf(path);
@@ -108,6 +112,37 @@ export class LibraryStore {
     }
     await this.service.write(target, serializeScore(score, this.appVersion));
     return target;
+  }
+
+  /**
+   * Saving writes the current format, so the first save of an older file would
+   * silently replace it (autosave!). Keep its untouched text first; if that fails,
+   * the save fails and the old file stays as it is.
+   */
+  private async backUpOldFormat(path: string): Promise<void> {
+    let text: string;
+    try {
+      text = await this.service.read(path);
+    } catch {
+      return; // nothing on disk yet, nothing to protect
+    }
+    const version = fileVersion(text);
+    if (version === null || version >= FORMAT_VERSION) return;
+    const dir = joinPath(this.rootPath, BACKUP_DIR);
+    try {
+      await this.service.createDir(dir);
+    } catch {
+      // already there
+    }
+    for (let n = 1; ; n++) {
+      const name = `${fileNameOf(path)}.v${version}${n > 1 ? `-${n}` : ''}.bak`;
+      try {
+        await this.service.createFile(joinPath(dir, name), text);
+        return;
+      } catch (err) {
+        if (!/gibt es schon/.test(String(err)) || n >= 20) throw err;
+      }
+    }
   }
 
   async readScore(path: string): Promise<Score> {

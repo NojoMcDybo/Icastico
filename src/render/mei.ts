@@ -10,7 +10,7 @@
  * applies to the same pitch (step + octave) until the end of the measure,
  * a note tied over from the previous measure shows no accidental.
  */
-import { type Score, type Part, measuresOf, type Measure, validateScore } from '../core/model';
+import { type Score, type Part, type Tone, measuresOf, type Measure, validateScore } from '../core/model';
 import type { Fraction } from '../core/time';
 import { getInstrument, type Clef } from '../core/instruments';
 import { keyAlteration, type Pitch } from '../core/pitch';
@@ -27,6 +27,8 @@ export interface ElementRef {
   readonly voiceId: string;
   /** Set for notes; rests have no model event. */
   readonly eventId?: string;
+  /** The single tone this symbol stands for; absent for a whole chord, rests and measure rests. */
+  readonly toneId?: string;
   readonly measureNumber: number;
   /** Global staff number (1-based, as in MEI). */
   readonly staffN: number;
@@ -86,6 +88,9 @@ class AccidentalState {
   }
 }
 
+/** SVG/MEI id of one notehead inside a chord; carries the tone id, so it survives re-sorting. */
+const chordNoteId = (item: NotatedNote, tone: Tone): string => `${item.id}-${tone.id}`;
+
 function noteXml(item: NotatedNote, accidentals: AccidentalState, indent: string): string {
   const tie =
     item.tiedFromPrevious && item.tiedToNext ? 'm' : item.tiedToNext ? 'i' : item.tiedFromPrevious ? 't' : '';
@@ -93,11 +98,11 @@ function noteXml(item: NotatedNote, accidentals: AccidentalState, indent: string
   const pitchAttrs = (p: Pitch) =>
     `pname="${p.step.toLowerCase()}" oct="${p.octave}"${accidentals.attrsFor(p, item.tiedFromPrevious)}`;
 
-  if (item.pitches.length === 1) {
-    return `${indent}<note xml:id="${item.id}" ${durAttrs(item.duration)} ${pitchAttrs(item.pitches[0]!)}${tieAttr}/>`;
+  if (item.tones.length === 1) {
+    return `${indent}<note xml:id="${item.id}" ${durAttrs(item.duration)} ${pitchAttrs(item.tones[0]!.pitch)}${tieAttr}/>`;
   }
-  const notes = item.pitches
-    .map((p, i) => `${indent}  <note xml:id="${item.id}-${i + 1}" ${pitchAttrs(p)}${tieAttr}/>`)
+  const notes = item.tones
+    .map((t) => `${indent}  <note xml:id="${chordNoteId(item, t)}" ${pitchAttrs(t.pitch)}${tieAttr}/>`)
     .join('\n');
   return `${indent}<chord xml:id="${item.id}" ${durAttrs(item.duration)}>\n${notes}\n${indent}</chord>`;
 }
@@ -182,9 +187,11 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
             elements.set(it.id, { ...base, kind: 'rest', onset: it.onset });
           } else {
             const ref: ElementRef = { ...base, kind: 'note', onset: it.onset, eventId: it.eventId };
-            elements.set(it.id, ref);
-            if (it.pitches.length > 1) {
-              it.pitches.forEach((_, i) => elements.set(`${it.id}-${i + 1}`, { ...ref, kind: 'chordNote' }));
+            if (it.tones.length === 1) {
+              elements.set(it.id, { ...ref, toneId: it.tones[0]!.id });
+            } else {
+              elements.set(it.id, ref);
+              it.tones.forEach((t) => elements.set(chordNoteId(it, t), { ...ref, kind: 'chordNote', toneId: t.id }));
             }
           }
         }

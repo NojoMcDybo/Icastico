@@ -111,7 +111,7 @@ describe('applyScoreChanges', () => {
       { at: ZERO, fifths: 0 },
       { at: frac(2), fifths: 2 },
     ]);
-    expect(s.parts[0]!.voices[0]!.events.map((e) => e.pitches[0]!.alter)).toEqual([0, 0, 0, 0]);
+    expect(s.parts[0]!.voices[0]!.events.map((e) => e.tones[0]!.pitch.alter)).toEqual([0, 0, 0, 0]);
   });
 
   it('setting a key equal to the one before removes the change again', () => {

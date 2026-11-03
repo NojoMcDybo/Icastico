@@ -34,12 +34,15 @@ describe('scoreToMei', () => {
       partId: 'voice',
       voiceId: 'voice-v1',
       eventId: 'v6',
+      toneId: 'v6-t1',
       measureNumber: 3,
       staffN: 1,
       kind: 'note',
       onset: frac(2),
     });
-    expect(elements.get('g1-m1-1-2')).toMatchObject({ eventId: 'g1', kind: 'chordNote' }); // a note inside a chord
+    // a note inside a chord is named after its tone, not its position
+    expect(elements.get('g1-m1-1-g1-t2')).toMatchObject({ eventId: 'g1', toneId: 'g1-t2', kind: 'chordNote' });
+    expect(elements.get('g1-m1-1')).not.toHaveProperty('toneId');
     expect(elements.get('piano-lh-m4-r1')).toMatchObject({ kind: 'rest', staffN: 4, onset: frac(7, 2) });
   });
 

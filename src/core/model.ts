@@ -33,12 +33,22 @@ export interface KeyChange {
   readonly fifths: number;
 }
 
-/** A note or chord. All pitches share onset and duration. */
+/**
+ * One sounding note of an event. The id is permanent and unique within the
+ * score (ADR 0011): editing the pitch, adding or removing other tones of the
+ * chord never changes it. Array position or MIDI number are NOT identities.
+ */
+export interface Tone {
+  readonly id: string;
+  readonly pitch: Pitch;
+}
+
+/** A note or chord. All tones share onset and duration; sorted by sounding pitch. */
 export interface NoteEvent {
   readonly id: string;
   readonly onset: Fraction;
   readonly duration: Fraction;
-  readonly pitches: readonly Pitch[];
+  readonly tones: readonly Tone[];
 }
 
 export interface Voice {
@@ -154,6 +164,14 @@ export function measureStart(score: Score, number: number): Fraction | null {
   return ms.find((m) => m.number === number)?.start ?? null;
 }
 
+/** A tone id not used by any tone of the score yet, derived from its event: "<event>-t1", "-t2" … */
+export function freshToneId(score: Score, eventId: string): string {
+  const used = new Set(score.parts.flatMap((p) => p.voices.flatMap((v) => v.events.flatMap((e) => e.tones.map((t) => t.id)))));
+  let n = 1;
+  while (used.has(`${eventId}-t${n}`)) n++;
+  return `${eventId}-t${n}`;
+}
+
 /** IDs end up as XML ids in MEI/SVG, so they must be XML-safe. */
 const ID_PATTERN = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 
@@ -187,6 +205,7 @@ export function validateScore(score: Score): string[] {
   }
 
   const ids = new Set<string>();
+  const toneIds = new Set<string>();
   for (const part of score.parts) {
     const instrument = getInstrument(part.instrument);
     if (!ID_PATTERN.test(part.id)) problems.push(`Ungültige Part-ID "${part.id}".`);
@@ -205,7 +224,12 @@ export function validateScore(score: Score): string[] {
         if (lt(ev.onset, cursor)) {
           problems.push(`${part.name}: Event ${ev.id} überlappt mit dem vorherigen Event derselben Stimme.`);
         }
-        if (ev.pitches.length === 0) problems.push(`${part.name}: Event ${ev.id} hat keine Tonhöhe.`);
+        if (ev.tones.length === 0) problems.push(`${part.name}: Event ${ev.id} hat keine Tonhöhe.`);
+        for (const tone of ev.tones) {
+          if (toneIds.has(tone.id)) problems.push(`Doppelte Ton-ID ${tone.id}.`);
+          if (!ID_PATTERN.test(tone.id)) problems.push(`Ungültige Ton-ID "${tone.id}" (erlaubt: Buchstabe, dann Buchstaben/Ziffern/_/-).`);
+          toneIds.add(tone.id);
+        }
         cursor = eventEnd(ev);
       }
     }

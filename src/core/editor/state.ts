@@ -20,7 +20,8 @@ export interface Caret extends VoiceRef {
 }
 
 export type Selection =
-  | (VoiceRef & { readonly kind: 'event'; readonly eventId: string })
+  /** `toneId` = one tone of the chord (set by a click on that notehead or piano-roll bar); absent = the whole event. */
+  | (VoiceRef & { readonly kind: 'event'; readonly eventId: string; readonly toneId?: string })
   | (VoiceRef & { readonly kind: 'gap'; readonly time: Fraction });
 
 export interface InputSettings {

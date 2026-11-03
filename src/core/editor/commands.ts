@@ -12,7 +12,7 @@
  */
 import { type Fraction, ZERO, add, eq, frac, gt, isDyadic, le, lt } from '../time';
 import { STEPS, keyAlteration, midiOf, type Pitch } from '../pitch';
-import { type NoteEvent, type Score, eventEnd, keyAt, measuresOf } from '../model';
+import { type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, measuresOf } from '../model';
 import { decomposeNote, writtenValue } from '../notation/notate';
 import { emptyScore } from '../templates';
 import {
@@ -105,14 +105,14 @@ function ensureCaret(s: EditorState): EditorState {
 
 const samePitch = (a: Pitch, b: Pitch): boolean => a.step === b.step && a.alter === b.alter && a.octave === b.octave;
 
-const samePitches = (a: readonly Pitch[], b: readonly Pitch[]): boolean =>
-  a.length === b.length && a.every((p, i) => samePitch(p, b[i]!));
+const samePitches = (a: readonly Tone[], b: readonly Tone[]): boolean =>
+  a.length === b.length && a.every((t, i) => samePitch(t.pitch, b[i]!.pitch));
 
 /** Pitch of the note before the caret, else the staff's middle line. */
 function referencePitch(s: EditorState, caret: Caret): Pitch {
   const before = getVoice(s.score, caret).voice.events.filter((e) => le(eventEnd(e), caret.time));
   const last = before[before.length - 1];
-  return last ? last.pitches[0]! : staffCenter(s.score, caret);
+  return last ? last.tones[0]!.pitch : staffCenter(s.score, caret);
 }
 
 /** Staff position: 7 steps per octave. */
@@ -139,13 +139,15 @@ function stepPitch(p: Pitch, delta: number, fifths: number): Pitch {
   return { step, alter: keyAlteration(fifths, step), octave };
 }
 
-const sortPitches = (ps: readonly Pitch[]): Pitch[] => [...ps].sort((a, b) => midiOf(a) - midiOf(b));
+const sortTones = (ts: readonly Tone[]): Tone[] => [...ts].sort((a, b) => midiOf(a.pitch) - midiOf(b.pitch));
 
 function replacePitches(s: EditorState, fn: (p: Pitch, ev: NoteEvent) => Pitch): EditorState {
   const t = target(s);
   if (!t) return say(s, NO_NOTE);
   const score = updateEvents(s.score, t.ref, (events) =>
-    events.map((e) => (e.id === t.event.id ? { ...e, pitches: sortPitches(e.pitches.map((p) => fn(p, e))) } : e)),
+    events.map((e) =>
+      e.id === t.event.id ? { ...e, tones: sortTones(e.tones.map((tone) => ({ ...tone, pitch: fn(tone.pitch, e) }))) } : e,
+    ),
   );
   return { ...s, score, selection: selectEvent(t.ref, t.event), message: null };
 }
@@ -205,7 +207,7 @@ function enterNote(s0: EditorState, stepIndex: number): EditorState {
   let score: Score;
   let selection: Selection;
   let nextId = s.nextId;
-  if (s.input.pendingTie && prev && prev.pitches.length === 1 && samePitch(prev.pitches[0]!, pitch)) {
+  if (s.input.pendingTie && prev && prev.tones.length === 1 && samePitch(prev.tones[0]!.pitch, pitch)) {
     // Tie = one longer event on the timeline.
     score = updateEvents(s.score, caret, (events) =>
       insertSorted(
@@ -222,7 +224,7 @@ function enterNote(s0: EditorState, stepIndex: number): EditorState {
   } else {
     const [id, next] = freshId(s.score, caret, s.nextId);
     nextId = next;
-    const ev: NoteEvent = { id, onset: caret.time, duration: length, pitches: [pitch] };
+    const ev: NoteEvent = { id, onset: caret.time, duration: length, tones: [{ id: freshToneId(s.score, id), pitch }] };
     score = updateEvents(s.score, caret, (events) => insertSorted(makeRoom(events, caret.time, length, insert), ev));
     selection = selectEvent(caret, ev);
   }
@@ -242,12 +244,14 @@ function addChordNote(s: EditorState, stepIndex: number): EditorState {
   const t = target(s);
   if (!step) return s;
   if (!t) return say(s, NO_NOTE);
-  const top = Math.max(...t.event.pitches.map(midiOf));
+  const top = Math.max(...t.event.tones.map((tone) => midiOf(tone.pitch)));
   const alter = keyAlteration(keyAt(s.score, t.event.onset), step);
   let pitch: Pitch = { step, alter, octave: -1 };
   while (midiOf(pitch) <= top) pitch = { ...pitch, octave: pitch.octave + 1 };
   const score = updateEvents(s.score, t.ref, (events) =>
-    events.map((e) => (e.id === t.event.id ? { ...e, pitches: sortPitches([...e.pitches, pitch]) } : e)),
+    events.map((e) =>
+      e.id === t.event.id ? { ...e, tones: sortTones([...e.tones, { id: freshToneId(s.score, e.id), pitch }]) } : e,
+    ),
   );
   return { ...s, score, selection: selectEvent(t.ref, t.event), message: null };
 }
@@ -333,7 +337,7 @@ function tie(s: EditorState): EditorState {
   if (!t) return say(s, NO_NOTE);
   const end = eventEnd(t.event);
   const next = getVoice(s.score, t.ref).voice.events.find((e) => eq(e.onset, end));
-  if (next && samePitches(next.pitches, t.event.pitches)) {
+  if (next && samePitches(next.tones, t.event.tones)) {
     const merged = { ...t.event, duration: add(t.event.duration, next.duration) };
     const score = updateEvents(s.score, t.ref, (events) =>
       events.filter((e) => e.id !== next.id).map((e) => (e.id === t.event.id ? merged : e)),

@@ -5,18 +5,22 @@
  *
  *   { "format": "icastico", "version": 1, "app": "0.2.0", "score": { … } }
  *
- * Times are fraction strings ("3/8"), pitches are spelled names ("F#4").
+ * Times are fraction strings ("3/8"), pitches are spelled names ("F#4"); every
+ * tone of a note or chord has a permanent id ({ "id": "v1-t1", "pitch": "F#4" }).
  * Loading is strict: anything unexpected is rejected with a German message
  * instead of producing a half-broken score.
  */
 import { type Fraction, compare, fracToString, parseFrac } from '../time';
 import { parsePitch, pitchToString } from '../pitch';
 import { type InstrumentId, INSTRUMENTS } from '../instruments';
-import { type NoteEvent, type Part, type Score, type Voice, validateScore } from '../model';
+import { type NoteEvent, type Part, type Score, type Tone, type Voice, validateScore } from '../model';
 
 export const FILE_EXTENSION = 'icastico';
-/** History: 1 = first format (v0.2.0), 2 = optional upbeat "pickup" (v0.3.0). */
-export const FORMAT_VERSION = 2;
+/**
+ * History: 1 = first format (v0.2.0), 2 = optional upbeat "pickup" (v0.3.0),
+ * 3 = tones with permanent ids instead of plain pitch names (ADR 0011).
+ */
+export const FORMAT_VERSION = 3;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -43,7 +47,7 @@ function scoreToJson(score: Score): unknown {
           id: e.id,
           at: fracToString(e.onset),
           dur: fracToString(e.duration),
-          pitches: e.pitches.map(pitchToString),
+          tones: e.tones.map((t) => ({ id: t.id, pitch: pitchToString(t.pitch) })),
         })),
       })),
     })),
@@ -54,11 +58,13 @@ type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
 const isPrimitive = (v: Json): v is null | boolean | number | string => v === null || typeof v !== 'object';
 
-/** "Flat" values fit on one line: primitives, primitive arrays, objects of those (e.g. a note). */
+const depth = (v: Json): number =>
+  isPrimitive(v) ? 0 : 1 + Math.max(0, ...(Array.isArray(v) ? v : Object.values(v)).map(depth));
+
+/** "Flat" values fit on one line: primitive arrays and small objects (a note with its tones, a meter entry). */
 function isFlat(v: Json): boolean {
   if (isPrimitive(v)) return true;
-  const children = Array.isArray(v) ? v : Object.values(v);
-  return children.every((c) => isPrimitive(c) || (Array.isArray(c) && c.every(isPrimitive)));
+  return Array.isArray(v) ? v.every(isPrimitive) : depth(v) <= 3;
 }
 
 function oneLine(v: Json): string {
@@ -118,15 +124,17 @@ function time(v: unknown, where: string): Fraction {
 function readEvent(v: unknown, where: string): NoteEvent {
   const o = obj(v, where);
   const id = str(o.id, `${where}.id`);
-  const pitches = arr(o.pitches, `${where} (${id}).pitches`).map((p, i) => {
-    const name = str(p, `${where} (${id}).pitches[${i}]`);
+  const tones = arr(o.tones, `${where} (${id}).tones`).map((t, i): Tone => {
+    const tone = obj(t, `${where} (${id}).tones[${i}]`);
+    const name = str(tone.pitch, `${where} (${id}).tones[${i}].pitch`);
     try {
-      return parsePitch(name);
-    } catch {
+      return { id: str(tone.id, `${where} (${id}).tones[${i}].id`), pitch: parsePitch(name) };
+    } catch (e) {
+      if (e instanceof FileFormatError) throw e;
       return fail(`${where} (${id}): unbekannte Tonhöhe „${name}“.`);
     }
   });
-  return { id, onset: time(o.at, `${where} (${id}).at`), duration: time(o.dur, `${where} (${id}).dur`), pitches };
+  return { id, onset: time(o.at, `${where} (${id}).at`), duration: time(o.dur, `${where} (${id}).dur`), tones };
 }
 
 function readVoice(v: unknown, where: string): Voice {
@@ -178,13 +186,47 @@ function readScore(v: unknown): Score {
 const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
   // 1 → 2: adds the optional "pickup" (Auftakt). Version-1 files have none.
   1: (doc) => ({ ...doc, version: 2 }),
+  // 2 → 3: "pitches": ["C4","E4"] becomes "tones" with ids "<event>-t1", "-t2" …. Event ids are
+  // unique, so these ids are too; the music itself is untouched.
+  2: (doc) => ({ ...doc, version: 3, score: mapEvents(doc.score, upgradePitches) }),
 };
+
+/** Applies `fn` to every event object of a (still unvalidated) score; anything unexpected is left for the reader to reject. */
+function mapEvents(score: unknown, fn: (event: Obj) => Obj): unknown {
+  const each = (v: unknown, f: (o: Obj) => Obj): unknown => (Array.isArray(v) ? v.map((x) => (isObj(x) ? f(x) : x)) : v);
+  if (!isObj(score)) return score;
+  return {
+    ...score,
+    parts: each(score.parts, (part) => ({
+      ...part,
+      voices: each(part.voices, (voice) => ({ ...voice, events: each(voice.events, fn) })),
+    })),
+  };
+}
+
+const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+function upgradePitches(event: Obj): Obj {
+  const { pitches, ...rest } = event;
+  if (!Array.isArray(pitches)) return event;
+  return { ...rest, tones: pitches.map((pitch, i) => ({ id: `${String(event.id)}-t${i + 1}`, pitch })) };
+}
 
 /** Upgrades older file versions step by step to FORMAT_VERSION. */
 function migrate(doc: Obj, version: number): Obj {
   let current = doc;
   for (let v = version; v < FORMAT_VERSION; v++) current = MIGRATIONS[v]!(current);
   return current;
+}
+
+/** Format version a file was saved with, or null if it is not an Icastico file. */
+export function fileVersion(text: string): number | null {
+  try {
+    const doc: unknown = JSON.parse(text);
+    return isObj(doc) && doc.format === 'icastico' && typeof doc.version === 'number' ? doc.version : null;
+  } catch {
+    return null;
+  }
 }
 
 export function parseScoreFile(text: string): Score {

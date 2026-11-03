@@ -17,8 +17,8 @@ function dump(score: Score, ref: VoiceRef = VOICE): string {
   let cursor = ZERO;
   for (const e of getVoice(score, ref).voice.events) {
     if (lt(cursor, e.onset)) out.push(`r:${fracToString(add(e.onset, { n: -cursor.n, d: cursor.d }))}`);
-    const p = e.pitches.map(pitchToString).join(',');
-    out.push(`${e.pitches.length > 1 ? `[${p}]` : p}:${fracToString(e.duration)}`);
+    const p = e.tones.map((t) => pitchToString(t.pitch)).join(',');
+    out.push(`${e.tones.length > 1 ? `[${p}]` : p}:${fracToString(e.duration)}`);
     cursor = eventEnd(e);
   }
   return out.join(' ');
@@ -185,6 +185,48 @@ describe('caret and selection', () => {
     expect(s.caret && eq(s.caret.time, frac(1))).toBe(true); // end of bar 1 = start of bar 2
     s = play(s, 'right');
     expect(s.caret && eq(s.caret.time, frac(1))).toBe(true); // does not run away into empty bars
+  });
+});
+
+describe('tone identity', () => {
+  const toneIds = (s: EditorState) => getVoice(s.score, VOICE).voice.events.map((e) => e.tones.map((t) => t.id));
+
+  it('every entered note and chord tone gets its own id', () => {
+    const s = play(fresh(), '5 C +E +G D');
+    expect(toneIds(s)).toEqual([['voice-v1-n1-t1', 'voice-v1-n1-t2', 'voice-v1-n1-t3'], ['voice-v1-n2-t1']]);
+    const all = s.score.parts.flatMap((p) => p.voices.flatMap((v) => v.events.flatMap((e) => e.tones.map((t) => t.id))));
+    expect(new Set(all).size).toBe(all.length);
+  });
+
+  it('changing pitch, octave, spelling or length never changes the ids', () => {
+    const before = toneIds(play(fresh(), '5 C +E +G'));
+    for (const edit of ['up', 'down', 'octup', 'octdown', 'plus', 'minus', 'alt6', 'alt3']) {
+      const s = play(fresh(), `5 C +E +G ${edit}`);
+      expect(toneIds(s), edit).toEqual(before);
+    }
+  });
+
+  it('a chord tone added later gets a new id and the old ones stay', () => {
+    const s = play(fresh(), '5 C +E right left +A');
+    const [ids] = toneIds(s);
+    expect(ids).toContain('voice-v1-n1-t1');
+    expect(ids).toContain('voice-v1-n1-t2');
+    expect(new Set(ids).size).toBe(3);
+  });
+
+  it('tying keeps the tone ids of the first note', () => {
+    const s = play(fresh(), '5 C C left left T');
+    expect(dump(s.score)).toBe('C5:1/2');
+    expect(toneIds(s)).toEqual([['voice-v1-n1-t1']]);
+  });
+
+  it('undo restores the same tone ids', () => {
+    const h = new History(fresh());
+    h.apply(play(h.state, '5 C +E'));
+    const ids = toneIds(h.state);
+    h.apply(play(h.state, 'octup'));
+    h.undo();
+    expect(toneIds(h.state)).toEqual(ids);
   });
 });
 

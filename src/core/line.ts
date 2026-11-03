@@ -22,11 +22,12 @@ export function parseLine(spec: string, idPrefix: string, start: Fraction = ZERO
     const duration = parseFrac(token.slice(colon + 1));
     if (head !== 'r') {
       const names = head.startsWith('[') && head.endsWith(']') ? head.slice(1, -1).split(',') : [head];
+      const id = `${idPrefix}${++counter}`;
       events.push({
-        id: `${idPrefix}${++counter}`,
+        id,
         onset: cursor,
         duration,
-        pitches: names.map(parsePitch),
+        tones: names.map((name, i) => ({ id: `${id}-t${i + 1}`, pitch: parsePitch(name) })),
       });
     }
     cursor = add(cursor, duration);

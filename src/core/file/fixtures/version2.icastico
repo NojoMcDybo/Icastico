@@ -1,0 +1,40 @@
+{
+  "format": "icastico",
+  "version": 2,
+  "app": "0.6.0",
+  "score": {
+    "title": "Gespeichert mit 0.6.0",
+    "meter": [
+      { "at": "0", "count": 4, "unit": 4 }
+    ],
+    "keys": [
+      { "at": "0", "fifths": 0 }
+    ],
+    "pickup": "1/4",
+    "parts": [
+      {
+        "id": "piano",
+        "name": "Klavier",
+        "instrument": "piano",
+        "voices": [
+          {
+            "id": "piano-rh",
+            "staff": 0,
+            "events": [
+              { "id": "pr1", "at": "0", "dur": "1/4", "pitches": ["Gb4"] },
+              { "id": "pr2", "at": "1/4", "dur": "1/2", "pitches": ["C4", "E4", "G4"] },
+              { "id": "pr3", "at": "3/4", "dur": "1/4", "pitches": ["F#4", "A#4"] }
+            ]
+          },
+          {
+            "id": "piano-lh",
+            "staff": 1,
+            "events": [
+              { "id": "pl1", "at": "1/4", "dur": "1", "pitches": ["C3", "G3"] }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

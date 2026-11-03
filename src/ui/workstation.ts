@@ -151,7 +151,7 @@ export class Workstation {
 
   /** Unsaved changes? Undoing back to the saved state counts as clean. */
   get dirty(): boolean {
-    return !this.empty && this.state.score !== this.savedScore;
+    return !this.empty && this.history.committed.score !== this.savedScore;
   }
 
   // ── Input ────────────────────────────────────────────────────────────────
@@ -274,16 +274,16 @@ export class Workstation {
     if (!saveAs && this.location?.inLibrary) return this.saveLibrary(true);
     if (!saveAs && !this.location && this.store) {
       // A score without a home (e.g. the demo without library) moves into the library.
-      const path = await this.withBusy(() => this.store!.createScore(this.state.score, null), 'Speichern fehlgeschlagen');
+      const path = await this.withBusy(() => this.store!.createScore(this.history.committed.score, null), 'Speichern fehlgeschlagen');
       if (!path) return false;
       this.location = { path, inLibrary: true };
-      this.savedScore = this.state.score;
+      this.savedScore = this.history.committed.score;
       this.history.apply({ ...this.state, message: 'In der Bibliothek gespeichert' });
       this.update();
       return true;
     }
     // External file, or "save a copy as" for library scores.
-    const score = this.state.score;
+    const score = this.history.committed.score;
     const external = this.location && !this.location.inLibrary ? this.location.path : null;
     const saved = await this.withBusy(
       () =>
@@ -314,7 +314,7 @@ export class Workstation {
     clearTimeout(this.autosaveTimer);
     this.saving = this.saving.then(async () => {
       const location = this.location;
-      const score = this.state.score;
+      const score = this.history.committed.score;
       if (!this.store || !location?.inLibrary) return false;
       if (score === this.savedScore) {
         if (explicit) this.history.apply({ ...this.state, message: 'Gespeichert' });
@@ -522,7 +522,7 @@ export class Workstation {
     }
     const voice = { partId: ref.partId, voiceId: ref.voiceId };
     const selection = ref.eventId
-      ? { kind: 'event' as const, ...voice, eventId: ref.eventId }
+      ? { kind: 'event' as const, ...voice, eventId: ref.eventId, ...(ref.toneId ? { toneId: ref.toneId } : {}) }
       : { kind: 'gap' as const, ...voice, time: ref.onset };
     const caret = s.caret ? { ...voice, time: ref.onset } : null;
     this.history.apply({ ...s, selection, caret, message: null });
@@ -559,8 +559,8 @@ export class Workstation {
     try {
       this.renderIfNeeded();
     } catch (err) {
-      // Never leave the user with a broken score: revert the last change.
-      this.history.undo();
+      // Never leave the user with a broken score: take back the last change (and only that one).
+      this.history.rollback();
       this.history.apply({
         ...this.state,
         message: `Interner Fehler, Änderung rückgängig gemacht: ${err instanceof Error ? err.message : String(err)}`,
@@ -732,8 +732,11 @@ export class Workstation {
     if (sel.kind === 'gap') return `${part.name}${staff} · ${barName(sel.time)} · Pause`;
     const ev = voice.events.find((e) => e.id === sel.eventId);
     if (!ev) return null;
-    const what = ev.pitches.length > 1 ? 'Akkord' : 'Note';
-    return `${part.name}${staff} · ${barName(ev.onset)} · ${what} ${ev.pitches.map(pitchToString).join(' ')} · ${durationName(ev.duration)}`;
+    const what = ev.tones.length > 1 ? 'Akkord' : 'Note';
+    const chord = ev.tones.map((t) => pitchToString(t.pitch)).join(' ');
+    const one = ev.tones.length > 1 ? ev.tones.find((t) => t.id === sel.toneId) : undefined;
+    const label = one ? `Ton ${pitchToString(one.pitch)} im Akkord ${chord}` : `${what} ${chord}`;
+    return `${part.name}${staff} · ${barName(ev.onset)} · ${label} · ${durationName(ev.duration)}`;
   }
 
   private buildHelp(): void {

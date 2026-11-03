@@ -27,7 +27,8 @@
 - `time.ts` – exakte Brüche. Ganze Note = 1. Nie Gleitkomma für Musikzeit.
 - `pitch.ts` – Tonhöhe mit Schreibweise (Stufe, Alteration, Oktave), klingend.
 - `instruments.ts` – Instrumente als Daten (Systeme, Schlüssel, Umfang, MIDI-Programm).
-- `model.ts` – `Score → Part → Voice → NoteEvent`, optional mit Auftakt (`pickup`).
+- `model.ts` – `Score → Part → Voice → NoteEvent → Tone`, optional mit Auftakt (`pickup`).
+  Jeder Ton hat eine dauerhafte, partiturweit eindeutige ID (ADR 0011).
 - `templates.ts` – Partitur aus dem Neu-Dialog anlegen, globale Änderungen
   (Titel, Tonart/Taktart ab Takt, Auftakt), deutsche Tonartnamen (ADR 0008).
 
@@ -59,7 +60,9 @@ ausführlich getestet.
   `(Zustand, Argument) → neuer Zustand` mit deutschem Titel.
 - `voiceOps.ts` – Zeitstrahl-Operationen (Überschreiben, Einfügen).
 - `history.ts` – Undo/Redo durch Aufbewahren alter Zustände (nur
-  Partitur-Änderungen erzeugen Undo-Schritte).
+  Partitur-Änderungen erzeugen Undo-Schritte; eine Geste (Ziehen in einer Ansicht)
+  ist ein einziger Schritt, `committed` ist der Stand ohne laufende Vorschau,
+  `rollback()` nimmt nur die letzte Änderung zurück).
 
 ### 5. UI – `src/ui/`
 

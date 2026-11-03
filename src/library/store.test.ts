@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createScore, DEFAULT_SETUP } from '../core/templates';
 import { demoScore } from '../core/demo';
+import { FORMAT_VERSION, fileVersion } from '../core/file/format';
+import version2File from '../core/file/fixtures/version2.icastico?raw';
 import { itemsFor } from './library';
 import { MemoryLibrary } from './memory';
-import { LibraryStore } from './store';
+import { BACKUP_DIR, LibraryStore } from './store';
 
 const song = (title: string) => createScore({ ...DEFAULT_SETUP, title, instruments: ['voice'] });
 
@@ -94,5 +96,78 @@ describe('LibraryStore', () => {
   it('cannot escape the library folder', async () => {
     await expect(lib.createFile('/Icastico/../böse.icastico', 'x')).rejects.toThrow(/innerhalb/);
     await expect(lib.createFile('/anderswo/x.icastico', 'x')).rejects.toThrow(/innerhalb/);
+  });
+});
+
+describe('files saved by an older Icastico', () => {
+  const OLD = '/Icastico/Alt.icastico';
+  const BACKUP = `/Icastico/${BACKUP_DIR}/Alt.icastico.v2.bak`;
+
+  beforeEach(async () => {
+    await lib.createFile(OLD, version2File);
+    await store.refresh();
+  });
+
+  it('are listed and opened like any other', async () => {
+    const item = store.index.items.find((i) => i.fileName === 'Alt.icastico')!;
+    expect(item.broken).toBeNull();
+    expect(item.title).toBe('Gespeichert mit 0.6.0');
+    expect((await store.readScore(OLD)).parts[0]!.voices[0]!.events).toHaveLength(3);
+  });
+
+  it('are copied untouched before the first save, which then writes the current format', async () => {
+    const score = await store.readScore(OLD);
+    const saved = await store.saveScore(OLD, score); // the file is renamed after its title
+    expect(await lib.read(BACKUP)).toBe(version2File);
+    expect(fileVersion(await lib.read(saved))).toBe(FORMAT_VERSION);
+    expect(await store.readScore(saved)).toEqual(score);
+    // the backup is hidden from the library
+    await store.refresh();
+    expect(titles().sort()).toEqual(['-/Erste Skizze.icastico', '-/Gespeichert mit 0.6.0.icastico']);
+    expect(store.index.collections).toEqual([]);
+  });
+
+  it('are backed up once: the next autosaves leave the backup alone', async () => {
+    const score = await store.readScore(OLD);
+    const saved = await store.saveScore(OLD, score);
+    await store.saveScore(saved, { ...score, composer: 'Neu' });
+    await store.saveScore(saved, { ...score, composer: 'Noch neuer' });
+    expect(await lib.read(BACKUP)).toBe(version2File);
+    const names = [...(lib as unknown as { files: Map<string, unknown> }).files.keys()].filter((p) => p.includes(BACKUP_DIR));
+    expect(names).toEqual([BACKUP]);
+  });
+
+  it('keep their old name in the backup when the title (and so the file name) changes', async () => {
+    const score = await store.readScore(OLD);
+    const renamed = await store.saveScore(OLD, { ...score, title: 'Neuer Titel' });
+    expect(renamed).toBe('/Icastico/Neuer Titel.icastico');
+    expect(await lib.read(BACKUP)).toBe(version2File);
+  });
+
+  it('are not overwritten if the backup fails', async () => {
+    const score = await store.readScore(OLD);
+    const create = lib.createFile.bind(lib);
+    lib.createFile = async (path, contents) => {
+      if (path.includes(BACKUP_DIR)) throw new Error('Kein Platz mehr.');
+      return create(path, contents);
+    };
+    await expect(store.saveScore(OLD, { ...score, title: 'Anders' })).rejects.toThrow('Kein Platz');
+    expect(await lib.read(OLD)).toBe(version2File);
+  });
+
+  it('can be duplicated; the original stays as it was', async () => {
+    const item = store.index.items.find((i) => i.fileName === 'Alt.icastico')!;
+    const copy = await store.duplicate(item);
+    expect(fileVersion(await lib.read(copy))).toBe(FORMAT_VERSION);
+    expect(await lib.read(OLD)).toBe(version2File);
+  });
+
+  it('a file from a newer Icastico is shown as unreadable and never rewritten by the store on its own', async () => {
+    const newer = version2File.replace('"version": 2', `"version": ${FORMAT_VERSION + 1}`);
+    await lib.createFile('/Icastico/Neu.icastico', newer);
+    await store.refresh();
+    const item = store.index.items.find((i) => i.fileName === 'Neu.icastico')!;
+    expect(item.broken).toMatch(/neueren Icastico-Version/);
+    expect(fileVersion(newer)).toBe(FORMAT_VERSION + 1);
   });
 });

@@ -46,6 +46,9 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [ ] Erste Release veröffentlichen (Tag-Push ist aus Claudes Umgebung gesperrt → Owner legt die Release auf GitHub an)
 - [ ] Partituren per Ziehen in Sammlungen verschieben
 - [ ] Notationsregeln verfeinern (Synkopen, Halbtakt-Balken in 4/4)
+- [x] Vorbereitung Piano-Roll und Gleiten: jeder Ton hat eine dauerhafte Nummer, Dateiformat 3, ältere Dateien werden umgewandelt und vor dem ersten Speichern gesichert (ADR 0011)
+- [x] Vorbereitung Piano-Roll: einzelne Akkordtöne sind auswählbar (Klick auf den Notenkopf), eine Ziehgeste ergibt später genau einen Rückgängig-Schritt und wird nie halbfertig gespeichert; ein Zeichenfehler macht nur die letzte Änderung rückgängig, nicht frühere
+- [ ] Piano-Roll, ausdrückliche Haltebögen, Legato, gleitende Töne mit Wiedergabe (noch nicht begonnen, Plan liegt beim Owner)
 
 ## Schritt 2 – Workstation
 

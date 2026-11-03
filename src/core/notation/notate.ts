@@ -33,8 +33,7 @@ import {
   sub,
   fracToString,
 } from '../time';
-import type { Pitch } from '../pitch';
-import { type Measure, type NoteEvent, type TimeSignature, type Voice, eventEnd } from '../model';
+import { type Measure, type NoteEvent, type TimeSignature, type Tone, type Voice, eventEnd } from '../model';
 
 export interface WrittenDuration {
   /** 1 = whole, 2 = half, 4 = quarter … 64 (MEI @dur). */
@@ -48,7 +47,7 @@ export interface NotatedNote {
   readonly eventId: string;
   readonly onset: Fraction;
   readonly duration: WrittenDuration;
-  readonly pitches: readonly Pitch[];
+  readonly tones: readonly Tone[];
   readonly tiedFromPrevious: boolean;
   readonly tiedToNext: boolean;
 }
@@ -160,7 +159,7 @@ export function notateVoice(voice: Voice, measures: readonly Measure[]): Notated
           eventId: ev.id,
           onset,
           duration: w,
-          pitches: ev.pitches,
+          tones: ev.tones,
           tiedFromPrevious: k > 0 || gt(segStart, ev.onset),
           tiedToNext: k < pieces.length - 1 || continuesIntoNextMeasure,
         });
