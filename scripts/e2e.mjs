@@ -287,11 +287,66 @@ try {
   await type('3', 'a', 'w', 'Alt+ArrowUp', 'Space');
   await saved();
   const logicFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Logic-Test.icastico'))[1].contents;
-  check(/"dur": "1\/4", "pitches": \["C5"\][\s\S]*"pitches": \["D5"\]/.test(logicFile), 'Logic-Tasten: 3 = Viertel, A = C, W = Cis, Alt+↑ = Halbton (→ D), Leertaste = Pause');
+  check(/"dur": "1\/4", "tones": \[\{ "id": "[^"]+", "pitch": "C5" \}\][\s\S]*"pitch": "D5"/.test(logicFile), 'Logic-Tasten: 3 = Viertel, A = C, W = Cis, Alt+↑ = Halbton (→ D), Leertaste = Pause');
   check((await page.evaluate(() => localStorage.getItem('icastico.keymap'))) === 'logic', 'Gewählte Belegung wird gemerkt');
   await type('F1');
   await page.click('[data-preset="finale"]');
   await type('Escape');
+
+  // ── Piano-Roll: zweite Ansicht derselben Töne ──
+  await type('Control+Shift+P');
+  check(await page.locator('#roll').isVisible(), 'Piano-Roll öffnet sich (Strg+Umschalt+P)');
+  const bars = page.locator('.roll__bar');
+  const barTitle = (i) => bars.nth(i).evaluate((e) => e.querySelector('title').textContent);
+  const barsBefore = await bars.count();
+  check(barsBefore >= 2, `Piano-Roll zeigt die Töne als Balken (${barsBefore})`);
+  const firstTitle = await barTitle(0);
+
+  await bars.first().click();
+  check((await page.locator('.roll__bar.is-selected').count()) === 1 && /Note C5/.test(await status()), 'Klick auf einen Balken wählt den Ton (auch in der Statuszeile)');
+
+  const barBox = await bars.first().boundingBox();
+  const bx = barBox.x + barBox.width / 2;
+  const by = barBox.y + barBox.height / 2;
+  await page.mouse.move(bx, by);
+  await page.mouse.down();
+  await page.mouse.move(bx, by - 28, { steps: 6 });
+  const during = await barTitle(0);
+  await page.mouse.up();
+  check(during !== firstTitle && (await barTitle(0)) === during, `Balken zwei Reihen nach oben gezogen (${firstTitle.split(' · ')[0]} → ${during.split(' · ')[0]})`);
+  await type('Control+z');
+  check((await barTitle(0)) === firstTitle, 'Strg+Z nimmt das ganze Ziehen in einem Schritt zurück');
+
+  await page.mouse.move(bx, by);
+  await page.mouse.down();
+  await page.mouse.move(bx, by - 28, { steps: 6 });
+  await type('Escape');
+  await page.mouse.up();
+  check((await barTitle(0)) === firstTitle, 'Esc während des Ziehens verwirft die Änderung vollständig');
+
+  const nextBox = await bars.nth(1).boundingBox();
+  await page.mouse.move(bx, by);
+  await page.mouse.down();
+  await page.mouse.move(bx + (nextBox.x - barBox.x), by, { steps: 6 });
+  const refused = await status();
+  await page.mouse.up();
+  check(/schon eine Note/.test(refused) && (await barTitle(0)) === firstTitle, 'Ziehen auf eine andere Note wird abgelehnt, nichts wird überschrieben');
+
+  const emptyY = await page.evaluate(() => {
+    const svg = document.querySelector('.roll__svg').getBoundingClientRect();
+    return svg.top + 22 + 14 * 2 + 4;
+  });
+  const emptyX = barBox.x + barBox.width * 6;
+  await page.mouse.move(emptyX, emptyY);
+  await page.mouse.down();
+  await page.mouse.move(emptyX + 100, emptyY, { steps: 6 });
+  await page.mouse.up();
+  check((await bars.count()) === barsBefore + 1, 'Auf leerer Fläche ziehen zeichnet einen neuen Balken');
+  await type('Control+z');
+  check((await bars.count()) === barsBefore, 'Strg+Z entfernt den gezeichneten Balken');
+  await page.screenshot({ path: join(outDir, 'piano-roll.png') });
+  await type('Control+Shift+P');
+  check(await page.locator('#roll').isHidden(), 'Strg+Umschalt+P schließt die Piano-Roll wieder');
 
   check(errors.length === 0, `Keine Fehler in der Konsole${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   console.log(`\nAlle ${step} Prüfungen bestanden. Screenshots: ${outDir}`);
