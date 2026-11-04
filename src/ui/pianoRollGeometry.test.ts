@@ -23,7 +23,7 @@ const VOICE = { partId: 'voice', voiceId: 'voice-v1' };
 const layout = layoutFor(emptyScore(), VOICE);
 const S = fracToString;
 const sixteenth = frac(1, 16);
-const bar: BarRef = { eventId: 'e', toneId: 't', onset: frac(1, 4), duration: frac(1, 4), midi: 72 };
+const bar: BarRef = { voice: VOICE, eventId: 'e', toneId: 't', onset: frac(1, 4), duration: frac(1, 4), midi: 72 };
 
 describe('piano roll geometry', () => {
   it('maps time and pitch to pixels and back', () => {

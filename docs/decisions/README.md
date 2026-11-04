@@ -41,3 +41,4 @@ Was wird dadurch leichter, was schwerer?
 | 0011 | [Bibliothek der Tastenbelegungen (Finale + Logic), Ziehen mit der Maus](0011-tastenbelegung-bibliothek.md) | angenommen |
 | 0012 | [Jeder Ton hat eine dauerhafte Nummer (Ton-ID)](0012-ton-identitaet.md) | angenommen |
 | 0013 | [Piano-Roll als zweite Ansicht derselben Töne](0013-piano-roll.md) | angenommen |
+| 0014 | [Haltebögen und Gleiten als Verbindungen zwischen Tönen](0014-verbindungen.md) | angenommen |

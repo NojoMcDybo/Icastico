@@ -12,7 +12,7 @@
  */
 import { type Fraction, ZERO, add, eq, frac, gt, isDyadic, le, lt, sub } from '../time';
 import { STEPS, keyAlteration, midiOf, type Pitch } from '../pitch';
-import { type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, measuresOf } from '../model';
+import { type Link, type LinkKind, type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, measuresOf } from '../model';
 import { decomposeNote, writtenValue } from '../notation/notate';
 import { emptyScore } from '../templates';
 import {
@@ -31,6 +31,7 @@ import {
   voiceEnd,
 } from './state';
 import { applyRollEdit } from './rollEdits';
+import { freshLinkId, linksOf, withLinks, withValidLinks } from './linkOps';
 import { clearRange, insertSorted, makeRoom } from './voiceOps';
 
 /** Finale numbering: 1 = 64th, 2 = 32nd, 3 = 16th, 4 = 8th, 5 = quarter, 6 = half, 7 = whole. */
@@ -99,9 +100,6 @@ function ensureCaret(s: EditorState): EditorState {
 }
 
 const samePitch = (a: Pitch, b: Pitch): boolean => a.step === b.step && a.alter === b.alter && a.octave === b.octave;
-
-const samePitches = (a: readonly Tone[], b: readonly Tone[]): boolean =>
-  a.length === b.length && a.every((t, i) => samePitch(t.pitch, b[i]!.pitch));
 
 /** Pitch of the note before the caret, else the staff's middle line. */
 function referencePitch(s: EditorState, caret: Caret): Pitch {
@@ -235,26 +233,15 @@ function enterPitch(s0: EditorState, step: Pitch['step'], alterOverride: number 
   let score: Score;
   let selection: Selection;
   let nextId = s.nextId;
+  const [id, next] = freshEventId(s.score, caret, s.nextId);
+  nextId = next;
+  const ev: NoteEvent = { id, onset: caret.time, duration: length, tones: [{ id: freshToneId(s.score, id), pitch }] };
+  score = updateEvents(s.score, caret, (events) => insertSorted(makeRoom(events, caret.time, length, insert), ev));
+  selection = selectEvent(caret, ev);
+  // Tie pending (T before the note): a separate note joined to the previous one by an explicit tie.
   if (s.input.pendingTie && prev && prev.tones.length === 1 && samePitch(prev.tones[0]!.pitch, pitch)) {
-    // Tie = one longer event on the timeline.
-    score = updateEvents(s.score, caret, (events) =>
-      insertSorted(
-        makeRoom(
-          events.filter((e) => e.id !== prev.id),
-          caret.time,
-          length,
-          insert,
-        ),
-        { ...prev, duration: add(prev.duration, length) },
-      ),
-    );
-    selection = selectEvent(caret, prev);
-  } else {
-    const [id, next] = freshEventId(s.score, caret, s.nextId);
-    nextId = next;
-    const ev: NoteEvent = { id, onset: caret.time, duration: length, tones: [{ id: freshToneId(s.score, id), pitch }] };
-    score = updateEvents(s.score, caret, (events) => insertSorted(makeRoom(events, caret.time, length, insert), ev));
-    selection = selectEvent(caret, ev);
+    const links = [...linksOf(score), { id: freshLinkId(score), kind: 'tie' as const, from: prev.tones[0]!.id, to: ev.tones[0]!.id }];
+    score = withLinks(score, links);
   }
   return {
     ...s,
@@ -350,6 +337,54 @@ function resizeNote(s: EditorState, dir: number): EditorState {
   return applyRollEdit(s, { kind: 'change', voice: t.ref, eventId: t.event.id, duration });
 }
 
+/**
+ * Detaches the selected tone of a chord into a voice of its own on the same staff:
+ * same tone id, onset and length, so the music sounds the same, but its length can
+ * now change without touching the other chord tones. Undo restores the chord.
+ */
+function detachTone(s: EditorState): EditorState {
+  const sel = s.selection;
+  if (sel?.kind !== 'event' || !sel.toneId) return say(s, 'Erst einen einzelnen Akkordton anklicken, den ich lösen soll.');
+  const { part, voice } = getVoice(s.score, sel);
+  const event = voice.events.find((e) => e.id === sel.eventId);
+  const tone = event?.tones.find((x) => x.id === sel.toneId);
+  if (!event || !tone) return say(s, NO_NOTE);
+  if (event.tones.length < 2) return say(s, 'Der Ton steht schon allein – nichts zu lösen.');
+
+  let n = 2;
+  while (part.voices.some((v) => v.id === `${part.id}-v${n}`)) n++;
+  const ref: VoiceRef = { partId: part.id, voiceId: `${part.id}-v${n}` };
+  const id = `${ref.voiceId}-n${s.nextId}`; // a brand-new voice: no event ids to clash with
+  const nextId = s.nextId + 1;
+  const lone: NoteEvent = { id, onset: event.onset, duration: event.duration, tones: [tone] };
+  const score: Score = {
+    ...s.score,
+    parts: s.score.parts.map((p) =>
+      p.id !== part.id
+        ? p
+        : {
+            ...p,
+            // The new voice goes right behind the one it came from.
+            voices: p.voices.flatMap((v) =>
+              v.id !== voice.id
+                ? [v]
+                : [
+                    { ...v, events: v.events.map((e) => (e.id === event.id ? { ...e, tones: e.tones.filter((x) => x.id !== tone.id) } : e)) },
+                    { id: ref.voiceId, staff: voice.staff, events: [lone] },
+                  ],
+            ),
+          },
+    ),
+  };
+  return {
+    ...s,
+    score,
+    nextId,
+    selection: { kind: 'event', ...ref, eventId: id, toneId: tone.id },
+    message: 'Ton in eigene Stimme gelöst (Strg+Z holt ihn zurück).',
+  };
+}
+
 function backspace(s: EditorState): EditorState {
   const caret = s.caret;
   if (!caret) return toRest(s);
@@ -396,20 +431,62 @@ function editDuration(s: EditorState, n: number): EditorState {
   return setEventDuration(s, t.ref, t.event, length);
 }
 
+/** Tones a link command works on: the clicked tone, or every tone of the selected note. */
+function linkSources(s: EditorState, event: NoteEvent): Tone[] {
+  const toneId = s.selection?.kind === 'event' ? s.selection.toneId : undefined;
+  const one = toneId ? event.tones.filter((x) => x.id === toneId) : [];
+  return one.length > 0 ? one : [...event.tones];
+}
+
+/**
+ * Ties or glides the selected tone(s) to the next note of the voice – or takes the connection
+ * away again if it is already there. Ties need the next note to start right at the end and pair
+ * equal pitches; a glide pairs each tone with the nearest pitch of the next note.
+ */
+function toggleLink(s: EditorState, kind: LinkKind): EditorState {
+  const t = target(s);
+  if (!t) return say(s, NO_NOTE);
+  const events = getVoice(s.score, t.ref).voice.events;
+  const next = events[events.findIndex((e) => e.id === t.event.id) + 1];
+  const name = kind === 'tie' ? 'Haltebogen' : 'Gleiten';
+  if (!next || (kind === 'tie' && !eq(eventEnd(t.event), next.onset))) {
+    return say(s, `Kein ${name} möglich: ${kind === 'tie' ? 'Es folgt keine Note direkt danach.' : 'Danach folgt keine Note.'}`);
+  }
+  const pairs: [Tone, Tone][] = [];
+  const taken = new Set<string>();
+  for (const from of linkSources(s, t.event)) {
+    const free = next.tones.filter((x) => !taken.has(x.id));
+    const to =
+      kind === 'tie'
+        ? free.find((x) => midiOf(x.pitch) === midiOf(from.pitch))
+        : [...free].sort((a, b) => Math.abs(midiOf(a.pitch) - midiOf(from.pitch)) - Math.abs(midiOf(b.pitch) - midiOf(from.pitch)))[0];
+    if (to) {
+      pairs.push([from, to]);
+      taken.add(to.id);
+    }
+  }
+  if (pairs.length === 0) return say(s, 'Kein Haltebogen möglich: Die folgende Note hat eine andere Tonhöhe.');
+
+  const existing = linksOf(s.score);
+  const same = (l: Link, from: Tone, to: Tone) => l.from === from.id && l.to === to.id && l.kind === kind;
+  if (pairs.every(([from, to]) => existing.some((l) => same(l, from, to)))) {
+    const links = existing.filter((l) => !pairs.some(([from, to]) => same(l, from, to)));
+    return { ...s, score: withLinks(s.score, links), message: `${name} gelöst.` };
+  }
+  let links = [...existing];
+  for (const [from, to] of pairs) {
+    if (links.some((l) => l.to === to.id && l.from !== from.id)) return say(s, 'Dort kommt schon eine andere Verbindung an.');
+    links = links.filter((l) => l.from !== from.id); // a tone has one connection going out; a tie replaces a glide and vice versa
+    links.push({ id: freshLinkId(s.score, links), kind, from: from.id, to: to.id });
+  }
+  return { ...s, score: withLinks(s.score, links), message: `${name} gesetzt.` };
+}
+
 function tie(s: EditorState): EditorState {
   const t = target(s);
   if (!t) return say(s, NO_NOTE);
   const end = eventEnd(t.event);
-  const next = getVoice(s.score, t.ref).voice.events.find((e) => eq(e.onset, end));
-  if (next && samePitches(next.tones, t.event.tones)) {
-    const merged = { ...t.event, duration: add(t.event.duration, next.duration) };
-    const score = updateEvents(s.score, t.ref, (events) =>
-      events.filter((e) => e.id !== next.id).map((e) => (e.id === t.event.id ? merged : e)),
-    );
-    const caret = s.caret && sameVoice(s.caret, t.ref) && eq(s.caret.time, end) ? { ...s.caret, time: eventEnd(merged) } : s.caret;
-    return { ...s, score, caret, selection: selectEvent(t.ref, merged), message: null };
-  }
-  if (next) return say(s, 'Kein Haltebogen möglich: Die folgende Note hat eine andere Tonhöhe.');
+  if (getVoice(s.score, t.ref).voice.events.some((e) => eq(e.onset, end))) return toggleLink(s, 'tie');
   if (s.caret && eq(s.caret.time, end)) {
     const pendingTie = !s.input.pendingTie;
     return {
@@ -420,6 +497,8 @@ function tie(s: EditorState): EditorState {
   }
   return say(s, 'Kein Haltebogen möglich: Es folgt keine Note.');
 }
+
+const slide = (s: EditorState): EditorState => toggleLink(s, 'slide');
 
 /** Caret stops: note starts/ends and barlines, up to the end of the last measure with music. */
 function caretStops(score: Score, ref: VoiceRef): Fraction[] {
@@ -512,6 +591,8 @@ export const COMMANDS = {
   'edit.semitone': { title: 'Um einen Halbton transponieren', run: semitone },
   'edit.duration': { title: 'Notenwert der Note ändern', run: editDuration },
   'edit.tie': { title: 'Haltebogen', run: tie },
+  'edit.slide': { title: 'Gleiten zur nächsten Note', run: slide },
+  'edit.detach': { title: 'Akkordton in eigene Stimme lösen', run: detachTone },
   'edit.move': { title: 'Note in der Zeit verschieben', run: moveNote },
   'edit.resize': { title: 'Note verlängern / verkürzen', run: resizeNote },
   'nav.horizontal': { title: 'Vor / zurück', run: navHorizontal },
@@ -521,5 +602,5 @@ export const COMMANDS = {
 export type CommandId = keyof typeof COMMANDS;
 
 export function runCommand(s: EditorState, id: CommandId, arg = 0): EditorState {
-  return (COMMANDS[id] as CommandDef).run(s, arg);
+  return withValidLinks(s, (COMMANDS[id] as CommandDef).run(s, arg));
 }

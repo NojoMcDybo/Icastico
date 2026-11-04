@@ -55,7 +55,10 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Piano-Roll unter der Notenschrift (Strg+Umschalt+P): Balken zeichnen (ziehen, Doppelklick), verschieben, verlängern, löschen; ein Klick wählt denselben Ton wie in der Notenschrift; Raster = gewählter Notenwert; Esc verwirft eine Geste; Tasten Alt+←/→ und Umschalt+←/→ (ADR 0013)
 - [x] Zeilenart je Notenzeile (Notenschrift / Beides / Piano-Roll, Schalter neben jeder Zeile) und Ansichtsgrößen klein/normal/maximiert (Esc bringt zurück), wird je Partitur gemerkt (ADR 0013)
 - [ ] Notenschrift und Piano-Roll scrollen taktweise im Gleichlauf
-- [ ] Ausdrückliche Haltebögen, Legato, gleitende Töne mit Wiedergabe (noch nicht begonnen, Plan liegt beim Owner)
+- [x] Einzelnen Akkordton in eine eigene Stimme lösen (Strg+Umschalt+D), Roll zeigt alle Stimmen einer Zeile
+- [x] Ausdrückliche Haltebögen (zwei getrennte Noten, `T` setzt/löst) und Gleiten (Strg+Umschalt+G; die Lücke zwischen den Balken ist die Gleitdauer, ohne Lücke nur direkter Wechsel, Verbindung bleibt) in Notenschrift und Roll, Dateiformat 4 (ADR 0014)
+- [ ] Legato/Phrasierungsbögen
+- [ ] Wiedergabe mit Instrumentenklängen und Tonhöhenverlauf beim Gleiten (Plan: RustySynth, Nachweis liegt vor)
 
 ## Schritt 2 – Workstation
 

@@ -45,6 +45,7 @@ die Datei (Windows/Linux: Programmargument, macOS: Systemereignis).
 | 1 | 0.2.0 | erstes Format |
 | 2 | 0.3.0 | optionales Feld `pickup` (Auftakt, ADR 0008) |
 | 3 | ab 0.7.0 | `tones` mit Ton-IDs statt `pitches` (ADR 0012); ältere Dateien werden beim Öffnen umgewandelt und vor dem ersten Speichern gesichert |
+| 4 | ab 0.8.0 | optionale Liste `links` (Haltebögen und Gleiten zwischen Tönen, ADR 0014); Version 3 wird unverändert übernommen und vor dem ersten Speichern gesichert |
 
 ## Alternativen
 

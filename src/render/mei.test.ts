@@ -3,6 +3,9 @@ import { scoreToMei } from './mei';
 import { Engraver } from './verovio';
 import { demoScore } from '../core/demo';
 import { frac } from '../core/time';
+import { emptyScore } from '../core/templates';
+import { runCommand } from '../core/editor/commands';
+import { createEditorState, getVoice, type EditorState } from '../core/editor/state';
 
 describe('scoreToMei', () => {
   const { mei, elements } = scoreToMei(demoScore());
@@ -120,5 +123,98 @@ describe('staves shown as piano roll are left out', () => {
   it('refuses to engrave nothing', () => {
     const every = new Set(scoreToMei(score).staffs.map((s) => `${s.partId}:${s.staffIndex}`));
     expect(() => scoreToMei(score, { hiddenStaves: every })).toThrow(/Keine Zeile/);
+  });
+});
+
+describe('several voices on one staff', () => {
+  let engraver: Engraver;
+  beforeAll(async () => {
+    engraver = await Engraver.create();
+  });
+  const base = demoScore();
+  const guitar = base.parts.find((p) => p.instrument === 'guitar')!;
+  const first = guitar.voices[0]!;
+  const lone = { id: `${guitar.id}-v2`, staff: first.staff, events: [{ id: `${guitar.id}-v2-n1`, onset: frac(0), duration: frac(1, 2), tones: [{ id: `${guitar.id}-v2-n1-t1`, pitch: { step: 'C' as const, alter: 0, octave: 4 } }] }] };
+  const withVoices = (voices: typeof guitar.voices) => ({ ...base, parts: base.parts.map((p) => (p.id === guitar.id ? { ...p, voices } : p)) });
+
+  it('writes one layer per voice and Verovio draws them without warnings', () => {
+    const { mei } = scoreToMei(withVoices([first, lone]));
+    expect(mei).toContain(`${guitar.id}-v2-n1`);
+    expect(mei.match(/<layer n="2">/g)?.length).toBeGreaterThan(0);
+    expect(engraver.engrave(mei).log).toBe('');
+  });
+
+  it('a voice without notes draws nothing', () => {
+    const empty = { ...lone, events: [] };
+    const none = scoreToMei(withVoices([first, empty])).mei;
+    expect(none).toBe(scoreToMei(withVoices([first])).mei);
+  });
+});
+
+describe('ties and glides in the notation', () => {
+  let engraver: Engraver;
+  beforeAll(async () => {
+    engraver = await Engraver.create();
+  });
+  const VOICE = { partId: 'voice', voiceId: 'voice-v1' };
+  const fresh = () => createEditorState(emptyScore());
+  const events = (s: EditorState) => getVoice(s.score, VOICE).voice.events;
+  const select = (s: EditorState, i: number): EditorState => ({ ...s, selection: { kind: 'event', ...VOICE, eventId: events(s)[i]!.id } });
+  const run = (s: EditorState, id: Parameters<typeof runCommand>[1], arg = 0) => runCommand(s, id, arg);
+  const count = (svg: string, cls: string) => (svg.match(new RegExp(`class="${cls}[ "]`, 'g')) ?? []).length;
+  const draw = (s: EditorState) => {
+    const { mei } = scoreToMei(s.score);
+    const { pages, log } = engraver.engrave(mei);
+    return { mei, svg: pages.join(''), log };
+  };
+
+  it('a tie between two separate notes is drawn as a tie, also over the barline', () => {
+    let s = run(fresh(), 'input.duration', 5);
+    for (let i = 0; i < 5; i++) s = run(s, 'input.note', 0);
+    s = run(run(s, 'edit.escape'), 'edit.escape');
+    const tied = run(select(s, 3), 'edit.tie'); // last quarter of bar 1 to first of bar 2
+    const { mei, svg, log } = draw(tied);
+    expect(log).toBe('');
+    expect(mei).toContain('<tie xml:id="tie-link-1"');
+    expect(count(svg, 'tie')).toBe(1);
+    expect(count(draw(s).svg, 'tie')).toBe(0);
+  });
+
+  it('a note tied in from the previous measure does not repeat its accidental', () => {
+    let s = run(run(fresh(), 'input.duration', 5), 'input.note', 3); // F
+    s = run(run(s, 'edit.alter', 1), 'input.duration', 5); // F# (sharp), a quarter
+    for (let i = 0; i < 4; i++) s = run(s, 'input.note', 3);
+    const fsharp = events(s).map((e) => e.tones[0]!.pitch.alter);
+    expect(fsharp[0]).toBe(1);
+    const tied = run(select(s, 3), 'edit.tie');
+    const { mei, log } = draw(tied);
+    expect(log).toBe('');
+    expect(mei).toContain('<tie');
+  });
+
+  it('a glide with a gap is drawn with a line and “port.”, and the gap is an invisible space, not a rest', () => {
+    let s = run(fresh(), 'input.duration', 5);
+    s = run(s, 'input.note', 0);
+    s = run(run(run(s, 'input.duration', 3), 'input.rest'), 'input.duration', 5); // a sixteenth gap
+    s = run(run(s, 'input.note', 4), 'edit.escape');
+    const glided = run(select(s, 0), 'edit.slide');
+    const { mei, svg, log } = draw(glided);
+    expect(log).toBe('');
+    expect(mei).toContain('<gliss xml:id="gliss-link-1"');
+    expect(mei).toContain('lform="solid"');
+    expect(mei).toContain('>port.</dir>');
+    expect(mei).toContain('<space ');
+    expect(count(svg, 'gliss')).toBe(1);
+    expect(draw(s).mei).not.toContain('<space ');
+  });
+
+  it('a glide without a gap stays as a dotted line (the link is remembered) and has no “port.”', () => {
+    let s = run(run(fresh(), 'input.duration', 5), 'input.note', 0);
+    s = run(run(s, 'input.note', 4), 'edit.escape');
+    const { mei, svg, log } = draw(run(select(s, 0), 'edit.slide'));
+    expect(log).toBe('');
+    expect(mei).toContain('lform="dotted"');
+    expect(mei).not.toContain('port.');
+    expect(count(svg, 'gliss')).toBe(1);
   });
 });

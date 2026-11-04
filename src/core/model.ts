@@ -11,8 +11,8 @@
  * - Immutable: changes produce a new Score (commands, undo = keep old object).
  * - No pixels, no rendering concerns in here.
  */
-import { type Fraction, ZERO, add, compare, div, frac, gt, isZero, le, lt, sub } from './time';
-import type { Pitch } from './pitch';
+import { type Fraction, ZERO, add, compare, div, eq, frac, gt, isZero, le, lt, sub } from './time';
+import { type Pitch, midiOf } from './pitch';
 import { getInstrument, type InstrumentId } from './instruments';
 
 export interface TimeSignature {
@@ -79,6 +79,26 @@ export interface Score {
    */
   readonly pickup?: Fraction;
   readonly parts: readonly Part[];
+  /** Ties and slides between tones; absent = none. */
+  readonly links?: readonly Link[];
+}
+
+/**
+ * A deliberate connection between two tones (ADR 0014):
+ * - `tie`: the same pitch held over from one note into the next (adjacent, same voice);
+ * - `slide`: the pitch glides from one tone to the next. The glide takes exactly the gap
+ *   between the two notes; without a gap it is a direct change, but the link is kept.
+ * Links name tones, not events, so they survive moving, resizing and re-sorting.
+ */
+export type LinkKind = 'tie' | 'slide';
+
+export interface Link {
+  readonly id: string;
+  readonly kind: LinkKind;
+  /** Tone id the connection starts at (the earlier note). */
+  readonly from: string;
+  /** Tone id the connection ends at (the later note). */
+  readonly to: string;
 }
 
 export interface Measure {
@@ -164,6 +184,68 @@ export function measureStart(score: Score, number: number): Fraction | null {
   return ms.find((m) => m.number === number)?.start ?? null;
 }
 
+/** Where a tone lives: its event, voice and part. */
+export interface ToneSpot {
+  readonly part: Part;
+  readonly voice: Voice;
+  readonly event: NoteEvent;
+  readonly tone: Tone;
+}
+
+/** Every tone of the score by id. */
+export function locateTones(score: Score): Map<string, ToneSpot> {
+  const spots = new Map<string, ToneSpot>();
+  for (const part of score.parts) {
+    for (const voice of part.voices) {
+      for (const event of voice.events) {
+        for (const tone of event.tones) spots.set(tone.id, { part, voice, event, tone });
+      }
+    }
+  }
+  return spots;
+}
+
+/** Why a link between these two tones cannot stand (German); null = it is fine. */
+export function linkBreak(kind: LinkKind, a: ToneSpot, b: ToneSpot): string | null {
+  if (a.part.id !== b.part.id || a.voice.id !== b.voice.id) return 'Die beiden Töne müssen in derselben Stimme liegen.';
+  if (kind === 'tie') {
+    if (midiOf(a.tone.pitch) !== midiOf(b.tone.pitch)) return 'Ein Haltebogen braucht zwei gleich hohe Töne.';
+    if (!eq(eventEnd(a.event), b.event.onset)) return 'Ein Haltebogen verbindet nur Noten, die unmittelbar aufeinander folgen.';
+  } else if (gt(eventEnd(a.event), b.event.onset)) {
+    return 'Beim Gleiten muss der Zielton nach dem Ausgangston beginnen.';
+  }
+  return null;
+}
+
+/** Problems with the links of a score (German). Empty = all links are valid. */
+export function linkProblems(score: Score): string[] {
+  const links = score.links ?? [];
+  if (links.length === 0) return [];
+  const problems: string[] = [];
+  const spots = locateTones(score);
+  const ids = new Set<string>();
+  const outgoing = new Set<string>();
+  const incoming = new Set<string>();
+  for (const link of links) {
+    if (ids.has(link.id)) problems.push(`Doppelte Verbindungs-ID ${link.id}.`);
+    ids.add(link.id);
+    if (!ID_PATTERN.test(link.id)) problems.push(`Ungültige Verbindungs-ID "${link.id}".`);
+    const a = spots.get(link.from);
+    const b = spots.get(link.to);
+    if (!a || !b) {
+      problems.push(`Verbindung ${link.id} verweist auf einen Ton, den es nicht gibt.`);
+      continue;
+    }
+    const why = linkBreak(link.kind, a, b);
+    if (why) problems.push(`Verbindung ${link.id}: ${why}`);
+    if (outgoing.has(link.from)) problems.push(`Von Ton ${link.from} geht mehr als eine Verbindung aus.`);
+    if (incoming.has(link.to)) problems.push(`In Ton ${link.to} kommt mehr als eine Verbindung an.`);
+    outgoing.add(link.from);
+    incoming.add(link.to);
+  }
+  return problems;
+}
+
 /** A tone id not used by any tone of the score yet, derived from its event: "<event>-t1", "-t2" … */
 export function freshToneId(score: Score, eventId: string): string {
   const used = new Set(score.parts.flatMap((p) => p.voices.flatMap((v) => v.events.flatMap((e) => e.tones.map((t) => t.id)))));
@@ -209,7 +291,10 @@ export function validateScore(score: Score): string[] {
   for (const part of score.parts) {
     const instrument = getInstrument(part.instrument);
     if (!ID_PATTERN.test(part.id)) problems.push(`Ungültige Part-ID "${part.id}".`);
+    const voiceIds = new Set<string>();
     for (const voice of part.voices) {
+      if (voiceIds.has(voice.id)) problems.push(`${part.name}: doppelte Stimm-ID ${voice.id}.`);
+      voiceIds.add(voice.id);
       if (!ID_PATTERN.test(voice.id)) problems.push(`${part.name}: ungültige Stimm-ID "${voice.id}".`);
       if (voice.staff < 0 || voice.staff >= instrument.staves.length) {
         problems.push(`${part.name}: Stimme ${voice.id} verweist auf nicht vorhandenes System ${voice.staff}.`);
@@ -234,5 +319,6 @@ export function validateScore(score: Score): string[] {
       }
     }
   }
+  problems.push(...linkProblems(score));
   return problems;
 }

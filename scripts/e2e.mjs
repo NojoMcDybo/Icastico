@@ -384,6 +384,55 @@ try {
   check((await page.locator('.canvas').isVisible()) && (await page.locator('#roll').isHidden()) && (await page.locator('.page g.note').count()) >= 2, 'Zeilenart „Noten“: die Zeile ist zurück, die Roll weg');
   await page.screenshot({ path: join(outDir, 'zeilenart.png') });
 
+  // ── T7–T9: Akkordton lösen, Haltebögen, Gleiten ──
+  await type('Control+n');
+  await page.waitForSelector('.modal h2:text("Neue Partitur")');
+  await page.fill('#f-title', 'Bogen-Test');
+  await page.selectOption('#f-key', '0');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction(() => document.querySelector('#doc-title')?.textContent === 'Bogen-Test');
+  await type('5', 'c', 'Shift+g', 'c', 'c', 'd', 'Escape'); // chord C+G, C, C, D – quarters without gaps
+  await type('Control+Shift+P');
+  check((await bars.count()) === 5, 'Neue Partitur: Akkord C+G, C, C, D – fünf Balken in der Roll');
+  const barWidth = async (i) => (await bars.nth(i).boundingBox()).width;
+  const chordLowBefore = await barWidth(0);
+
+  await bars.nth(1).click(); // the G of the chord
+  await type('Control+Shift+D');
+  check((await page.locator('.roll__bar.is-secondary').count()) === 1 && (await page.locator('.roll__bar.is-secondary.is-selected').count()) === 1, 'T7: Der angeklickte Akkordton liegt in einer eigenen Stimme (gestrichelter Balken)');
+  check((await page.locator('.page g.layer').count()) >= 2, 'T7: Die Notenschrift zeigt jetzt zwei Stimmen auf der Zeile');
+  await type('Shift+ArrowRight'); // lengthen the lone G by the chosen value (a quarter)
+  const lone = await page.locator('.roll__bar.is-secondary title').textContent();
+  check(Math.abs((await barWidth(0)) - chordLowBefore) < 1 && /Halbe/.test(lone), 'T7: Der gelöste Ton wird länger, das C im Akkord bleibt gleich lang');
+  await type('Control+z', 'Control+z');
+  check((await page.locator('.roll__bar.is-secondary').count()) === 0 && (await bars.count()) === 5, 'T7: Zweimal Rückgängig stellt den Akkord wieder her');
+
+  await bars.nth(3).click(); // the second single C – its neighbour is the D
+  await type('t');
+  check((await page.locator('.roll__link--tie').count()) === 0 && /andere Tonhöhe/.test(await status()), 'T8: Haltebogen zu einer anderen Tonhöhe wird abgelehnt');
+  await bars.nth(2).click(); // the first single C – next is the other C
+  await type('t');
+  check((await page.locator('.roll__link--tie').count()) === 1 && (await page.locator('.page g.tie').count()) === 1, 'T8: Haltebogen zwischen zwei gleichen Noten – in Roll und Notenschrift gezeichnet');
+  await type('ArrowUp');
+  check(/zerreißen/.test(await status()) && (await page.locator('.roll__link--tie').count()) === 1, 'T8: Ein Ton unter Haltebogen lässt sich nicht umstimmen (der Bogen risse)');
+  await type('t');
+  check((await page.locator('.roll__link--tie').count()) === 0 && (await bars.count()) === 5, 'T8: Noch einmal T löst den Haltebogen, beide Noten bleiben');
+
+  await bars.nth(3).click();
+  await type('Control+Shift+G');
+  check((await page.locator('.roll__link--slide').count()) === 1 && (await page.locator('.roll__link--slide.is-direct').count()) === 1, 'T9: Gleiten gesetzt; ohne Lücke nur der direkte Wechsel (gepunktet)');
+  await bars.nth(4).click();
+  await type('Alt+ArrowRight');
+  check((await page.locator('.roll__link--slide:not(.is-direct)').count()) === 1 && (await page.locator('.page g.gliss').count()) === 1, 'T9: Nach dem Auseinanderziehen gleitet es durch die Lücke – Linie in Roll und Notenschrift');
+  check((await page.locator('.page').first().textContent()).includes('port.'), 'T9: Die Notenschrift trägt „port.“');
+  await page.screenshot({ path: join(outDir, 'verbindungen.png') });
+  await type('Alt+ArrowLeft');
+  check((await page.locator('.roll__link--slide.is-direct').count()) === 1, 'T9: Wieder zusammengeschoben bleibt die Gleitverbindung erhalten');
+  await saved();
+  const linked = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Bogen-Test.icastico'))[1].contents;
+  check(/"links": \[\s*\{ "id": "link-1", "kind": "slide"/.test(linked), 'T9: Die Gleitverbindung steht in der gespeicherten Datei');
+  await type('Control+Shift+P');
+
   check(errors.length === 0, `Keine Fehler in der Konsole${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   console.log(`\nAlle ${step} Prüfungen bestanden. Screenshots: ${outDir}`);
 } catch (err) {

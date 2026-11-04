@@ -58,6 +58,8 @@ ausführlich getestet.
 - `state.ts` – `EditorState` = Partitur + Cursor + Auswahl + Eingabe-Einstellungen.
 - `commands.ts` – jede Funktion ist ein Command: reine Funktion
   `(Zustand, Argument) → neuer Zustand` mit deutschem Titel.
+- `linkOps.ts` / `rollEdits.ts` – Verbindungen (Haltebögen, Gleiten) gültig halten; strukturierte
+  Bearbeitungen der Piano-Roll (ADR 0013, 0014).
 - `voiceOps.ts` – Zeitstrahl-Operationen (Überschreiben, Einfügen).
 - `history.ts` – Undo/Redo durch Aufbewahren alter Zustände (nur
   Partitur-Änderungen erzeugen Undo-Schritte; eine Geste (Ziehen in einer Ansicht)

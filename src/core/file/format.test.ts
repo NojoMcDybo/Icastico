@@ -6,6 +6,7 @@ import { frac } from '../time';
 import { applyScoreChanges } from '../templates';
 import version1File from './fixtures/version1.icastico?raw';
 import version2File from './fixtures/version2.icastico?raw';
+import version3File from './fixtures/version3.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -63,6 +64,41 @@ describe('.icastico format', () => {
     expect(saved).not.toContain('"pitches"');
     expect(roundtrip(saved)).toBe(saved);
     expect(parseScoreFile(saved)).toEqual(parseScoreFile(version2File));
+  });
+
+  it('opens files saved by Icastico 0.7.0 (format version 3): same music, no links yet', () => {
+    const score = parseScoreFile(version3File);
+    expect(fileVersion(version3File)).toBe(3);
+    expect(validateScore(score)).toEqual([]);
+    expect(score.links).toBeUndefined();
+    expect(score.parts[0]!.voices[0]!.events[1]!.tones.map((x) => x.id)).toEqual(['pr2-t1', 'pr2-t2', 'pr2-t3']);
+    expect(parseScoreFile(serializeScore(score, '0.0.0'))).toEqual(score);
+    expect({ ...score, title: '' }).toEqual({ ...parseScoreFile(version2File), title: '' }); // the 0.6.0 file migrates to the same music
+  });
+
+  it('stores ties and slides one per line and reads them back', () => {
+    const base = parseScoreFile(version3File);
+    const voice = base.parts[0]!.voices[0]!;
+    const withLinks = {
+      ...base,
+      links: [
+        { id: 'link-1', kind: 'slide' as const, from: voice.events[0]!.tones[0]!.id, to: voice.events[1]!.tones[0]!.id },
+      ],
+    };
+    const text = serializeScore(withLinks, '0.0.0');
+    expect(text).toContain('"links": [');
+    expect(text).toContain('{ "id": "link-1", "kind": "slide", "from": "pr1-t1", "to": "pr2-t1" }');
+    expect(parseScoreFile(text)).toEqual(withLinks);
+    expect(serializeScore(base, '0.0.0')).not.toContain('"links"');
+  });
+
+  it('rejects broken links with a clear message', () => {
+    const doc = JSON.parse(version3File) as { score: Record<string, unknown> };
+    const attempt = (links: unknown) => () => parseScoreFile(JSON.stringify({ ...doc, version: 4, score: { ...doc.score, links } }));
+    expect(attempt([{ id: 'l1', kind: 'tie', from: 'pr1-t1', to: 'nirgends' }])).toThrow(/Ton, den es nicht gibt/);
+    expect(attempt([{ id: 'l1', kind: 'wavy', from: 'pr1-t1', to: 'pr2-t1' }])).toThrow(/unbekannte Art/);
+    expect(attempt([{ id: 'l1', kind: 'tie', from: 'pr1-t1', to: 'pr2-t1' }])).toThrow(FileFormatError); // Gb4 vs C4
+    expect(attempt('nope')).toThrow(/Liste erwartet/);
   });
 
   it('stores the upbeat', () => {

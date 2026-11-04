@@ -21,6 +21,7 @@ import {
   getVoice,
   updateEvents,
 } from './state';
+import { withValidLinks } from './linkOps';
 import { insertSorted } from './voiceOps';
 
 /** Finest supported note value: 1/64. */
@@ -132,12 +133,15 @@ function remove(s: EditorState, edit: Extract<RollEdit, { kind: 'delete' }>): Ed
 
 /** Applies one roll edit. A refused edit returns the state unchanged except for the message. */
 export function applyRollEdit(s: EditorState, edit: RollEdit): EditorState {
-  switch (edit.kind) {
-    case 'create':
-      return create(s, edit);
-    case 'change':
-      return change(s, edit);
-    case 'delete':
-      return remove(s, edit);
-  }
+  const next = ((): EditorState => {
+    switch (edit.kind) {
+      case 'create':
+        return create(s, edit);
+      case 'change':
+        return change(s, edit);
+      case 'delete':
+        return remove(s, edit);
+    }
+  })();
+  return withValidLinks(s, next); // tied or glided notes may not be pulled apart; deleted tones take their links along
 }

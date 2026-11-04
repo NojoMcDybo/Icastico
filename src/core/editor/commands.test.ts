@@ -5,6 +5,7 @@ import { eventEnd, validateScore, type Score } from '../model';
 import { emptyScore } from '../templates';
 import { parseLine } from '../line';
 import { type CommandId, runCommand, spellPitchClass } from './commands';
+import { applyRollEdit } from './rollEdits';
 import { createEditorState, getVoice, type EditorState, type VoiceRef } from './state';
 import { History } from './history';
 
@@ -107,16 +108,21 @@ describe('Finale-style note entry', () => {
     expect(dump(play(fresh(), '5 C minus octdown').score)).toBe('Cb4:1/4');
   });
 
-  it('T before the next note ties – one longer event on the timeline', () => {
+  it('T before the next note ties: two notes joined by an explicit tie, not one longer note', () => {
     const s = play(fresh(), '5 C T C D');
-    expect(dump(s.score)).toBe('C5:1/2 D5:1/4');
+    expect(dump(s.score)).toBe('C5:1/4 C5:1/4 D5:1/4');
+    expect(s.score.links).toEqual([{ id: 'link-1', kind: 'tie', from: 'voice-v1-n1-t1', to: 'voice-v1-n2-t1' }]);
     expect(s.message).toBeNull();
   });
 
-  it('T merges two existing neighbours of the same pitch', () => {
+  it('T ties two existing neighbours of the same pitch and a second T takes the tie away again', () => {
     let s = play(fresh(), '5 C C esc');
     s = play({ ...s, selection: { kind: 'event', ...VOICE, eventId: 'voice-v1-n1' } }, 'T');
-    expect(dump(s.score)).toBe('C5:1/2');
+    expect(dump(s.score)).toBe('C5:1/4 C5:1/4');
+    expect(s.score.links).toHaveLength(1);
+    s = play(s, 'T');
+    expect(s.score.links).toBeUndefined();
+    expect(s.message).toMatch(/gelöst/);
   });
 
   it('T refuses different pitches with a message', () => {
@@ -214,10 +220,10 @@ describe('tone identity', () => {
     expect(new Set(ids).size).toBe(3);
   });
 
-  it('tying keeps the tone ids of the first note', () => {
+  it('tying keeps every tone id (the tie names the tones)', () => {
     const s = play(fresh(), '5 C C left left T');
-    expect(dump(s.score)).toBe('C5:1/2');
-    expect(toneIds(s)).toEqual([['voice-v1-n1-t1']]);
+    expect(toneIds(s)).toEqual([['voice-v1-n1-t1'], ['voice-v1-n2-t1']]);
+    expect(s.score.links![0]).toMatchObject({ from: 'voice-v1-n1-t1', to: 'voice-v1-n2-t1' });
   });
 
   it('undo restores the same tone ids', () => {
@@ -276,5 +282,61 @@ describe('Logic-style input (piano-key letters, real semitones)', () => {
     expect(dump(s.score)).toBe('F#5:1/4');
     s = runCommand(runCommand(s, 'edit.semitone', -7), 'edit.semitone', 0);
     expect(dump(s.score)).toBe('B4:1/4');
+  });
+});
+
+describe('detaching a chord tone into its own voice', () => {
+  const chord = () => play(fresh(), '5 C +E +G');
+  const select = (s: EditorState, toneIndex: number): EditorState => {
+    const ev = getVoice(s.score, VOICE).voice.events[0]!;
+    return { ...s, selection: { kind: 'event', ...VOICE, eventId: ev.id, toneId: ev.tones[toneIndex]!.id } };
+  };
+  const voices = (s: EditorState) => s.score.parts.find((p) => p.id === 'voice')!.voices;
+
+  it('moves exactly that tone to a new voice of the same staff, keeping its id, onset and length', () => {
+    const s = select(chord(), 1);
+    const before = getVoice(s.score, VOICE).voice.events[0]!;
+    const r = runCommand(s, 'edit.detach');
+    expect(voices(r).map((v) => v.id)).toEqual(['voice-v1', 'voice-v2']);
+    expect(voices(r)[1]!.staff).toBe(voices(r)[0]!.staff);
+    const chordLeft = voices(r)[0]!.events[0]!;
+    const lone = voices(r)[1]!.events[0]!;
+    expect(chordLeft.tones.map((t) => t.id)).toEqual([before.tones[0]!.id, before.tones[2]!.id]);
+    expect(lone.tones.map((t) => t.id)).toEqual([before.tones[1]!.id]);
+    expect(eq(lone.onset, before.onset) && eq(lone.duration, before.duration)).toBe(true);
+    expect(r.selection).toMatchObject({ voiceId: 'voice-v2', eventId: lone.id, toneId: before.tones[1]!.id });
+    expect(validateScore(r.score)).toEqual([]);
+  });
+
+  it('undo brings the chord back as it was', () => {
+    const h = new History(select(chord(), 1));
+    const original = h.state.score;
+    h.apply(runCommand(h.state, 'edit.detach'));
+    expect(voices(h.state)).toHaveLength(2);
+    h.undo();
+    expect(h.state.score).toBe(original);
+  });
+
+  it('a second detach makes a third voice', () => {
+    let s = runCommand(select(chord(), 1), 'edit.detach');
+    s = runCommand(select({ ...s, selection: { kind: 'event', ...VOICE, eventId: getVoice(s.score, VOICE).voice.events[0]!.id, toneId: getVoice(s.score, VOICE).voice.events[0]!.tones[1]!.id } }, 0), 'edit.detach');
+    expect(voices(s).map((v) => v.id)).toEqual(['voice-v1', 'voice-v3', 'voice-v2']);
+  });
+
+  it('refuses without a selected tone or for a single note', () => {
+    expect(runCommand(chord(), 'edit.detach').message).toMatch(/einzelnen Akkordton/);
+    const single = play(fresh(), '5 C');
+    const one = getVoice(single.score, VOICE).voice.events[0]!;
+    const r = runCommand({ ...single, selection: { kind: 'event', ...VOICE, eventId: one.id, toneId: one.tones[0]!.id } }, 'edit.detach');
+    expect(r.message).toMatch(/schon allein/);
+    expect(r.score).toBe(single.score);
+  });
+
+  it('afterwards the lone tone can be lengthened without touching the chord', () => {
+    const r = runCommand(select(chord(), 2), 'edit.detach');
+    const lone = voices(r)[1]!.events[0]!;
+    const longer = applyRollEdit(r, { kind: 'change', voice: { partId: 'voice', voiceId: 'voice-v2' }, eventId: lone.id, duration: frac(1, 2) });
+    expect(voices(longer)[1]!.events[0]!.duration).toEqual(frac(1, 2));
+    expect(voices(longer)[0]!.events[0]!.duration).toEqual(frac(1, 4));
   });
 });

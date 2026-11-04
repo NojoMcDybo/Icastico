@@ -10,8 +10,8 @@
  * applies to the same pitch (step + octave) until the end of the measure,
  * a note tied over from the previous measure shows no accidental.
  */
-import { type Score, type Part, type Tone, measuresOf, type Measure, validateScore } from '../core/model';
-import type { Fraction } from '../core/time';
+import { type Score, type Part, type Tone, eventEnd, locateTones, measuresOf, type Measure, validateScore } from '../core/model';
+import { type Fraction, gt } from '../core/time';
 import { getInstrument, type Clef } from '../core/instruments';
 import { keyAlteration, type Pitch } from '../core/pitch';
 import {
@@ -19,6 +19,7 @@ import {
   notateVoice,
   type NotatedItem,
   type NotatedNote,
+  type UnshownGap,
   type WrittenDuration,
 } from '../core/notation/notate';
 
@@ -102,28 +103,30 @@ class AccidentalState {
 /** SVG/MEI id of one notehead inside a chord; carries the tone id, so it survives re-sorting. */
 const chordNoteId = (item: NotatedNote, tone: Tone): string => `${item.id}-${tone.id}`;
 
-function noteXml(item: NotatedNote, accidentals: AccidentalState, indent: string): string {
+function noteXml(item: NotatedNote, accidentals: AccidentalState, tiedIn: ReadonlySet<string>, indent: string): string {
   const tie =
     item.tiedFromPrevious && item.tiedToNext ? 'm' : item.tiedToNext ? 'i' : item.tiedFromPrevious ? 't' : '';
   const tieAttr = tie ? ` tie="${tie}"` : '';
-  const pitchAttrs = (p: Pitch) =>
-    `pname="${p.step.toLowerCase()}" oct="${p.octave}"${accidentals.attrsFor(p, item.tiedFromPrevious)}`;
+  // A note tied in from the previous measure does not repeat its accidental.
+  const pitchAttrs = (p: Pitch, toneId: string) =>
+    `pname="${p.step.toLowerCase()}" oct="${p.octave}"${accidentals.attrsFor(p, item.tiedFromPrevious || (!item.tiedFromPrevious && tiedIn.has(toneId)))}`;
 
   if (item.tones.length === 1) {
-    return `${indent}<note xml:id="${item.id}" ${durAttrs(item.duration)} ${pitchAttrs(item.tones[0]!.pitch)}${tieAttr}/>`;
+    return `${indent}<note xml:id="${item.id}" ${durAttrs(item.duration)} ${pitchAttrs(item.tones[0]!.pitch, item.tones[0]!.id)}${tieAttr}/>`;
   }
   const notes = item.tones
-    .map((t) => `${indent}  <note xml:id="${chordNoteId(item, t)}" ${pitchAttrs(t.pitch)}${tieAttr}/>`)
+    .map((t) => `${indent}  <note xml:id="${chordNoteId(item, t)}" ${pitchAttrs(t.pitch, t.id)}${tieAttr}/>`)
     .join('\n');
   return `${indent}<chord xml:id="${item.id}" ${durAttrs(item.duration)}>\n${notes}\n${indent}</chord>`;
 }
 
-function itemXml(item: NotatedItem, accidentals: AccidentalState, indent: string): string {
+function itemXml(item: NotatedItem, accidentals: AccidentalState, tiedIn: ReadonlySet<string>, indent: string): string {
   switch (item.kind) {
     case 'note':
-      return noteXml(item, accidentals, indent);
+      return noteXml(item, accidentals, tiedIn, indent);
     case 'rest':
-      return `${indent}<rest xml:id="${item.id}" ${durAttrs(item.duration)}/>`;
+      // The gap a glide travels through is time without a rest sign.
+      return `${indent}<${item.invisible ? 'space' : 'rest'} xml:id="${item.id}" ${durAttrs(item.duration)}/>`;
     case 'measureRest':
       return `${indent}<mRest xml:id="${item.id}"/>`;
   }
@@ -184,13 +187,26 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
   }
   if (slots.length === 0) throw new Error('Keine Zeile für die Notenschrift übrig.');
 
+  // The gap a glide travels through is not drawn as a rest.
+  const spots = locateTones(score);
+  const links = score.links ?? [];
+  const gapsByVoice = new Map<string, UnshownGap[]>();
+  for (const l of links) {
+    const a = spots.get(l.from);
+    const b = spots.get(l.to);
+    if (l.kind !== 'slide' || !a || !b || a.voice.id !== b.voice.id || !gt(b.event.onset, eventEnd(a.event))) continue;
+    gapsByVoice.set(a.voice.id, [...(gapsByVoice.get(a.voice.id) ?? []), { from: eventEnd(a.event), to: b.event.onset }]);
+  }
+
   // Notate every voice once: voiceId → items per measure.
   const notated = new Map<string, NotatedItem[][]>();
+  /** First and last drawn piece of every event (an event that crosses barlines is drawn in several pieces). */
+  const pieces = new Map<string, { first: NotatedNote; firstMeasure: number; last: NotatedNote; lastMeasure: number }>();
   for (const part of score.parts) {
     for (const voice of part.voices) {
       const slot = slots.find((sl) => sl.part === part && sl.staffIndex === voice.staff);
       if (!slot) continue; // this staff is shown as piano roll
-      const perMeasure = notateVoice(voice, measures);
+      const perMeasure = notateVoice(voice, measures, gapsByVoice.get(voice.id));
       notated.set(voice.id, perMeasure);
       const staffN = slot.n;
       perMeasure.forEach((items, mi) => {
@@ -202,6 +218,8 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
           } else if (it.kind === 'rest') {
             elements.set(it.id, { ...base, kind: 'rest', onset: it.onset });
           } else {
+            const known = pieces.get(it.eventId);
+            pieces.set(it.eventId, { first: known?.first ?? it, firstMeasure: known?.firstMeasure ?? m.number, last: it, lastMeasure: m.number });
             const ref: ElementRef = { ...base, kind: 'note', onset: it.onset, eventId: it.eventId };
             if (it.tones.length === 1) {
               elements.set(it.id, { ...ref, toneId: it.tones[0]!.id });
@@ -215,6 +233,32 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
     }
   }
 
+  // Ties and glides are control elements, written into the measure where they start.
+  const controls = new Map<number, string[]>();
+  const tiedIn = new Set<string>();
+  const xmlIdOf = (item: NotatedNote, toneId: string): string =>
+    item.tones.length === 1 ? item.id : chordNoteId(item, item.tones.find((x) => x.id === toneId)!);
+  for (const l of links) {
+    const a = spots.get(l.from);
+    const b = spots.get(l.to);
+    const pa = a && pieces.get(a.event.id);
+    const pb = b && pieces.get(b.event.id);
+    if (!a || !b || !pa || !pb) continue; // an end is on a staff shown as piano roll
+    const start = xmlIdOf(pa.last, a.tone.id);
+    const end = xmlIdOf(pb.first, b.tone.id);
+    const staff = elements.get(pa.last.id)!.staffN;
+    const list = controls.get(pa.lastMeasure) ?? [];
+    if (l.kind === 'tie') {
+      list.push(`<tie xml:id="tie-${l.id}" staff="${staff}" startid="#${start}" endid="#${end}"/>`);
+      if (pa.lastMeasure !== pb.firstMeasure) tiedIn.add(b.tone.id);
+    } else {
+      const gap = gt(b.event.onset, eventEnd(a.event));
+      list.push(`<gliss xml:id="gliss-${l.id}" staff="${staff}" startid="#${start}" endid="#${end}" lform="${gap ? 'solid' : 'dotted'}"/>`);
+      if (gap) list.push(`<dir xml:id="port-${l.id}" staff="${staff}" startid="#${start}" place="above">port.</dir>`);
+    }
+    controls.set(pa.lastMeasure, list);
+  }
+
   const body: string[] = [];
   measures.forEach((m, mi) => {
     const change = mi > 0 ? scoreDefChange(measures[mi - 1]!, m) : null;
@@ -224,7 +268,9 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
     body.push(`      <measure xml:id="m${m.number}" n="${m.number}"${metcon}>`);
     for (const slot of slots) {
       body.push(`        <staff xml:id="${staffElementId(m.number, slot.n)}" n="${slot.n}">`);
-      const voices = slot.part.voices.filter((v) => v.staff === slot.staffIndex);
+      const onStaff = slot.part.voices.filter((v) => v.staff === slot.staffIndex);
+      // Voices without notes (e.g. after their only tone was deleted) draw nothing, unless the staff would be empty.
+      const voices = onStaff.some((v) => v.events.length > 0) ? onStaff.filter((v) => v.events.length > 0) : onStaff.slice(0, 1);
       const accidentals = new AccidentalState(m.fifths);
       if (voices.length === 0) {
         body.push(`          <layer n="1"><mRest/></layer>`);
@@ -237,13 +283,14 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
           const beam = beams.find(([a, b]) => i >= a && i <= b);
           const inBeam = beam !== undefined;
           if (beam && i === beam[0]) body.push(`            <beam xml:id="${item.id}-beam">`);
-          body.push(itemXml(item, accidentals, inBeam ? '              ' : '            '));
+          body.push(itemXml(item, accidentals, tiedIn, inBeam ? '              ' : '            '));
           if (beam && i === beam[1]) body.push('            </beam>');
         });
         body.push('          </layer>');
       });
       body.push('        </staff>');
     }
+    for (const control of controls.get(m.number) ?? []) body.push(`        ${control}`);
     body.push('      </measure>');
   });
 

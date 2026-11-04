@@ -57,6 +57,8 @@ export interface NotatedRest {
   readonly id: string;
   readonly onset: Fraction;
   readonly duration: WrittenDuration;
+  /** Not drawn (the gap of a glide is time, not a rest). */
+  readonly invisible?: boolean;
 }
 
 export interface NotatedMeasureRest {
@@ -122,7 +124,13 @@ export function decomposeRest(posInMeasure: Fraction, length: Fraction): Written
 }
 
 /** Notates one voice into a list of items per measure. */
-export function notateVoice(voice: Voice, measures: readonly Measure[]): NotatedItem[][] {
+/** A stretch of time that is not shown as rests, e.g. the gap a glide travels through. */
+export interface UnshownGap {
+  readonly from: Fraction;
+  readonly to: Fraction;
+}
+
+export function notateVoice(voice: Voice, measures: readonly Measure[], unshown: readonly UnshownGap[] = []): NotatedItem[][] {
   const result: NotatedItem[][] = [];
   let next = 0; // index of the first event that may still overlap upcoming measures
 
@@ -133,8 +141,9 @@ export function notateVoice(voice: Voice, measures: readonly Measure[]): Notated
 
     const pushRests = (from: Fraction, to: Fraction) => {
       let onset = from;
+      const invisible = unshown.some((g) => le(g.from, from) && le(to, g.to));
       for (const w of decomposeRest(sub(from, m.gridStart), sub(to, from))) {
-        items.push({ kind: 'rest', id: `${voice.id}-m${m.number}-r${++restCount}`, onset, duration: w });
+        items.push({ kind: 'rest', id: `${voice.id}-m${m.number}-r${++restCount}`, onset, duration: w, ...(invisible ? { invisible: true } : {}) });
         onset = add(onset, writtenValue(w));
       }
     };

@@ -149,6 +149,12 @@ export class PianoRoll {
     return part && voice ? { partId: part.id, voiceId: voice.id } : null;
   }
 
+  /** Every voice written on this staff, first one first. */
+  private staffVoices(s: EditorState): VoiceRef[] {
+    const part = s.score.parts.find((p) => p.id === this.staff.partId);
+    return (part?.voices ?? []).filter((v) => v.staff === this.staff.staffIndex).map((v) => ({ partId: this.staff.partId, voiceId: v.id }));
+  }
+
   /** Small strip or full view; takes effect at the next `render`. */
   setCompact(compact: boolean): void {
     this.compact = compact;
@@ -203,31 +209,46 @@ export class PianoRoll {
     }
     this.drawGrid(svg, body, s, layout, height);
 
-    const sel = s.selection?.kind === 'event' && s.selection.partId === ref.partId && s.selection.voiceId === ref.voiceId ? s.selection : null;
     const measures = measuresOf(s.score);
     const measureNo = (t: Fraction) => measures.find((m) => !lt(t, m.start) && lt(t, m.end))?.number ?? measures[measures.length - 1]!.number;
+    const sel = s.selection?.kind === 'event' && s.selection.partId === ref.partId ? s.selection : null;
     let selected: SVGRectElement | null = null;
-    for (const ev of voice.events) {
-      const inEvent = sel?.eventId === ev.id;
-      for (const tone of ev.tones) {
-        const midi = midiOf(tone.pitch);
-        const x = xOfTime(layout, ev.onset);
-        const w = Math.max(2, timeWidth(layout, ev.duration) - 1);
-        const cls = ['roll__bar', ev.tones.length > 1 ? 'is-chord' : '', inEvent ? 'is-event-selected' : '', inEvent && sel?.toneId === tone.id ? 'is-selected' : '']
-          .filter(Boolean)
-          .join(' ');
-        const bar = svgEl('rect', { x, y: yOfMidi(layout, midi) + 1, width: w, height: layout.rowHeight - 2, rx: 3, id: `bar-${tone.id}` }, cls);
-        bar.dataset.event = ev.id;
-        bar.dataset.tone = tone.id;
-        bar.dataset.midi = String(midi);
-        const tip = svgEl('title', {});
-        tip.textContent = `${pitchToString(tone.pitch)} · ${measureNo(ev.onset) === 0 ? 'Auftakt' : `Takt ${measureNo(ev.onset)}`} · ${durationName(ev.duration)}`;
-        bar.append(tip);
-        body.append(bar);
-        if (inEvent && (sel?.toneId === tone.id || !sel?.toneId)) selected = bar;
+    const allMidis: number[] = [];
+    /** Where each tone's bar starts, ends and sits vertically – the ends of ties and glides. */
+    const spots = new Map<string, { x0: number; x1: number; y: number }>();
+    this.staffVoices(s).forEach((vref, voiceIndex) => {
+      for (const ev of getVoice(s.score, vref).voice.events) {
+        const inEvent = sel?.voiceId === vref.voiceId && sel.eventId === ev.id;
+        for (const tone of ev.tones) {
+          const midi = midiOf(tone.pitch);
+          allMidis.push(midi);
+          const x = xOfTime(layout, ev.onset);
+          const w = Math.max(2, timeWidth(layout, ev.duration) - 1);
+          const cls = [
+            'roll__bar',
+            ev.tones.length > 1 ? 'is-chord' : '',
+            voiceIndex > 0 ? 'is-secondary' : '',
+            inEvent ? 'is-event-selected' : '',
+            inEvent && sel?.toneId === tone.id ? 'is-selected' : '',
+          ]
+            .filter(Boolean)
+            .join(' ');
+          const bar = svgEl('rect', { x, y: yOfMidi(layout, midi) + 1, width: w, height: layout.rowHeight - 2, rx: 3, id: `bar-${tone.id}` }, cls);
+          spots.set(tone.id, { x0: x, x1: x + w + 1, y: yOfMidi(layout, midi) + layout.rowHeight / 2 });
+          bar.dataset.voice = vref.voiceId;
+          bar.dataset.event = ev.id;
+          bar.dataset.tone = tone.id;
+          bar.dataset.midi = String(midi);
+          const tip = svgEl('title', {});
+          tip.textContent = `${pitchToString(tone.pitch)} · ${measureNo(ev.onset) === 0 ? 'Auftakt' : `Takt ${measureNo(ev.onset)}`} · ${durationName(ev.duration)}${voiceIndex > 0 ? ' · Stimme ' + (voiceIndex + 1) : ''}`;
+          bar.append(tip);
+          body.append(bar);
+          if (inEvent && (sel?.toneId === tone.id || !sel?.toneId)) selected = bar;
+        }
       }
-    }
-    if (s.caret && s.caret.partId === ref.partId && s.caret.voiceId === ref.voiceId) {
+    });
+    this.drawLinks(body, s, spots);
+    if (s.caret && s.caret.partId === ref.partId && this.staffVoices(s).some((v) => v.voiceId === s.caret!.voiceId)) {
       const x = xOfTime(layout, s.caret.time);
       body.append(svgEl('line', { x1: x, x2: x, y1: 0, y2: height }, 'roll__caret'));
     }
@@ -236,7 +257,34 @@ export class PianoRoll {
     this.svg = svg;
     this.scroller.replaceChildren(svg);
     this.syncKeys();
-    this.keepInView(ref, voice.events.flatMap((e) => e.tones.map((t) => midiOf(t.pitch))), selected, sel ? `${sel.eventId}/${sel.toneId ?? ''}` : '');
+    this.keepInView(ref, allMidis, selected, sel ? `${sel.voiceId}/${sel.eventId}/${sel.toneId ?? ''}` : '');
+  }
+
+  /**
+   * Ties and glides between bars: a tie is a small arc over the join; a glide is a line from the end of
+   * the first bar to the start of the second – its length in time is the gap, i.e. the glide time.
+   * Without a gap the line is dotted: the link is kept, the pitch just changes.
+   */
+  private drawLinks(body: SVGGElement, s: EditorState, spots: ReadonlyMap<string, { x0: number; x1: number; y: number }>): void {
+    for (const link of s.score.links ?? []) {
+      const a = spots.get(link.from);
+      const b = spots.get(link.to);
+      if (!a || !b) continue;
+      const title = svgEl('title', {});
+      if (link.kind === 'tie') {
+        const mid = (a.x1 + b.x0) / 2;
+        const path = svgEl('path', { d: `M ${a.x1 - 5} ${a.y - 5} Q ${mid} ${a.y - 15} ${b.x0 + 5} ${b.y - 5}` }, 'roll__link roll__link--tie');
+        title.textContent = 'Haltebogen';
+        path.append(title);
+        body.append(path);
+      } else {
+        const gap = b.x0 - a.x1 > 0.5;
+        const line = svgEl('line', { x1: a.x1, y1: a.y, x2: b.x0, y2: b.y }, `roll__link roll__link--slide${gap ? '' : ' is-direct'}`);
+        title.textContent = gap ? 'Gleiten (die Lücke ist die Gleitdauer)' : 'Gleiten gemerkt – ohne Lücke nur direkter Wechsel';
+        line.append(title);
+        body.append(line);
+      }
+    }
   }
 
   /** Measure and grid lines with measure numbers on top. */
@@ -310,21 +358,24 @@ export class PianoRoll {
   private barAt(target: EventTarget | null): BarRef | null {
     const el = target instanceof Element ? target.closest<SVGRectElement>('.roll__bar') : null;
     const s = this.host.state();
-    const ref = this.currentVoice(s);
-    if (!el || !ref) return null;
-    const ev = getVoice(s.score, ref).voice.events.find((x) => x.id === el.dataset.event);
-    const tone = ev?.tones.find((t) => t.id === el.dataset.tone);
-    return ev && tone ? { eventId: ev.id, toneId: tone.id, onset: ev.onset, duration: ev.duration, midi: midiOf(tone.pitch) } : null;
+    const primary = this.currentVoice(s);
+    if (!el || !primary) return null;
+    const voice = this.staffVoices(s).find((v) => v.voiceId === el.dataset.voice);
+    if (!voice) return null;
+    const ev = getVoice(s.score, voice).voice.events.find((x) => x.id === el.dataset.event);
+    const tone = ev?.tones.find((x) => x.id === el.dataset.tone);
+    return ev && tone ? { voice, eventId: ev.id, toneId: tone.id, onset: ev.onset, duration: ev.duration, midi: midiOf(tone.pitch) } : null;
   }
 
   private onDown(e: PointerEvent): void {
     if (e.button !== 0 || this.gesture || !this.layout || this.onKeyColumn(e)) return;
     const p = this.point(e);
     const s = this.host.state();
-    const voice = this.currentVoice(s);
-    if (!p || !voice) return;
+    const primary = this.currentVoice(s);
+    if (!p || !primary) return;
     this.host.activate();
     const bar = this.barAt(e.target);
+    const voice = bar?.voice ?? primary;
     if (this.compact) {
       // A strip only selects; a click on the empty strip is handled by the lane (opens it).
       if (bar) this.host.select({ kind: 'event', ...voice, eventId: bar.eventId, toneId: bar.toneId }, bar.onset);

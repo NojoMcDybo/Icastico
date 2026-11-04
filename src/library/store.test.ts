@@ -3,6 +3,7 @@ import { createScore, DEFAULT_SETUP } from '../core/templates';
 import { demoScore } from '../core/demo';
 import { FORMAT_VERSION, fileVersion } from '../core/file/format';
 import version2File from '../core/file/fixtures/version2.icastico?raw';
+import version3File from '../core/file/fixtures/version3.icastico?raw';
 import { itemsFor } from './library';
 import { MemoryLibrary } from './memory';
 import { BACKUP_DIR, LibraryStore } from './store';
@@ -125,6 +126,13 @@ describe('files saved by an older Icastico', () => {
     await store.refresh();
     expect(titles().sort()).toEqual(['-/Erste Skizze.icastico', '-/Gespeichert mit 0.6.0.icastico']);
     expect(store.index.collections).toEqual([]);
+  });
+
+  it('a version-3 file (0.7.0) is backed up too, as .v3.bak', async () => {
+    await lib.createFile('/Icastico/Drei.icastico', version3File);
+    await store.refresh();
+    await store.saveScore('/Icastico/Drei.icastico', await store.readScore('/Icastico/Drei.icastico'));
+    expect(await lib.read(`/Icastico/${BACKUP_DIR}/Drei.icastico.v3.bak`)).toBe(version3File);
   });
 
   it('are backed up once: the next autosaves leave the backup alone', async () => {

@@ -138,10 +138,17 @@
         },
         {
           "id": "edit.tie",
-          "title": "Haltebogen zur nächsten Note gleicher Tonhöhe",
+          "title": "Haltebogen zur nächsten Note gleicher Tonhöhe (nochmal: lösen)",
           "command": "edit.tie",
           "finale": { "keys": ["T"], "source": "doku" },
           "logic": { "keys": ["Shift+T"], "source": "icastico", "note": "T ist in Logic die Taste für Fis." }
+        },
+        {
+          "id": "edit.slide",
+          "title": "Gleiten zur nächsten Note (nochmal: lösen). Die Lücke dazwischen ist die Gleitdauer",
+          "command": "edit.slide",
+          "finale": { "keys": ["Mod+Shift+G"], "source": "icastico" },
+          "logic": { "keys": ["Mod+Shift+G"], "source": "icastico" }
         },
         {
           "id": "edit.toRest",
@@ -162,6 +169,13 @@
           "command": "edit.backspace",
           "finale": { "keys": ["Backspace"], "source": "annahme" },
           "logic": { "keys": ["Backspace"], "source": "icastico" }
+        },
+        {
+          "id": "edit.detach",
+          "title": "Angeklickten Akkordton in eine eigene Stimme lösen",
+          "command": "edit.detach",
+          "finale": { "keys": ["Mod+Shift+D"], "source": "icastico" },
+          "logic": { "keys": ["Mod+Shift+D"], "source": "icastico" }
         },
         {
           "id": "edit.move",

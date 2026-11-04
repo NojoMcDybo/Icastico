@@ -37,7 +37,9 @@ export function layoutFor(score: Score, ref: VoiceRef, pxPerWhole = DEFAULT_PX_P
   const range = getInstrument(part.instrument).range;
   let low = midiOf(range.low);
   let high = midiOf(range.high);
-  for (const e of voice.events) {
+  // Every voice written on the same staff shares the rows.
+  const staffEvents = part.voices.filter((v) => v.staff === voice.staff).flatMap((v) => v.events);
+  for (const e of staffEvents) {
     for (const t of e.tones) {
       low = Math.min(low, midiOf(t.pitch));
       high = Math.max(high, midiOf(t.pitch));
@@ -47,7 +49,7 @@ export function layoutFor(score: Score, ref: VoiceRef, pxPerWhole = DEFAULT_PX_P
   const totalTime = measures[measures.length - 1]!.end;
   if (compact) {
     // A strip shows only the contour of what is played: the rows of the tones, no key column.
-    const tones = voice.events.flatMap((e) => e.tones.map((x) => midiOf(x.pitch)));
+    const tones = staffEvents.flatMap((e) => e.tones.map((x) => midiOf(x.pitch)));
     const lowest = tones.length ? Math.min(...tones) : 60;
     const highest = tones.length ? Math.max(...tones) : 60;
     const rows = highest - lowest + 3;
@@ -106,6 +108,7 @@ export function zoneOf(x0: number, x1: number, x: number): Zone {
 }
 
 export interface BarRef {
+  readonly voice: VoiceRef;
   readonly eventId: string;
   readonly toneId: string;
   readonly onset: Fraction;
