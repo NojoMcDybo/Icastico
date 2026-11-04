@@ -10,6 +10,8 @@ import { History } from '../core/editor/history';
 import { type EditorState, type VoiceRef, createEditorState, getVoice, inputLength } from '../core/editor/state';
 import { applyRollEdit } from '../core/editor/rollEdits';
 import { FileFormatError, parseScoreFile, serializeScore } from '../core/file/format';
+import { musicXmlText } from '../core/import/container';
+import { type ImportResult, ImportError, importMusicXml } from '../core/import/musicxml';
 import { getInstrument } from '../core/instruments';
 import { type Score, keyAt, measuresOf, meterAt, withTempo } from '../core/model';
 import { secondsOf, tempoOf, timeAt } from '../core/playback';
@@ -190,6 +192,7 @@ export class Workstation {
           open: (path) => this.openLibraryItem(path),
           newScore: (collection) => this.fileNew(collection),
           openExternal: () => this.fileOpen(),
+          importFile: () => this.fileImport(),
           relocated: (from, to) => this.relocated(from, to),
           closedByTrash: () => this.closeDocument(),
           ...(updates ? { checkForUpdates: () => updates.checkNow() } : {}),
@@ -339,6 +342,9 @@ export class Workstation {
         return;
       case 'file.open':
         void this.fileOpen();
+        return;
+      case 'file.import':
+        void this.fileImport();
         return;
       case 'file.save':
         void this.fileSave(false);
@@ -556,6 +562,35 @@ export class Workstation {
       { ...createEditorState(score), message: `Geöffnet: ${file.name}` },
       file.path ? { path: file.path, inLibrary: false } : null,
     );
+  }
+
+  /** MusicXML → a new score in the library (ADR 0017); what could not be taken over is listed. */
+  async fileImport(): Promise<void> {
+    if (!(await this.confirmDiscard())) return this.update();
+    const file = await this.withBusy(() => this.platform.pickImport(), 'Datei konnte nicht geöffnet werden');
+    if (!file) return this.update();
+    let result: ImportResult;
+    try {
+      result = importMusicXml(musicXmlText(file.bytes), file.name);
+    } catch (err) {
+      const reason = err instanceof ImportError ? err.message : 'Unerwarteter Fehler: ' + errorText(err);
+      await inform('„' + file.name + '“ konnte nicht importiert werden', reason);
+      return this.update();
+    }
+    this.library?.hide();
+    const collection = this.library?.isOpen ? this.library.collection : this.currentCollection;
+    let location: DocumentLocation | null = null;
+    if (this.store) {
+      const path = await this.withBusy(() => this.store!.createScore(result.score, collection), 'Partitur konnte nicht angelegt werden');
+      if (!path) return this.update();
+      saveLastOpened(path);
+      location = { path, inLibrary: true };
+    }
+    const hints = result.notes.length ? ' (' + result.notes.length + ' Hinweise)' : '';
+    this.load({ ...createEditorState(result.score), message: 'Importiert: ' + file.name + hints }, location);
+    if (result.notes.length > 0) {
+      await inform('Import abgeschlossen', '„' + result.score.title + '“ ist importiert. Nicht alles ließ sich übernehmen:\n\n- ' + result.notes.join('\n- '));
+    }
   }
 
   /** Replaces the document; undo history starts fresh. */

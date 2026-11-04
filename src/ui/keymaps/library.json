@@ -341,6 +341,13 @@
           "logic": { "keys": ["Mod+Shift+O"], "source": "icastico" }
         },
         {
+          "id": "file.import",
+          "title": "MusicXML importieren (z. B. aus Finale)",
+          "command": "file.import",
+          "finale": { "keys": ["Mod+Shift+I"], "source": "icastico" },
+          "logic": { "keys": ["Mod+Shift+I"], "source": "icastico" }
+        },
+        {
           "id": "file.save",
           "title": "Speichern (Bibliothek speichert auch selbst)",
           "command": "file.save",

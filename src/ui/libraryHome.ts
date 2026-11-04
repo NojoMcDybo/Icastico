@@ -29,6 +29,8 @@ export interface LibraryActions {
   open(path: string): Promise<void>;
   newScore(collection: string | null): Promise<void>;
   openExternal(): Promise<void>;
+  /** Imports a MusicXML file as a new score. */
+  importFile(): Promise<void>;
   /** A file or folder moved: `from` → `to` (the editor follows its document). */
   relocated(from: string, to: string): void;
   /** The open document went to the trash. */
@@ -339,6 +341,10 @@ export class LibraryHome {
       link('Andere Datei öffnen …', 'Eine .icastico-Datei von außerhalb der Bibliothek', () => {
         this.root.hidden = true;
         void this.actions.openExternal();
+      }),
+      link('MusicXML importieren …', 'Eine MusicXML-Datei (z. B. aus Finale exportiert) als neue Partitur', () => {
+        this.root.hidden = true;
+        void this.actions.importFile();
       }),
     ];
     if (this.actions.checkForUpdates) {

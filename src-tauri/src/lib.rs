@@ -21,6 +21,14 @@ fn read_score_file(path: String) -> Result<String, String> {
     std::fs::read_to_string(&path).map_err(|e| format!("Datei konnte nicht gelesen werden ({e})."))
 }
 
+/// Reads a file as raw bytes (compressed MusicXML is a zip). Returned as binary, not as a JSON list.
+#[tauri::command]
+fn read_file_bytes(path: String) -> Result<tauri::ipc::Response, String> {
+    std::fs::read(&path)
+        .map(tauri::ipc::Response::new)
+        .map_err(|e| format!("Datei konnte nicht gelesen werden ({e})."))
+}
+
 /// Writes atomically: first into a temporary file next to the target, flushed
 /// to disk, then renamed over the target. A crash or power loss while saving
 /// never leaves a half-written score behind – the old file stays intact.
@@ -77,6 +85,7 @@ pub fn run() {
         .manage(library::LibraryRoot::default())
         .invoke_handler(tauri::generate_handler![
             read_score_file,
+            read_file_bytes,
             write_score_file,
             take_pending_file,
             library::library_root,
@@ -125,6 +134,17 @@ mod tests {
         assert_eq!(read_score_file(path.clone()).unwrap(), "zwei");
         assert!(!temp_path(Path::new(&path)).exists(), "temporary file must be gone");
 
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn reads_raw_bytes() {
+        let dir = std::env::temp_dir().join(format!("icastico-bytes-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("Lied.mxl");
+        std::fs::write(&path, [0x50u8, 0x4b, 0x03, 0x04, 0xff]).unwrap();
+        assert!(read_file_bytes(path.to_string_lossy().into_owned()).is_ok());
+        assert!(read_file_bytes("/gibt/es/nicht.mxl".into()).err().unwrap().starts_with("Datei konnte nicht gelesen werden"));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

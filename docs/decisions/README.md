@@ -44,3 +44,4 @@ Was wird dadurch leichter, was schwerer?
 | 0014 | [Haltebögen und Gleiten als Verbindungen zwischen Tönen](0014-verbindungen.md) | angenommen |
 | 0015 | [Wiedergabe mit eingebautem Klang und Tempo in der Partitur](0015-wiedergabe.md) | angenommen (Klang vorläufig) |
 | 0016 | [Akkorde aus mehreren Wegen, Lautstärke-Linien und Gleitverläufe](0016-akkorde-und-verlaeufe.md) | angenommen |
+| 0017 | [MusicXML importieren](0017-musicxml-import.md) | angenommen |

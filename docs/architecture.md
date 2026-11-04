@@ -73,7 +73,7 @@ ausführlich getestet.
   (Finale, Logic Pro), daraus Belegungen, Tastenhilfe und Doku (ADR 0012).
 - `pianoRoll.ts` / `pianoRollGeometry.ts` – Piano-Roll als zweite Ansicht (eigenes SVG);
   Geometrie rein und getestet, Bearbeitungen über `core/editor/rollEdits.ts` (ADR 0013).
-- `core/curve.ts` – Kurven für Lautstärke und Gleitverlauf (ADR 0016); `ui/curvePopup.ts` – das Menü dazu; `core/playback.ts` – Abspielplan (reine Logik); `audio/synth.ts` – eingebauter Klang (Web Audio); `ui/player.ts`, `ui/transport.ts` – Wiedergabe und Transportleiste (ADR 0015).
+- `core/import/` – MusicXML-Import (XML-Leser, `.mxl`, Übersetzung in die Partitur; ADR 0017); `core/curve.ts` – Kurven für Lautstärke und Gleitverlauf (ADR 0016); `ui/curvePopup.ts` – das Menü dazu; `core/playback.ts` – Abspielplan (reine Logik); `audio/synth.ts` – eingebauter Klang (Web Audio); `ui/player.ts`, `ui/transport.ts` – Wiedergabe und Transportleiste (ADR 0015).
 - `lanes.ts` / `laneControls.ts` – welche Ansichten in welcher Größe gezeigt werden (reiner Zustand, getestet).
 - `workstation.ts` – rendert nur bei Partitur-Änderungen neu, zeichnet Cursor
   und Auswahl über das SVG, Statuszeile, Tastenhilfe. Fehler in einem

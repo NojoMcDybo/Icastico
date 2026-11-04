@@ -21,6 +21,12 @@ export interface OpenedFile {
   readonly text: string;
 }
 
+/** A file picked for import, as raw bytes. */
+export interface ImportedFile {
+  readonly name: string;
+  readonly bytes: Uint8Array;
+}
+
 export interface SavedFile {
   readonly name: string;
   readonly path: string | null;
@@ -33,6 +39,8 @@ export interface Platform {
   /** Lets the user pick a file; null if cancelled. */
   pickAndRead(): Promise<OpenedFile | null>;
   read(path: string): Promise<OpenedFile>;
+  /** Lets the user pick a MusicXML file (.musicxml, .xml, .mxl); null if cancelled. */
+  pickImport(): Promise<ImportedFile | null>;
   /** Writes to `path`, or asks where if `path` is null. Null if cancelled. */
   write(text: string, path: string | null, suggestedName: string): Promise<SavedFile | null>;
   setTitle(title: string): void;
@@ -46,6 +54,7 @@ export interface Platform {
 }
 
 const FILTERS = [{ name: 'Icastico-Partitur', extensions: [FILE_EXTENSION] }];
+const IMPORT_EXTENSIONS = ['musicxml', 'xml', 'mxl'];
 
 export const baseName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
 
@@ -77,6 +86,18 @@ const desktop: Platform = {
   async read(path) {
     const text = await invoke<string>('read_score_file', { path });
     return { name: baseName(path), path, text };
+  },
+
+  async pickImport() {
+    const path = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: 'MusicXML (z. B. aus Finale)', extensions: IMPORT_EXTENSIONS }],
+      title: 'MusicXML importieren',
+    });
+    if (!path) return null;
+    const data = await invoke<ArrayBuffer>('read_file_bytes', { path });
+    return { name: baseName(path), bytes: new Uint8Array(data) };
   },
 
   async write(text, path, suggestedName) {
@@ -156,6 +177,21 @@ const browser: Platform = {
 
   read() {
     return Promise.reject(new Error('Im Browser können Dateien nur über den Dialog geöffnet werden.'));
+  },
+
+  pickImport() {
+    return new Promise((resolve, reject) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = IMPORT_EXTENSIONS.map((e) => '.' + e).join(',');
+      input.addEventListener('cancel', () => resolve(null));
+      input.addEventListener('change', () => {
+        const file = input.files?.[0];
+        if (!file) return resolve(null);
+        file.arrayBuffer().then((data) => resolve({ name: file.name, bytes: new Uint8Array(data) }), reject);
+      });
+      input.click();
+    });
   },
 
   async write(text, _path, suggestedName) {

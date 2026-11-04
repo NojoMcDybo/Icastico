@@ -607,6 +607,46 @@ try {
   check(!/nicht verfügbar|Fehler/.test(await status()), 'Wiedergabe mit Gleitverlauf läuft ohne Fehler');
   await type('Control+Shift+P');
 
+  // ── MusicXML importieren (Strg+Umschalt+I) ──
+  const xmlNote = (step, octave, duration, more = '') => `<note><pitch><step>${step}</step><octave>${octave}</octave></pitch><duration>${duration}</duration>${more}</note>`;
+  const sample = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="3.1">
+  <work><work-title>Aus Finale</work-title></work>
+  <part-list><score-part id="P1"><part-name>Klavier</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1"><attributes><divisions>2</divisions><key><fifths>1</fifths></key><time><beats>3</beats><beat-type>4</beat-type></time><staves>2</staves></attributes>
+      <direction><sound tempo="96"/></direction>
+      ${xmlNote('B', 4, 2, '<voice>1</voice><staff>1</staff>')}${xmlNote('D', 5, 2, '<chord/><voice>1</voice><staff>1</staff><lyric><text>la</text></lyric>')}${xmlNote('G', 4, 4, '<voice>1</voice><staff>1</staff><tie type="start"/>')}
+      <backup><duration>6</duration></backup>
+      ${xmlNote('G', 2, 6, '<voice>2</voice><staff>2</staff>')}
+    </measure>
+    <measure number="2">
+      ${xmlNote('G', 4, 4, '<voice>1</voice><staff>1</staff><tie type="stop"/>')}${xmlNote('A', 4, 2, '<voice>1</voice><staff>1</staff>')}
+      <backup><duration>6</duration></backup>
+      ${xmlNote('D', 3, 6, '<voice>2</voice><staff>2</staff>')}
+    </measure>
+  </part>
+</score-partwise>`;
+  const chooser = page.waitForEvent('filechooser');
+  await type('Control+Shift+I');
+  await (await chooser).setFiles({ name: 'finale-export.musicxml', mimeType: 'application/xml', buffer: Buffer.from(sample) });
+  await page.waitForSelector('.modal h2:text("Import abgeschlossen")');
+  check(/Liedtext: 1×/.test(await page.locator('.modal').textContent()), 'MusicXML-Import: ein Hinweis nennt, was nicht übernommen wurde (Liedtext)');
+  await page.click('.modal button:text("OK")');
+  await page.waitForFunction(() => document.querySelector('#doc-title')?.textContent === 'Aus Finale');
+  check((await page.locator('.page g.note').count()) >= 5 && (await page.locator('.page g.chord').count()) === 1 && (await page.locator('.page g.tie').count()) === 1, 'MusicXML-Import: Noten, Akkord und Haltebogen erscheinen in der Notenschrift');
+  check((await lcd('TEMPO').textContent()) === '96' && (await lcd('TAKT').first().textContent()) !== '', 'MusicXML-Import: Tempo 96 übernommen');
+  await page.screenshot({ path: join(outDir, 'import.png') });
+  await saved();
+  check(Object.keys(await files()).some((p) => p.endsWith('Aus Finale.icastico')), 'Die importierte Partitur liegt in der Bibliothek');
+  const bad = page.waitForEvent('filechooser');
+  await type('Control+Shift+I');
+  await (await bad).setFiles({ name: 'kaputt.xml', mimeType: 'application/xml', buffer: Buffer.from('<html></html>') });
+  await page.waitForSelector('.modal h2:text-matches("konnte nicht importiert werden")');
+  check(/keine MusicXML-Partitur/.test(await page.locator('.modal').textContent()), 'Eine Datei, die kein MusicXML ist, wird mit klarer Meldung abgelehnt');
+  await page.click('.modal button:text("OK")');
+
   check(errors.length === 0, `Keine Fehler in der Konsole${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   console.log(`\nAlle ${step} Prüfungen bestanden. Screenshots: ${outDir}`);
 } catch (err) {

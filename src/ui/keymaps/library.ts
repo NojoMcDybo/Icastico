@@ -13,6 +13,7 @@ export type UiCommandId =
   | 'view.help'
   | 'file.new'
   | 'file.open'
+  | 'file.import'
   | 'file.save'
   | 'file.saveAs'
   | 'score.settings'
@@ -36,6 +37,7 @@ export const UI_COMMANDS: ReadonlySet<string> = new Set<UiCommandId>([
   'view.help',
   'file.new',
   'file.open',
+  'file.import',
   'file.save',
   'file.saveAs',
   'score.settings',

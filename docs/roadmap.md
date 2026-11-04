@@ -79,7 +79,8 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 
 - [ ] Wiedergabe (SoundFont-Synth in Rust), Cursor läuft mit
 - [ ] MIDI-Keyboard-Eingabe (Step + Echtzeit mit Quantisierer)
-- [ ] MusicXML Export/Import (Brücke zu Finale/MuseScore/Dorico)
+- [x] MusicXML importieren (`.musicxml`, `.xml`, `.mxl`; Strg+Umschalt+I): Noten, Akkorde, Stimmen, Haltebögen, Tonart, Taktart, Auftakt, Tempo; N-Tolen vorerst gerundet (ADR 0017)
+- [ ] MusicXML exportieren; Finale-Dateien (`.musx`) direkt lesen
 - [ ] PDF-Export
 
 ## Schritt 4 – Audio→Noten
