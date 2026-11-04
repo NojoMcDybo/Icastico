@@ -17,7 +17,8 @@ export type UiCommandId =
   | 'file.saveAs'
   | 'score.settings'
   | 'library.toggle'
-  | 'view.roll';
+  | 'view.roll'
+  | 'play.toggle';
 
 /** Functions handled by the mouse, listed for the help only. */
 export const MOUSE_COMMANDS = new Set(['mouse.drag']);
@@ -33,6 +34,7 @@ export const UI_COMMANDS: ReadonlySet<string> = new Set<UiCommandId>([
   'score.settings',
   'library.toggle',
   'view.roll',
+  'play.toggle',
 ]);
 
 export type PresetId = 'finale' | 'logic';

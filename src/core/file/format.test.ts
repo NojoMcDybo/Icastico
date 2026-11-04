@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { FileFormatError, FORMAT_VERSION, fileVersion, parseScoreFile, serializeScore } from './format';
 import { pitchToString } from '../pitch';
-import { validateScore } from '../model';
+import { validateScore, withTempo } from '../model';
 import { frac } from '../time';
 import { applyScoreChanges } from '../templates';
 import version1File from './fixtures/version1.icastico?raw';
 import version2File from './fixtures/version2.icastico?raw';
 import version3File from './fixtures/version3.icastico?raw';
+import version4File from './fixtures/version4.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -99,6 +100,29 @@ describe('.icastico format', () => {
     expect(attempt([{ id: 'l1', kind: 'wavy', from: 'pr1-t1', to: 'pr2-t1' }])).toThrow(/unbekannte Art/);
     expect(attempt([{ id: 'l1', kind: 'tie', from: 'pr1-t1', to: 'pr2-t1' }])).toThrow(FileFormatError); // Gb4 vs C4
     expect(attempt('nope')).toThrow(/Liste erwartet/);
+  });
+
+  it('opens files saved by Icastico 0.8.0 (format version 4): links kept, default tempo', () => {
+    const score = parseScoreFile(version4File);
+    expect(fileVersion(version4File)).toBe(4);
+    expect(score.links).toEqual([{ id: 'link-1', kind: 'slide', from: 'pr1-t1', to: 'pr2-t1' }]);
+    expect(score.tempo).toBeUndefined();
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  it('stores the tempo only when it is not the default, and checks it', () => {
+    const base = parseScoreFile(version4File);
+    expect(serializeScore(withTempo(base, 100), '0.0.0')).not.toContain('"tempo"');
+    const fast = serializeScore(withTempo(base, 132), '0.0.0');
+    expect(fast).toContain('"tempo": 132');
+    expect(parseScoreFile(fast).tempo).toBe(132);
+    const doc = JSON.parse(fast) as { score: Record<string, unknown> };
+    const attempt = (tempo: unknown) => () => parseScoreFile(JSON.stringify({ ...doc, score: { ...doc.score, tempo } }));
+    expect(attempt(5)).toThrow(/Tempo 5 ist ungültig/);
+    expect(attempt(120.5)).toThrow(/ganze Zahl/);
+    expect(attempt('schnell')).toThrow(FileFormatError);
   });
 
   it('stores the upbeat', () => {

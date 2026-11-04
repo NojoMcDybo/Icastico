@@ -352,7 +352,9 @@
         {
           "id": "play.toggle",
           "title": "Wiedergabe starten / stoppen",
-          "logic": { "keys": ["Space"], "source": "doku", "note": "In Logic hat die Schritteingabe Vorrang: dort ist die Leertaste die Pause." }
+          "command": "play.toggle",
+          "finale": { "keys": ["Mod+Enter"], "source": "icastico" },
+          "logic": { "keys": ["Mod+Enter"], "source": "icastico", "note": "In Logic startet die Leertaste die Wiedergabe; hier ist sie die Pause der Schritteingabe." }
         },
         {
           "id": "play.record",

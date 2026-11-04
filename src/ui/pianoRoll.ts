@@ -84,6 +84,8 @@ export class PianoRoll {
   private body: SVGGElement | null = null;
   /** The line drawn while a glide is being dragged. */
   private rubber: SVGLineElement | null = null;
+  /** Where the music is (or will start); drawn as a line, followed while playing. */
+  private playhead: Fraction | null = null;
   private layout: RollLayout | null = null;
   private gesture: Gesture | null = null;
   private pxPerWhole = DEFAULT_PX_PER_WHOLE;
@@ -165,6 +167,19 @@ export class PianoRoll {
   private staffVoices(s: EditorState): VoiceRef[] {
     const part = s.score.parts.find((p) => p.id === this.staff.partId);
     return (part?.voices ?? []).filter((v) => v.staff === this.staff.staffIndex).map((v) => ({ partId: this.staff.partId, voiceId: v.id }));
+  }
+
+  /** Moves the playhead line without redrawing; `follow` scrolls it into view (while playing). */
+  setPlayhead(time: Fraction | null, follow = false): void {
+    this.playhead = time;
+    const line = this.svg?.querySelector('.roll__playhead');
+    if (!time || !this.layout || !line) return;
+    const x = xOfTime(this.layout, time);
+    line.setAttribute('x1', String(x));
+    line.setAttribute('x2', String(x));
+    if (follow && (x > this.scroller.scrollLeft + this.scroller.clientWidth - 40 || x < this.scroller.scrollLeft)) {
+      this.scroller.scrollLeft = Math.max(0, x - 80);
+    }
   }
 
   /** Small strip or full view; takes effect at the next `render`. */
@@ -262,6 +277,10 @@ export class PianoRoll {
       }
     });
     this.drawLinks(body, s, spots);
+    if (this.playhead) {
+      const x = xOfTime(layout, this.playhead);
+      body.append(svgEl('line', { x1: x, x2: x, y1: 0, y2: height }, 'roll__playhead'));
+    }
     if (!this.compact) this.drawDots(body, spots);
     if (s.caret && s.caret.partId === ref.partId && this.staffVoices(s).some((v) => v.voiceId === s.caret!.voiceId)) {
       const x = xOfTime(layout, s.caret.time);

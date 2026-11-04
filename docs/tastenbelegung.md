@@ -80,7 +80,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 
 | Funktion | Finale | Logic Pro | Icastico |
 |---|---|---|---|
-| Wiedergabe starten / stoppen | – | `Leertaste` – In Logic hat die Schritteingabe Vorrang: dort ist die Leertaste die Pause. | geplant |
+| Wiedergabe starten / stoppen | `Strg+Enter` *(Icastico)* | `Strg+Enter` *(Icastico)* – In Logic startet die Leertaste die Wiedergabe; hier ist sie die Pause der Schritteingabe. | ✓ |
 | Aufnahme | – | `R` | geplant |
 | Metronom an / aus | – | `K` | geplant |
 | Wiederholbereich (Cycle) an / aus | – | `C` | geplant |

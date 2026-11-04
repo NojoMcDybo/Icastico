@@ -61,6 +61,8 @@ npm run build          # Typecheck + Web-Build nach dist/
 npm run screenshot -- out.png [--click=<svg-id>] [--keys=Control+n,5,c,d]
                        # App im Headless-Chromium, optional mit Klick/Tastendrücken
 npm run keys:doc       # docs/tastenbelegung.md aus library.json neu erzeugen
+npm run sounds         # Klangdatei (MuseScore_General.sf3, ~40 MB) nach public/sounds holen;
+                       # dev und build tun das automatisch, die Datei liegt nicht in git
 npm run e2e            # Ende-zu-Ende-Test der Oberfläche (nach npm run build;
                        # braucht das global installierte Playwright der Claude-Umgebung)
 cargo test --manifest-path src-tauri/Cargo.toml   # Rust-Tests

@@ -19,9 +19,10 @@ export const FILE_EXTENSION = 'icastico';
 /**
  * History: 1 = first format (v0.2.0), 2 = optional upbeat "pickup" (v0.3.0),
  * 3 = tones with permanent ids instead of plain pitch names (ADR 0012),
- * 4 = optional `links` (ties and slides between tones, ADR 0014).
+ * 4 = optional `links` (ties and slides between tones, ADR 0014),
+ * 5 = optional `tempo` (quarter notes per minute, ADR 0015).
  */
-export const FORMAT_VERSION = 4;
+export const FORMAT_VERSION = 5;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -37,6 +38,7 @@ function scoreToJson(score: Score): unknown {
     meter: score.meter.map((m) => ({ at: fracToString(m.at), count: m.sig.count, unit: m.sig.unit })),
     keys: score.keys.map((k) => ({ at: fracToString(k.at), fifths: k.fifths })),
     ...(score.pickup ? { pickup: fracToString(score.pickup) } : {}),
+    ...(score.tempo !== undefined ? { tempo: score.tempo } : {}),
     ...(score.links?.length ? { links: score.links.map((l) => ({ id: l.id, kind: l.kind, from: l.from, to: l.to })) } : {}),
     parts: score.parts.map((p) => ({
       id: p.id,
@@ -187,6 +189,7 @@ function readScore(v: unknown): Score {
       return { at: time(e.at, `Tonart ${i + 1}`), fifths };
     }),
     ...(o.pickup !== undefined ? { pickup: time(o.pickup, 'Auftakt') } : {}),
+    ...(o.tempo !== undefined ? { tempo: int(o.tempo, 'Tempo') } : {}),
     ...(o.links !== undefined && arr(o.links, 'Verbindungen').length > 0 ? { links: arr(o.links, 'Verbindungen').map(readLink) } : {}),
     parts: arr(o.parts, 'Instrumente').map((p, i) => readPart(p, `Instrument ${i + 1}`)),
   };
@@ -204,6 +207,8 @@ const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
   2: (doc) => ({ ...doc, version: 3, score: mapEvents(doc.score, upgradePitches) }),
   // 3 → 4: adds the optional "links". Version-3 files have none.
   3: (doc) => ({ ...doc, version: 4 }),
+  // 4 → 5: adds the optional "tempo". Version-4 files have none (the default applies).
+  4: (doc) => ({ ...doc, version: 5 }),
 };
 
 /** Applies `fn` to every event object of a (still unvalidated) score; anything unexpected is left for the reader to reject. */

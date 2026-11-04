@@ -57,8 +57,12 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [ ] Notenschrift und Piano-Roll scrollen taktweise im Gleichlauf
 - [x] Einzelnen Akkordton in eine eigene Stimme lösen (Strg+Umschalt+D), Roll zeigt alle Stimmen einer Zeile
 - [x] Ausdrückliche Haltebögen (zwei getrennte Noten, `T` setzt/löst) und Gleiten (Strg+Umschalt+G; die Lücke zwischen den Balken ist die Gleitdauer, ohne Lücke nur direkter Wechsel, Verbindung bleibt) in Notenschrift und Roll, Dateiformat 4 (ADR 0014)
+- [x] Piano-Roll: Höhe der Roll durch Ziehen ihrer Oberkante (keine Größenknöpfe mehr), feineres Raster zum Zeichnen und Verlängern, Gleiten durch Ziehen von einem Punkt am Balkenende auf einen beliebigen anderen Balken
+- [x] Transportleiste mit Anzeige (Takt, Schlag, Tempo, Taktart, Tonart), Wiedergabe mit eingebautem Klang (Haltebögen ohne neuen Anschlag, Gleiten als Tonhöhenverlauf), Tempo in der Partitur (Dateiformat 5, ADR 0015)
+- [x] Echte Instrumentenklänge (SpessaSynth + MuseScore General, MIT) mit Gleiten per Pitch-Bend; Rückfall auf den einfachen Klang
+- [ ] Bessere Einzelinstrumente (z. B. ein Konzertflügel als zweite Klangdatei) und Auswahl der Klänge je Instrument
+- [ ] Aufnahmeknopf: Noten diktieren oder einspielen
 - [ ] Legato/Phrasierungsbögen
-- [ ] Wiedergabe mit Instrumentenklängen und Tonhöhenverlauf beim Gleiten (Plan: RustySynth, Nachweis liegt vor)
 
 ## Schritt 2 – Workstation
 

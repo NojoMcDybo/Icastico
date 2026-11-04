@@ -46,6 +46,7 @@ async function start(): Promise<void> {
       library: $('library'),
       libraryButton: $('library-button'),
       roll: $('roll'),
+      transport: $('transport'),
       rollButton: $('roll-button'),
       updateButton: $('update-button'),
     },

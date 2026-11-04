@@ -78,6 +78,8 @@ export interface Score {
    * Must be shorter than a full measure of the first meter.
    */
   readonly pickup?: Fraction;
+  /** Tempo in quarter notes per minute; absent = DEFAULT_TEMPO. */
+  readonly tempo?: number;
   readonly parts: readonly Part[];
   /** Ties and slides between tones; absent = none. */
   readonly links?: readonly Link[];
@@ -99,6 +101,17 @@ export interface Link {
   readonly from: string;
   /** Tone id the connection ends at (the later note). */
   readonly to: string;
+}
+
+export const DEFAULT_TEMPO = 100;
+export const MIN_TEMPO = 20;
+export const MAX_TEMPO = 400;
+
+/** A score with this tempo (the field is left out for the default). */
+export function withTempo(score: Score, bpm: number): Score {
+  const { tempo: _old, ...rest } = score;
+  const tempo = Math.round(Math.max(MIN_TEMPO, Math.min(MAX_TEMPO, bpm)));
+  return tempo === DEFAULT_TEMPO ? rest : { ...rest, tempo };
 }
 
 export interface Measure {
@@ -269,6 +282,9 @@ export function validateScore(score: Score): string[] {
   }
   if (problems.length > 0) return problems;
 
+  if (score.tempo !== undefined && !(Number.isInteger(score.tempo) && score.tempo >= MIN_TEMPO && score.tempo <= MAX_TEMPO)) {
+    problems.push(`Tempo ${score.tempo} ist ungültig (erlaubt: ${MIN_TEMPO}–${MAX_TEMPO}).`);
+  }
   const pickup = score.pickup;
   if (pickup && (lt(pickup, ZERO) || !lt(pickup, measureLength(score.meter[0]!.sig)))) {
     problems.push('Der Auftakt muss kürzer als ein ganzer Takt sein.');

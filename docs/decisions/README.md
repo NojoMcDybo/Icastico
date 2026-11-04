@@ -42,3 +42,4 @@ Was wird dadurch leichter, was schwerer?
 | 0012 | [Jeder Ton hat eine dauerhafte Nummer (Ton-ID)](0012-ton-identitaet.md) | angenommen |
 | 0013 | [Piano-Roll als zweite Ansicht derselben Töne](0013-piano-roll.md) | angenommen |
 | 0014 | [Haltebögen und Gleiten als Verbindungen zwischen Tönen](0014-verbindungen.md) | angenommen |
+| 0015 | [Wiedergabe mit eingebautem Klang und Tempo in der Partitur](0015-wiedergabe.md) | angenommen (Klang vorläufig) |

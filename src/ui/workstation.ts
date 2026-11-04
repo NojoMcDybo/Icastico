@@ -11,7 +11,8 @@ import { type EditorState, createEditorState, getVoice, inputLength } from '../c
 import { applyRollEdit } from '../core/editor/rollEdits';
 import { FileFormatError, parseScoreFile, serializeScore } from '../core/file/format';
 import { getInstrument } from '../core/instruments';
-import { type Score, keyAt, measuresOf, meterAt } from '../core/model';
+import { type Score, keyAt, measuresOf, meterAt, withTempo } from '../core/model';
+import { secondsOf, tempoOf, timeAt } from '../core/playback';
 import { durationName } from '../core/notation/notate';
 import { pitchToString } from '../core/pitch';
 import { type Fraction, ZERO, eq, le, lt } from '../core/time';
@@ -25,6 +26,8 @@ import { APP_VERSION } from '../version';
 import { ask, inform, isDialogOpen } from './dialog';
 import { LibraryHome } from './libraryHome';
 import { PianoRoll, type RollHost } from './pianoRoll';
+import { Player } from './player';
+import { Transport } from './transport';
 import { laneControls, type LaneControls } from './laneControls';
 import {
   DEFAULT_VIEW,
@@ -65,6 +68,8 @@ export interface WorkstationElements {
   /** The piano roll panel below the notation, and its button in the top bar. */
   readonly roll: HTMLElement;
   readonly rollButton: HTMLElement;
+  /** The transport bar (play buttons and the bar/beat/tempo display) in the top bar. */
+  readonly transport: HTMLElement;
   /** "Update" button in the top bar, shown when a new version is known. */
   readonly updateButton: HTMLElement;
 }
@@ -130,6 +135,11 @@ export class Workstation {
   /** The click that ends a drag must not select something else. */
   private swallowClick = false;
   private autosaveTimer = 0;
+  private readonly player: Player;
+  private readonly transport: Transport;
+  private loop = false;
+  /** Where playback starts and where it is: follows the selection while stopped, the clock while playing. */
+  private playPos: Fraction = ZERO;
   /** Which views are shown how (per staff and lane); remembered per score. */
   private view: ViewState = DEFAULT_VIEW;
   private readonly rollLanes = new Map<string, RollLane>();
@@ -175,6 +185,31 @@ export class Workstation {
         })
       : null;
     this.buildNotationBar();
+    this.player = new Player({
+      frame: (seconds) => {
+        this.playPos = timeAt(this.state.score, seconds);
+        this.renderPlayhead();
+      },
+      stopped: () => this.update(),
+      error: (message) => this.history.apply({ ...this.state, message }),
+      notice: (message) => {
+        this.history.apply({ ...this.state, message });
+        this.renderStatus();
+      },
+    });
+    this.transport = new Transport(el.transport, {
+      play: () => this.togglePlay(),
+      stop: () => this.player.stop(),
+      toStart: () => this.seek(ZERO),
+      step: (direction) => this.stepBar(direction),
+      toggleLoop: () => {
+        this.loop = !this.loop;
+        this.player.setLoop(this.loop);
+        return this.loop;
+      },
+      setTempo: (bpm) => this.setTempo(bpm),
+      openSettings: () => void this.scoreSettings(),
+    });
     el.rollButton.addEventListener('click', () => this.run('view.roll'));
     el.libraryButton.hidden = !this.library;
     el.updateButton.hidden = true;
@@ -283,6 +318,9 @@ export class Workstation {
         return;
       case 'view.roll':
         this.toggleRoll();
+        return;
+      case 'play.toggle':
+        this.togglePlay();
         return;
       case 'file.new':
         void this.fileNew();
@@ -515,6 +553,8 @@ export class Workstation {
     this.savedScore = state.score;
     this.location = location;
     this.empty = false;
+    this.player.stop();
+    this.playPos = ZERO;
     this.view = location?.path ? loadView(location.path) : DEFAULT_VIEW;
     for (const ui of this.rollLanes.values()) ui.section.remove();
     this.rollLanes.clear();
@@ -728,6 +768,7 @@ export class Workstation {
       this.renderIfNeeded();
     }
     this.decorate();
+    this.renderTransport();
     this.renderStatus();
     this.scheduleAutosave();
   }
@@ -900,6 +941,56 @@ export class Workstation {
     };
   }
 
+  // ── Playback ─────────────────────────────────────────────────────────────
+
+  private togglePlay(): void {
+    if (this.empty) return;
+    if (this.player.active) {
+      this.player.stop();
+      return;
+    }
+    const score = this.state.score;
+    void this.player.start(score, secondsOf(score, this.playPos), this.loop).then(() => this.renderTransport());
+  }
+
+  /** Moves the playhead; if the music is playing it continues from there. */
+  private seek(time: Fraction): void {
+    const wasPlaying = this.player.active;
+    if (wasPlaying) this.player.stop();
+    this.playPos = time;
+    this.update();
+    if (wasPlaying) this.togglePlay();
+  }
+
+  private stepBar(direction: number): void {
+    const measures = measuresOf(this.state.score, 1, this.playPos);
+    const index = measures.findIndex((m) => lt(this.playPos, m.end));
+    const here = measures[Math.max(0, index)]!;
+    const target = direction > 0 ? measures[index + 1]?.start : le(this.playPos, here.start) ? measures[index - 1]?.start : here.start;
+    this.seek(target ?? ZERO);
+  }
+
+  private setTempo(bpm: number): void {
+    const score = withTempo(this.state.score, bpm);
+    if (score === this.state.score || tempoOf(score) === tempoOf(this.state.score)) return;
+    this.history.apply({ ...this.state, score, message: `Tempo ${tempoOf(score)}` });
+    this.update();
+  }
+
+  private renderTransport(): void {
+    this.transport.show({ score: this.state.score, time: this.playPos, playing: this.player.active, loop: this.loop, disabled: this.empty });
+    this.renderPlayhead();
+  }
+
+  private renderPlayhead(): void {
+    if (!this.player.active || this.empty) {
+      for (const ui of this.rollLanes.values()) ui.roll.setPlayhead(this.empty ? null : this.playPos, false);
+    } else {
+      for (const ui of this.rollLanes.values()) ui.roll.setPlayhead(this.playPos, true);
+      this.transport.show({ score: this.state.score, time: this.playPos, playing: true, loop: this.loop, disabled: false });
+    }
+  }
+
   /** Brings the lanes in line with the view state: creates, removes, sizes and redraws them. */
   private renderLanes(): void {
     const canvas = this.el.pages.parentElement!;
@@ -944,6 +1035,7 @@ export class Workstation {
       ui.section.style.flexBasis = `${height}px`;
       ui.controls.sync(modeOf(this.view, key));
       ui.roll.setCompact(isCompact(height));
+      ui.roll.setPlayhead(this.playPos, false);
       ui.roll.render();
     });
     this.fitNotation();
@@ -1086,6 +1178,7 @@ export class Workstation {
     const key = sel ? (sel.kind === 'event' ? `${sel.voiceId}/${sel.eventId}` : `${sel.voiceId}@${sel.time.n}/${sel.time.d}`) : '';
     if (key === this.shownSelection) return;
     this.shownSelection = key;
+    if (!this.player.active) this.playPos = this.focusTime(); // the playhead waits where the selection is
     this.el.pages.querySelector('.is-selected')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 

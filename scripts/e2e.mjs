@@ -465,6 +465,38 @@ try {
   check(/"links": \[\s*\{ "id": "link-1", "kind": "slide"/.test(linked), 'T9: Die Gleitverbindung steht in der gespeicherten Datei');
   await type('Control+Shift+P');
 
+  // ── Transportleiste: Anzeige, Tempo, Wiedergabe ──
+  const lcd = (label) => page.locator('.lcd__cell', { hasText: label }).locator('.lcd__value');
+  check((await lcd('TAKT').first().textContent()) !== '' && (await lcd('TEMPO').textContent()) === '100' && (await lcd('TONART').textContent()) === 'Cmaj', 'Transportleiste zeigt Takt, Tempo 100 und Tonart Cmaj');
+  await page.click('.lcd__cell:has-text("TEMPO")');
+  await page.fill('.lcd__input', '132');
+  await type('Enter');
+  check((await lcd('TEMPO').textContent()) === '132', 'Tempo antippen und 132 eintippen ändert das Tempo');
+  await type('Control+z');
+  check((await lcd('TEMPO').textContent()) === '100', 'Das Tempo lässt sich mit Strg+Z zurücknehmen');
+  await page.click('.lcd__cell:has-text("TAKTART")');
+  check(await page.locator('.modal').isVisible(), 'Auf die Taktart klicken öffnet die Partitur-Einstellungen');
+  await type('Escape');
+  await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
+  check((await lcd('SCHLAG').textContent()) === '1', 'Zum Anfang springt auf Takt 1, Schlag 1');
+  await page.click('.transport__buttons button[aria-label="Einen Takt vor"]');
+  check((await lcd('TAKT').first().textContent()) === '2', 'Einen Takt vor');
+  await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
+  await page.click('.transport__play');
+  await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');
+  await page.waitForFunction(() => document.querySelectorAll('.lcd__value')[1]?.textContent !== '1', null, { timeout: 30000 });
+  check(true, 'Wiedergabe läuft: Schlag und Takt in der Anzeige laufen mit der Audiouhr (die Instrumentenklänge sind geladen)');
+  check((await page.evaluate(() => globalThis.__icasticoHz?.() ?? -1)) >= 0 && !/nicht verfügbar/.test(await status()), 'Die Instrumentenklänge wurden geladen, kein Rückfall auf den einfachen Klang');
+  await page.click('.transport__play');
+  await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'false');
+  check(true, 'Stopp hält die Wiedergabe an');
+  await type('Control+Enter');
+  await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');
+  await type('Control+Enter');
+  check(true, 'Strg+Eingabe startet und stoppt die Wiedergabe');
+  check((await page.locator('.transport__record').isDisabled()), 'Der Aufnahmeknopf ist noch gesperrt (kommt später)');
+  await page.screenshot({ path: join(outDir, 'transport.png') });
+
   check(errors.length === 0, `Keine Fehler in der Konsole${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   console.log(`\nAlle ${step} Prüfungen bestanden. Screenshots: ${outDir}`);
 } catch (err) {
