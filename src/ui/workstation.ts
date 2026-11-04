@@ -8,6 +8,7 @@ import { type CommandId, newScoreState, runCommand } from '../core/editor/comman
 import { demoScore } from '../core/demo';
 import { History } from '../core/editor/history';
 import { type EditorState, createEditorState, getVoice, inputLength } from '../core/editor/state';
+import { applyRollEdit } from '../core/editor/rollEdits';
 import { FileFormatError, parseScoreFile, serializeScore } from '../core/file/format';
 import { getInstrument } from '../core/instruments';
 import { type Score, keyAt, measuresOf, meterAt } from '../core/model';
@@ -23,6 +24,7 @@ import type { Platform } from '../platform/files';
 import { APP_VERSION } from '../version';
 import { ask, inform, isDialogOpen } from './dialog';
 import { LibraryHome } from './libraryHome';
+import { PianoRoll } from './pianoRoll';
 import { Thumbnails } from './thumbnails';
 import type { UpdateChecker } from './updates';
 import { loadNewScoreDefaults, saveKeymapPreset, saveLastOpened, saveNewScoreDefaults } from './preferences';
@@ -39,6 +41,9 @@ export interface WorkstationElements {
   /** Container for the library home screen. */
   readonly library: HTMLElement;
   readonly libraryButton: HTMLElement;
+  /** The piano roll panel below the notation, and its button in the top bar. */
+  readonly roll: HTMLElement;
+  readonly rollButton: HTMLElement;
   /** "Update" button in the top bar, shown when a new version is known. */
   readonly updateButton: HTMLElement;
 }
@@ -97,6 +102,10 @@ export class Workstation {
   /** The click that ends a drag must not select something else. */
   private swallowClick = false;
   private autosaveTimer = 0;
+  private readonly roll: PianoRoll;
+  private rollOpen = false;
+  /** State at the start of a piano-roll drag; every preview is computed from it. */
+  private rollBase: EditorState | null = null;
   private readonly library: LibraryHome | null;
   /** A file dialog is open; ignore shortcuts meanwhile. */
   private busy = false;
@@ -132,6 +141,39 @@ export class Workstation {
           ...(updates ? { checkForUpdates: () => updates.checkNow() } : {}),
         })
       : null;
+    this.roll = new PianoRoll(el.roll, {
+      state: () => this.state,
+      select: (selection, caretTime) => {
+        const s = this.state;
+        const caret = s.caret && selection && caretTime ? { partId: selection.partId, voiceId: selection.voiceId, time: caretTime } : s.caret;
+        if (!selection && s.caret) return;
+        this.history.apply({ ...s, selection, caret, message: null });
+        this.update();
+      },
+      beginGesture: () => {
+        this.rollBase = this.state;
+        this.history.beginGesture();
+      },
+      preview: (edit) => {
+        const base = this.rollBase;
+        if (!base) return;
+        const next = applyRollEdit(base, edit);
+        // A refused edit keeps the last valid preview; only the message changes.
+        this.history.apply(next.message && next.score === base.score ? { ...this.state, message: next.message } : next);
+        this.update();
+      },
+      endGesture: (commit) => {
+        if (commit) this.history.commitGesture();
+        else this.history.cancelGesture();
+        this.rollBase = null;
+        this.update();
+      },
+      edit: (edit) => {
+        this.history.apply(applyRollEdit(this.state, edit));
+        this.update();
+      },
+    });
+    el.rollButton.addEventListener('click', () => this.run('view.roll'));
     el.libraryButton.hidden = !this.library;
     el.updateButton.hidden = true;
     if (updates) {
@@ -180,6 +222,17 @@ export class Workstation {
 
   private onKey(e: KeyboardEvent): void {
     if (isDialogOpen() || this.busy) return;
+    if (this.history.inGesture) {
+      // A piano-roll drag is running: Escape throws it away completely, nothing else works meanwhile.
+      if (comboOf(e) === 'Escape') {
+        e.preventDefault();
+        this.roll.cancel();
+        this.history.cancelGesture();
+        this.rollBase = null;
+        this.update();
+      }
+      return;
+    }
     const helpOpen = !this.el.help.hidden;
     const combo = comboOf(e);
     if (this.library?.isOpen) {
@@ -226,6 +279,9 @@ export class Workstation {
       case 'view.help':
         this.el.help.hidden = false;
         return;
+      case 'view.roll':
+        this.rollOpen = !this.rollOpen;
+        break;
       case 'file.new':
         void this.fileNew();
         return;
@@ -647,7 +703,7 @@ export class Workstation {
 
   private update(): void {
     try {
-      this.renderIfNeeded();
+      if (!this.history.inGesture) this.renderIfNeeded();
     } catch (err) {
       // Never leave the user with a broken score: take back the last change (and only that one).
       if (this.drag?.preview) this.drag.preview = this.drag.base; // only the drag preview was faulty
@@ -659,8 +715,17 @@ export class Workstation {
       this.renderIfNeeded();
     }
     this.decorate();
+    this.renderRoll();
     this.renderStatus();
     this.scheduleAutosave();
+  }
+
+  /** The piano roll under the notation: same state, drawn from the model. */
+  private renderRoll(): void {
+    const open = this.rollOpen && !this.empty;
+    this.el.roll.hidden = !open;
+    this.el.rollButton.setAttribute('aria-pressed', String(open));
+    if (open) this.roll.render();
   }
 
   /** Shown in the canvas when no score is open. */

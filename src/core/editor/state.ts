@@ -67,6 +67,14 @@ export function getVoice(score: Score, ref: VoiceRef): { part: Part; voice: Voic
   return { part, voice };
 }
 
+/** An event id not used in the voice yet: "<voice>-n<counter>"; returns it and the next counter. */
+export function freshEventId(score: Score, ref: VoiceRef, counter: number): [string, number] {
+  const used = new Set(getVoice(score, ref).voice.events.map((e) => e.id));
+  let n = counter;
+  while (used.has(`${ref.voiceId}-n${n}`)) n++;
+  return [`${ref.voiceId}-n${n}`, n + 1];
+}
+
 /** All voices in score order (top staff first). */
 export function allVoiceRefs(score: Score): VoiceRef[] {
   return score.parts.flatMap((p) =>

@@ -58,3 +58,27 @@ export function keyAlteration(fifths: number, step: Step): number {
   if (fifths < 0) return [...sharpOrder].reverse().slice(0, -fifths).includes(step) ? -1 : 0;
   return 0;
 }
+
+/**
+ * Spells a MIDI number for a key: notes of the key keep its spelling, the others
+ * get sharps in sharp keys and flats in flat keys (and in C major: sharps).
+ */
+export function spellMidi(midi: number, fifths: number): Pitch {
+  const pitchClass = ((midi % 12) + 12) % 12;
+  const candidates: Pitch[] = [];
+  for (const step of STEPS) {
+    for (const alter of [keyAlteration(fifths, step), 0, 1, -1]) {
+      const p = { step, alter, octave: 0 };
+      if ((((midiOf(p) % 12) + 12) % 12) === pitchClass) {
+        candidates.push(p);
+        break;
+      }
+    }
+  }
+  const inKey = candidates.find((p) => p.alter === keyAlteration(fifths, p.step));
+  const natural = candidates.find((p) => p.alter === 0);
+  const wanted = fifths < 0 ? -1 : 1;
+  const pick = inKey ?? natural ?? candidates.find((p) => p.alter === wanted) ?? candidates[0]!;
+  const octave = (midi - pick.alter - STEP_SEMITONES[pick.step]) / 12 - 1;
+  return { step: pick.step, alter: pick.alter, octave };
+}

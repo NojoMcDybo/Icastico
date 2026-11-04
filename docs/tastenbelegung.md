@@ -40,6 +40,8 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Note in Pause umwandeln | `R` | – | ✓ |
 | Note löschen (wird zur Pause) | `Entf` *(Annahme)* | `Entf` | ✓ |
 | Letzte Note löschen und zurückgehen | `⌫` *(Annahme)* | `⌫` *(Icastico)* | ✓ |
+| Note in der Zeit verschieben (um den gewählten Notenwert) | `Alt+→` später, `Alt+←` früher *(Icastico)* | `Alt+→` später, `Alt+←` früher *(Icastico)* | ✓ |
+| Note verlängern / verkürzen (um den gewählten Notenwert) | `Umschalt+→` länger, `Umschalt+←` kürzer *(Icastico)* | `Umschalt+→` länger, `Umschalt+←` kürzer *(Icastico)* | ✓ |
 | Note mit der Maus nach oben / unten ziehen | `Ziehen` *(Icastico)* – Stufenweise in der Tonart. | `Ziehen` *(Icastico)* – Stufenweise in der Tonart; mit Alt in Halbtönen. | ✓ |
 | Rückgängig | `Strg+Z` | `Strg+Z` | ✓ |
 | Wiederholen | `Strg+Y` / `Strg+Umschalt+Z` | `Strg+Umschalt+Z` | ✓ |
@@ -69,6 +71,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Kopie speichern unter … | `Strg+Umschalt+S` | `Strg+Umschalt+S` | ✓ |
 | Partitur-Einstellungen (Titel, Tonart, Taktart, Auftakt) | `Strg+,` *(Icastico)* | `Strg+,` *(Icastico)* | ✓ |
 | Drucken | `Strg+P` | `Strg+P` | geplant |
+| Piano-Roll ein / aus | `Strg+Umschalt+P` *(Icastico)* | `Strg+Umschalt+P` *(Icastico)* – In Logic öffnet P den Piano-Roll-Editor; hier ist P ein Ton. | ✓ |
 | Tastenhilfe | `F1` / `?` *(Icastico)* | `F1` / `?` *(Icastico)* | ✓ |
 
 ## Wiedergabe & Aufnahme

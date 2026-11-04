@@ -69,6 +69,8 @@ ausführlich getestet.
 - `keys.ts` – Tastendruck → layoutunabhängige Kombination („Alt+5“, „Plus“).
 - `keymaps/library.json` + `library.ts` – Bibliothek der Tastenbelegungen
   (Finale, Logic Pro), daraus Belegungen, Tastenhilfe und Doku (ADR 0012).
+- `pianoRoll.ts` / `pianoRollGeometry.ts` – Piano-Roll als zweite Ansicht (eigenes SVG);
+  Geometrie rein und getestet, Bearbeitungen über `core/editor/rollEdits.ts` (ADR 0013).
 - `workstation.ts` – rendert nur bei Partitur-Änderungen neu, zeichnet Cursor
   und Auswahl über das SVG, Statuszeile, Tastenhilfe. Fehler in einem
   Command werden abgefangen und rückgängig gemacht.

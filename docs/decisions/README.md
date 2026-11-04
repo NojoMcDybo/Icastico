@@ -40,3 +40,4 @@ Was wird dadurch leichter, was schwerer?
 | 0010 | [Installer, Desktop-Verknüpfung, automatische Updates](0010-updates.md) | angenommen |
 | 0011 | [Bibliothek der Tastenbelegungen (Finale + Logic), Ziehen mit der Maus](0011-tastenbelegung-bibliothek.md) | angenommen |
 | 0012 | [Jeder Ton hat eine dauerhafte Nummer (Ton-ID)](0012-ton-identitaet.md) | angenommen |
+| 0013 | [Piano-Roll als zweite Ansicht derselben Töne](0013-piano-roll.md) | angenommen |

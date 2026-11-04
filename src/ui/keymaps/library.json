@@ -164,6 +164,22 @@
           "logic": { "keys": ["Backspace"], "source": "icastico" }
         },
         {
+          "id": "edit.move",
+          "title": "Note in der Zeit verschieben (um den gewählten Notenwert)",
+          "command": "edit.move",
+          "args": { "1": "später", "-1": "früher" },
+          "finale": { "keys": { "1": ["Alt+ArrowRight"], "-1": ["Alt+ArrowLeft"] }, "source": "icastico" },
+          "logic": { "keys": { "1": ["Alt+ArrowRight"], "-1": ["Alt+ArrowLeft"] }, "source": "icastico" }
+        },
+        {
+          "id": "edit.resize",
+          "title": "Note verlängern / verkürzen (um den gewählten Notenwert)",
+          "command": "edit.resize",
+          "args": { "1": "länger", "-1": "kürzer" },
+          "finale": { "keys": { "1": ["Shift+ArrowRight"], "-1": ["Shift+ArrowLeft"] }, "source": "icastico" },
+          "logic": { "keys": { "1": ["Shift+ArrowRight"], "-1": ["Shift+ArrowLeft"] }, "source": "icastico" }
+        },
+        {
           "id": "edit.drag",
           "title": "Note mit der Maus nach oben / unten ziehen",
           "command": "mouse.drag",
@@ -299,6 +315,13 @@
           "title": "Drucken",
           "finale": { "keys": ["Mod+P"], "source": "doku" },
           "logic": { "keys": ["Mod+P"], "source": "doku" }
+        },
+        {
+          "id": "view.roll",
+          "title": "Piano-Roll ein / aus",
+          "command": "view.roll",
+          "finale": { "keys": ["Mod+Shift+P"], "source": "icastico" },
+          "logic": { "keys": ["Mod+Shift+P"], "source": "icastico", "note": "In Logic öffnet P den Piano-Roll-Editor; hier ist P ein Ton." }
         },
         {
           "id": "view.help",

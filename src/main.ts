@@ -45,6 +45,8 @@ async function start(): Promise<void> {
       help: $('help'),
       library: $('library'),
       libraryButton: $('library-button'),
+      roll: $('roll'),
+      rollButton: $('roll-button'),
       updateButton: $('update-button'),
     },
     engraver,

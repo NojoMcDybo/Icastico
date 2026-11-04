@@ -10,7 +10,7 @@
  * - The note just entered stays selected; ↑/↓, +/-, Alt+number, T act on it.
  * - Overwrite by default (insert mode shifts the following music instead).
  */
-import { type Fraction, ZERO, add, eq, frac, gt, isDyadic, le, lt } from '../time';
+import { type Fraction, ZERO, add, eq, frac, gt, isDyadic, le, lt, sub } from '../time';
 import { STEPS, keyAlteration, midiOf, type Pitch } from '../pitch';
 import { type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, measuresOf } from '../model';
 import { decomposeNote, writtenValue } from '../notation/notate';
@@ -22,6 +22,7 @@ import {
   type VoiceRef,
   allVoiceRefs,
   createEditorState,
+  freshEventId,
   getVoice,
   inputLength,
   sameVoice,
@@ -29,6 +30,7 @@ import {
   updateEvents,
   voiceEnd,
 } from './state';
+import { applyRollEdit } from './rollEdits';
 import { clearRange, insertSorted, makeRoom } from './voiceOps';
 
 /** Finale numbering: 1 = 64th, 2 = 32nd, 3 = 16th, 4 = 8th, 5 = quarter, 6 = half, 7 = whole. */
@@ -78,13 +80,6 @@ function selectionTime(score: Score, sel: Selection | null): Fraction | null {
   if (!sel) return null;
   if (sel.kind === 'gap') return sel.time;
   return findEvent(score, sel, sel.eventId)?.onset ?? null;
-}
-
-function freshId(score: Score, ref: VoiceRef, counter: number): [string, number] {
-  const used = new Set(getVoice(score, ref).voice.events.map((e) => e.id));
-  let n = counter;
-  while (used.has(`${ref.voiceId}-n${n}`)) n++;
-  return [`${ref.voiceId}-n${n}`, n + 1];
 }
 
 /** Where input starts: at the selection, else after the last note of the first staff. */
@@ -255,7 +250,7 @@ function enterPitch(s0: EditorState, step: Pitch['step'], alterOverride: number 
     );
     selection = selectEvent(caret, prev);
   } else {
-    const [id, next] = freshId(s.score, caret, s.nextId);
+    const [id, next] = freshEventId(s.score, caret, s.nextId);
     nextId = next;
     const ev: NoteEvent = { id, onset: caret.time, duration: length, tones: [{ id: freshToneId(s.score, id), pitch }] };
     score = updateEvents(s.score, caret, (events) => insertSorted(makeRoom(events, caret.time, length, insert), ev));
@@ -327,6 +322,32 @@ function toRest(s: EditorState): EditorState {
     selection: { kind: 'gap', partId: t.ref.partId, voiceId: t.ref.voiceId, time: t.event.onset },
     message: null,
   };
+}
+
+/** Delete: a selected single tone of a chord goes alone, otherwise the whole note becomes a rest. */
+function deleteNote(s: EditorState): EditorState {
+  const t = target(s);
+  const toneId = s.selection?.kind === 'event' ? s.selection.toneId : undefined;
+  if (t && toneId && t.event.tones.length > 1) {
+    return applyRollEdit(s, { kind: 'delete', voice: t.ref, eventId: t.event.id, toneId });
+  }
+  return toRest(s);
+}
+
+/** Moves the selected note in time by the chosen note value – the keyboard twin of dragging a bar. */
+function moveNote(s: EditorState, dir: number): EditorState {
+  const t = target(s);
+  if (!t) return say(s, NO_NOTE);
+  const onset = dir > 0 ? add(t.event.onset, s.input.base) : sub(t.event.onset, s.input.base);
+  return applyRollEdit(s, { kind: 'change', voice: t.ref, eventId: t.event.id, onset });
+}
+
+/** Lengthens or shortens the selected note by the chosen note value – the keyboard twin of pulling a bar's end. */
+function resizeNote(s: EditorState, dir: number): EditorState {
+  const t = target(s);
+  if (!t) return say(s, NO_NOTE);
+  const duration = dir > 0 ? add(t.event.duration, s.input.base) : sub(t.event.duration, s.input.base);
+  return applyRollEdit(s, { kind: 'change', voice: t.ref, eventId: t.event.id, duration });
 }
 
 function backspace(s: EditorState): EditorState {
@@ -483,7 +504,7 @@ export const COMMANDS = {
   'input.insertMode': { title: 'Einfügen / Überschreiben', run: toggleInsert },
   'edit.escape': { title: 'Eingabe beenden / Auswahl aufheben', run: escape },
   'edit.toRest': { title: 'Note in Pause umwandeln', run: toRest },
-  'edit.delete': { title: 'Note löschen', run: toRest },
+  'edit.delete': { title: 'Note löschen', run: deleteNote },
   'edit.backspace': { title: 'Zurück löschen', run: backspace },
   'edit.step': { title: 'Tonhöhe um eine Stufe', run: step },
   'edit.octave': { title: 'Tonhöhe um eine Oktave', run: octave },
@@ -491,6 +512,8 @@ export const COMMANDS = {
   'edit.semitone': { title: 'Um einen Halbton transponieren', run: semitone },
   'edit.duration': { title: 'Notenwert der Note ändern', run: editDuration },
   'edit.tie': { title: 'Haltebogen', run: tie },
+  'edit.move': { title: 'Note in der Zeit verschieben', run: moveNote },
+  'edit.resize': { title: 'Note verlängern / verkürzen', run: resizeNote },
   'nav.horizontal': { title: 'Vor / zurück', run: navHorizontal },
   'nav.staff': { title: 'System wechseln', run: navStaff },
 } satisfies Record<string, CommandDef>;

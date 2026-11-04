@@ -14,12 +14,14 @@
         <span class="brand">Icastico</span>
         <span class="doc-title" id="doc-title"></span>
         <button class="pill is-primary update-button" id="update-button" type="button" hidden>Update</button>
+        <button class="pill pill--ghost" id="roll-button" type="button" aria-pressed="false" title="Piano-Roll ein/aus (Strg+Umschalt+P)">Piano-Roll</button>
         <span class="mode" id="mode">Auswahl</span>
         <button class="help-button" type="button" onclick="document.getElementById('help').hidden = false" title="Tastenbelegung (F1)">?</button>
       </header>
       <main class="canvas" id="canvas">
         <div class="pages" id="pages" aria-label="Partitur"></div>
       </main>
+      <section class="roll" id="roll" aria-label="Piano-Roll" hidden></section>
       <footer class="statusbar">
         <span id="status">Lädt …</span>
         <span class="meta" id="meta"></span>
