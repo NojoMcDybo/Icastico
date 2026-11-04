@@ -14,6 +14,7 @@
 | 💡 | Idee, nur aufgeschrieben |
 | ❓ | Braucht erst eine Antwort vom Owner |
 | 📌 | Freigegeben, steht in der Roadmap |
+| 📋 | Ausgearbeiteter Plan liegt vor, noch nicht freigegeben |
 | ✅ | Umgesetzt |
 | ❌ | Verworfen (bleibt stehen, mit Grund – damit wir nicht zweimal darüber reden) |
 
@@ -38,7 +39,7 @@ schneller oder einfacher? Wenn nein, wandert es nach unten.
 | Akkordsymbole schnell tippen („Am7“, „F#m/C#“) | 💡 | M | Vorschlag | Für Gitarre/Gesang wichtig, siehe Abschnitt 4 |
 | Gitarre: Eingabe am Griffbrett (Bund anklicken) | 💡 | L | Vision | Setzt Tabulatur-Überlegungen voraus |
 | Auswahl erweitern (Takte markieren, kopieren, einfügen, wiederholen) | ❓ | M | Vorschlag | Fehlt bisher komplett – ohne Kopieren ist kein Lied in vertretbarer Zeit fertig |
-| **Sprachbefehle**: Notenwerte, Pause, Punkt, Navigation per Sprache, mit Synonymen (Zahlen oder Wörter) | ❓ | M | Owner | Nur Befehle, kein freies Diktat. Siehe „Diktieren“ unten |
+| **Sprachbefehle**: Notenwerte, Pause, Punkt, Navigation per Sprache, mit Synonymen (Zahlen oder Wörter) | 📋 | M | Owner | Nur Befehle, kein freies Diktat. Siehe „Diktieren“ unten. **Plan liegt vor:** [plans/sprachbefehle.md](plans/sprachbefehle.md) |
 | Eigene Tastenbelegung | 📌 | M | Vision | Schritt 2 |
 | Makros („mach das, was ich gerade getan habe, nochmal“) | 💡 | L | Owner/Vision | Bauen auf den Commands auf (ADR 0004) |
 
@@ -76,8 +77,8 @@ dieselben wie in Finale (ADR 0006), die du schon im Kopf hast:
 | Stufe höher / tiefer | „hoch“ · „runter“ | ↑ / ↓ |
 | Oktave höher / tiefer | „Oktave hoch“ · „Oktave runter“ | Strg + ↑ / ↓ |
 | Letzte Note löschen | „weg“ · „löschen“ | ⌫ |
-| Rückgängig | „zurück“ · „rückgängig“ | Strg + Z |
-| Cursor vor / zurück | „weiter“ · „davor“ | → / ← |
+| Rückgängig | „rückgängig“ | Strg + Z |
+| Cursor vor / zurück | „weiter“ / „zurück“ | → / ← |
 
 (Beispiele, kein beschlossener Wortschatz; der wird beim Ausprobieren
 festgelegt.)

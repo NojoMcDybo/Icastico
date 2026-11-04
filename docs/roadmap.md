@@ -73,5 +73,6 @@ Weitere, noch unsortierte Ideen: [ideas.md](ideas.md).
 
 - Gitarren-Tabulatur, Akkordsymbole, Liedtext
 - N-Tolen
+- Sprachbefehle (Plan: [plans/sprachbefehle.md](plans/sprachbefehle.md), nicht freigegeben; Paket 1–2 jederzeit möglich, Rest nach Schritt 1)
 - Eigene Funktionen des Owners (Makros/Skripte)
 - Signierte Installer (Windows SmartScreen, macOS Gatekeeper)
