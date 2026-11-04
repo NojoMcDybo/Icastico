@@ -22,7 +22,8 @@ export class Thumbnails {
     const cached = this.cache.get(key);
     if (cached) return cached;
     try {
-      const svg = this.engraver.engrave(scoreToMei(item.score).mei, A4).pages[0];
+      const mei = scoreToMei(item.score);
+      const svg = this.engraver.engrave(mei.mei, { ...A4, tab: mei.tab }).pages[0];
       if (!svg) return null;
       const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
       // Drop older pictures of the same file.

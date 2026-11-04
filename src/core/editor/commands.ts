@@ -10,9 +10,9 @@
  * - The note just entered stays selected; ↑/↓, +/-, Alt+number, T act on it.
  * - Overwrite by default (insert mode shifts the following music instead).
  */
-import { type Fraction, ZERO, add, eq, frac, gt, isDyadic, le, lt, sub } from '../time';
+import { type Fraction, ZERO, add, compare, eq, frac, gt, isDyadic, le, lt, sub } from '../time';
 import { STEPS, keyAlteration, midiOf, type Pitch } from '../pitch';
-import { type Link, type LinkKind, type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, measuresOf } from '../model';
+import { type ChordSymbol, type Link, type LinkKind, type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, measuresOf } from '../model';
 import { decomposeNote, writtenValue } from '../notation/notate';
 import { emptyScore } from '../templates';
 import {
@@ -171,10 +171,32 @@ function inputDuration(s: EditorState, n: number): EditorState {
   return base ? { ...s, input: { ...s.input, base, dots: 0 }, message: null } : s;
 }
 
-/** Numpad length: the next note gets it, and so does the note right before the caret (Finale's ghost note). */
+/** Tablature staff on/off for the guitar part of the selected note / caret (ADR 0022). */
+function toggleTab(s: EditorState): EditorState {
+  const ref = s.caret ?? s.selection ?? allVoiceRefs(s.score).find((r) => s.score.parts.find((p) => p.id === r.partId)?.instrument === 'guitar');
+  const part = ref && s.score.parts.find((p) => p.id === ref.partId);
+  if (!part || part.instrument !== 'guitar') return say(s, 'Tabulatur gibt es nur für Gitarre – erst eine Gitarrenzeile wählen.');
+  const on = !part.tab;
+  const parts = s.score.parts.map((p) => {
+    if (p.id !== part.id) return p;
+    const { tab: _old, ...rest } = p;
+    return on ? { ...rest, tab: true } : rest;
+  });
+  return { ...s, score: { ...s.score, parts }, message: on ? 'Tabulatur eingeschaltet' : 'Tabulatur ausgeschaltet' };
+}
+
+/** Tuplet mode on/off: the next notes become triplets (3), quintuplets (5) or septuplets (7). */
+function toggleTuplet(s: EditorState, n: number): EditorState {
+  const next = n === 3 || n === 5 || n === 7 ? n : 0;
+  const tuplet = s.input.tuplet === next ? 0 : next;
+  const name = { 3: 'Triolen', 5: 'Quintolen', 7: 'Septolen' }[tuplet as 3 | 5 | 7];
+  return { ...s, input: { ...s.input, tuplet }, message: tuplet ? `${name}: Die nächsten Noten sind ${name} (Taste noch einmal: aus).` : 'Normale Notenwerte' };
+}
+
+/** Numpad length: while typing it is the ghost note's length; with a note selected (no input) it changes that note. */
 function inputLengthKey(s: EditorState, n: number): EditorState {
   const next = inputDuration(s, n);
-  return next.caret && target(next) ? editDuration(next, n) : next;
+  return !next.caret && target(next) ? editDuration(next, n) : next;
 }
 
 function toggleDot(s: EditorState): EditorState {
@@ -308,29 +330,36 @@ function enterPitch(s0: EditorState, step: Pitch['step'], alterOverride: number 
   };
 }
 
+/** The pitches Enter would put at the caret: the ghost, else the notes before the caret, else the staff's middle line. */
+function ghostOf(s: EditorState, caret: Caret): readonly Pitch[] {
+  if (s.input.ghost) return s.input.ghost;
+  const before = getVoice(s.score, caret).voice.events.filter((e) => le(eventEnd(e), caret.time));
+  const last = before[before.length - 1];
+  return last ? last.tones.map((t) => t.pitch) : [staffCenter(s.score, caret)];
+}
+
+/** The ghost note for the display; null outside input mode. */
+export function ghostPitches(s: EditorState): readonly Pitch[] | null {
+  return s.caret ? ghostOf(s, s.caret) : null;
+}
+
+const sortPitches = (ps: readonly Pitch[]): Pitch[] => [...ps].sort((a, b) => midiOf(a) - midiOf(b));
+
 /**
- * Finale's numpad way of typing: Enter puts a copy of the note before the caret
- * behind it (same pitches and length); without such a note it starts input.
- * Then ↑/↓, a length key or an interval key change that last note.
+ * Finale's numpad typing: Enter puts the ghost note (pitches, length) at the caret and moves on; the ghost
+ * stays, so Enter again repeats it. Without a caret, Enter starts input.
  */
-function repeatNote(s: EditorState): EditorState {
+function commitGhost(s: EditorState): EditorState {
   const caret = s.caret;
   if (!caret) return toggleInput(s);
   if (s.input.chord) return endChord(s);
+  const pitches = ghostOf(s, caret);
+  const length = inputLength(s.input);
   const prev = getVoice(s.score, caret).voice.events.find((e) => eq(eventEnd(e), caret.time));
-  if (!prev) {
-    const p = referencePitch(s, caret);
-    return enterPitch(s, p.step, p.alter);
-  }
   const [id, nextId] = freshEventId(s.score, caret, s.nextId);
-  const ev: NoteEvent = {
-    id,
-    onset: caret.time,
-    duration: prev.duration,
-    tones: prev.tones.map((t, i) => ({ id: `${id}-t${i + 1}`, pitch: t.pitch })),
-  };
-  let score = updateEvents(s.score, caret, (events) => insertSorted(makeRoom(events, caret.time, ev.duration, s.input.insert), ev));
-  if (s.input.pendingTie && prev.tones.length === 1) {
+  const ev: NoteEvent = { id, onset: caret.time, duration: length, tones: pitches.map((pitch, i) => ({ id: `${id}-t${i + 1}`, pitch })) };
+  let score = updateEvents(s.score, caret, (events) => insertSorted(makeRoom(events, caret.time, length, s.input.insert), ev));
+  if (s.input.pendingTie && prev && prev.tones.length === 1 && ev.tones.length === 1 && samePitch(prev.tones[0]!.pitch, pitches[0]!)) {
     const kept = linksOf(score).filter((l) => l.from !== prev.tones[0]!.id);
     score = withLinks(score, [...kept, { id: freshLinkId(score, kept), kind: 'tie' as const, from: prev.tones[0]!.id, to: ev.tones[0]!.id }]);
   }
@@ -339,19 +368,44 @@ function repeatNote(s: EditorState): EditorState {
     score,
     nextId,
     selection: selectEvent(caret, ev),
-    caret: { ...caret, time: add(caret.time, ev.duration) },
-    input: { ...s.input, pendingTie: false },
+    caret: { ...caret, time: add(caret.time, length) },
+    input: { ...s.input, pendingTie: false, ghost: pitches },
     message: null,
   };
 }
 
-/** Finale's number row: adds the tone an interval (2 = second … 8 = octave) above (n > 0) or below (n < 0) the note. */
+/** ↑/↓ in Finale's numpad typing: the ghost note moves a step (in the key); outside input mode the selected note does. */
+function ghostStep(s: EditorState, delta: number): EditorState {
+  const caret = s.caret;
+  if (!caret) return step(s, delta);
+  const key = keyAt(s.score, caret.time);
+  return { ...s, input: { ...s.input, ghost: ghostOf(s, caret).map((p) => stepPitch(p, delta, key)) }, message: null };
+}
+
+/** +/− in Finale's numpad typing: the ghost note gets a sharp or flat; outside input mode the selected note does. */
+function ghostAlter(s: EditorState, delta: number): EditorState {
+  const caret = s.caret;
+  if (!caret) return alter(s, delta);
+  return { ...s, input: { ...s.input, ghost: ghostOf(s, caret).map((p) => ({ ...p, alter: Math.max(-2, Math.min(2, p.alter + delta)) })) }, message: null };
+}
+
+/**
+ * Finale's number row: adds the tone an interval (2 = second … 8 = octave) above (n > 0) or below (n < 0)
+ * the ghost note while typing, else to the selected note.
+ */
 function addInterval(s: EditorState, n: number): EditorState {
+  const caret = s.caret;
+  const key = (time: Fraction) => keyAt(s.score, time);
+  if (caret) {
+    const ghost = sortPitches(ghostOf(s, caret));
+    const pitch = n > 0 ? stepPitch(ghost[ghost.length - 1]!, n - 1, key(caret.time)) : stepPitch(ghost[0]!, n + 1, key(caret.time));
+    if (ghost.some((p) => samePitch(p, pitch))) return s;
+    return { ...s, input: { ...s.input, ghost: sortPitches([...ghost, pitch]) }, message: null };
+  }
   const t = target(s);
   if (!t) return say(s, NO_NOTE);
   const sorted = sortTones(t.event.tones);
-  const key = keyAt(s.score, t.event.onset);
-  const pitch = n > 0 ? stepPitch(sorted[sorted.length - 1]!.pitch, n - 1, key) : stepPitch(sorted[0]!.pitch, n + 1, key);
+  const pitch = n > 0 ? stepPitch(sorted[sorted.length - 1]!.pitch, n - 1, key(t.event.onset)) : stepPitch(sorted[0]!.pitch, n + 1, key(t.event.onset));
   if (t.event.tones.some((tone) => samePitch(tone.pitch, pitch))) return s;
   const score = updateEvents(s.score, t.ref, (events) =>
     events.map((e) => (e.id === t.event.id ? { ...e, tones: sortTones([...e.tones, { id: freshToneId(s.score, e.id), pitch }]) } : e)),
@@ -392,13 +446,13 @@ function enterRest(s00: EditorState): EditorState {
 }
 
 function toggleInput(s: EditorState): EditorState {
-  if (s.caret) return { ...s, caret: null, input: { ...s.input, pendingTie: false, chord: false, chordEvent: null }, message: null };
+  if (s.caret) return { ...s, caret: null, input: { ...s.input, pendingTie: false, chord: false, chordEvent: null, tuplet: 0, ghost: null }, message: null };
   const next = ensureCaret(s);
   return next.caret ? { ...next, message: null } : say(s, 'Die Partitur hat keine Stimme.');
 }
 
 function escape(s: EditorState): EditorState {
-  if (s.caret) return { ...s, caret: null, input: { ...s.input, pendingTie: false, chord: false, chordEvent: null }, message: null };
+  if (s.caret) return { ...s, caret: null, input: { ...s.input, pendingTie: false, chord: false, chordEvent: null, tuplet: 0, ghost: null }, message: null };
   return { ...s, selection: null, message: null };
 }
 
@@ -615,7 +669,7 @@ function caretStops(score: Score, ref: VoiceRef): Fraction[] {
 }
 
 function navHorizontal(s0: EditorState, dir: number): EditorState {
-  const s = s0.input.chord ? { ...s0, input: { ...s0.input, chord: false, chordEvent: null } } : s0; // moving on ends chord mode
+  const s = s0.input.chord || s0.input.ghost ? { ...s0, input: { ...s0.input, chord: false, chordEvent: null, ghost: null } } : s0; // moving on ends chord mode and the ghost note
   const caret = s.caret;
   if (caret) {
     const stops = caretStops(s.score, caret);
@@ -666,6 +720,69 @@ function toggleInsert(s: EditorState): EditorState {
   };
 }
 
+// ── Text: lyrics and chord symbols (ADR 0019) ───────────────────────────────
+
+/** The voice's notes from the target note on, as the text the lyrics dialog starts with ("Hel- lo _ world"). */
+export function lyricsText(s: EditorState): string | null {
+  const t = target(s);
+  if (!t) return null;
+  const events = getVoice(s.score, t.ref).voice.events.filter((e) => !lt(e.onset, t.event.onset));
+  const words = events.map((e) => e.lyric ?? '_');
+  while (words.length && words[words.length - 1] === '_') words.pop();
+  return words.join(' ');
+}
+
+/**
+ * Sets the lyrics from the target note on: one syllable per note, "_" = a note without syllable,
+ * a trailing "-" continues the word. Notes after the last syllable lose their lyric.
+ */
+export function setLyrics(s: EditorState, text: string): EditorState {
+  const t = target(s);
+  if (!t) return say(s, NO_NOTE);
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const from = t.event.onset;
+  const events = getVoice(s.score, t.ref).voice.events;
+  const later = events.filter((e) => !lt(e.onset, from));
+  const used = Math.min(words.length, later.length);
+  const score = updateEvents(s.score, t.ref, (all) =>
+    all.map((e) => {
+      const i = later.findIndex((x) => x.id === e.id);
+      if (i < 0) return e;
+      const word = words[i];
+      const { lyric: _old, ...rest } = e;
+      return word && word !== '_' ? { ...rest, lyric: word } : rest;
+    }),
+  );
+  const extra = words.length - used;
+  return {
+    ...s,
+    score,
+    selection: selectEvent(t.ref, t.event),
+    message: extra > 0 ? `${extra} Silbe(n) passen nicht mehr: Es gibt keine weiteren Noten.` : null,
+  };
+}
+
+/** Time a chord symbol typed now belongs to: where the next note goes, else the selected note. */
+function chordTime(s: EditorState): Fraction | null {
+  return s.caret?.time ?? selectionTime(s.score, s.selection);
+}
+
+export function chordSymbolText(s: EditorState): string | null {
+  const time = chordTime(s);
+  return time ? (s.score.chords ?? []).find((c) => eq(c.at, time))?.text ?? '' : null;
+}
+
+/** Sets (or, with empty text, removes) the chord symbol at the caret / selected note. */
+export function setChordSymbol(s: EditorState, text: string): EditorState {
+  const time = chordTime(s);
+  if (!time) return say(s, NO_NOTE);
+  const symbol = text.trim();
+  const others = (s.score.chords ?? []).filter((c) => !eq(c.at, time));
+  const chords: ChordSymbol[] = symbol ? [...others, { at: time, text: symbol }].sort((a, b) => compare(a.at, b.at)) : others;
+  const { chords: _old, ...rest } = s.score;
+  return { ...s, score: chords.length ? { ...rest, chords } : rest, message: null };
+}
+
 /** Fresh editor on a (by default empty) score, caret ready in the first staff. */
 export function newScoreState(score: Score = emptyScore()): EditorState {
   const s = createEditorState(score);
@@ -686,10 +803,13 @@ export const COMMANDS = {
   'input.dot': { title: 'Punktierung', run: toggleDot },
   'input.note': { title: 'Note eingeben', run: enterNote },
   'input.pitchClass': { title: 'Note nach Klaviertaste eingeben', run: enterPitchClass },
+  'edit.tab': { title: 'Tabulatur an/aus', run: toggleTab },
+  'input.tuplet': { title: 'Triolen / Quintolen / Septolen', run: toggleTuplet },
   'input.length': { title: 'Notenwert (Ziffernblock)', run: inputLengthKey },
-  'input.repeat': { title: 'Note wiederholen (Finale-Ziffernblock)', run: repeatNote },
+  'input.repeat': { title: 'Vorschau-Note setzen (Finale-Ziffernblock)', run: commitGhost },
+  'ghost.step': { title: 'Vorschau-Note eine Stufe höher/tiefer', run: ghostStep },
+  'ghost.alter': { title: 'Vorschau-Note: Vorzeichen', run: ghostAlter },
   'input.interval': { title: 'Ton im Intervall darüber/darunter', run: addInterval },
-  'edit.dot': { title: 'Note punktieren', run: dotNote },
   'input.chordNote': { title: 'Ton zum Akkord hinzufügen', run: addChordNote },
   'input.chordMode': { title: 'Akkordmodus an/aus', run: toggleChordMode },
   'input.rest': { title: 'Pause eingeben', run: enterRest },

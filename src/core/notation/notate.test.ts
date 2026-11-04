@@ -7,6 +7,8 @@ import {
   beamGroups,
   decomposeNote,
   decomposeRest,
+  decomposeTuplet,
+  tupletGroups,
   durationName,
   itemsLength,
   notateVoice,
@@ -30,8 +32,12 @@ describe('decomposition', () => {
     expect(decomposeRest(frac(1, 8), frac(3, 8))).toEqual([dur(8), dur(4)]);
   });
 
-  it('refuses tuplets for now', () => {
-    expect(() => decomposeNote(frac(1, 12))).toThrow(/N-Tolen/);
+  it('plain decomposition refuses tuplet lengths; decomposeTuplet scales them', () => {
+    expect(() => decomposeNote(frac(1, 12))).toThrow(/N-Tole/);
+    expect(decomposeTuplet(frac(1, 12))).toEqual({ pieces: [dur(8)], tuplet: { num: 3, numbase: 2 } });
+    expect(decomposeTuplet(frac(1, 20))).toEqual({ pieces: [dur(16)], tuplet: { num: 5, numbase: 4 } });
+    expect(decomposeTuplet(frac(1, 28))).toEqual({ pieces: [dur(16)], tuplet: { num: 7, numbase: 4 } });
+    expect(() => decomposeTuplet(frac(1, 11))).toThrow(/lässt sich nicht schreiben/);
   });
 });
 
@@ -115,11 +121,46 @@ describe('beamGroups', () => {
   });
 });
 
+describe('tuplets (ADR 0020)', () => {
+  const score = (spec: string): Score => ({
+    title: 't',
+    meter: [{ at: ZERO, sig: { count: 4, unit: 4 } }],
+    keys: [{ at: ZERO, fifths: 0 }],
+    parts: [{ id: 'p', name: 'P', instrument: 'voice', voices: [{ id: 'v', staff: 0, events: parseLine(spec, 'e') }] }],
+  });
+  const first = (spec: string) => {
+    const s = score(spec);
+    return notateVoice(s.parts[0]!.voices[0]!, measuresOf(s))[0]!;
+  };
+
+  it('three eighth triplets are one beamed group; the bar still adds up to a whole', () => {
+    const items = first('C5:1/12 D5:1/12 E5:1/12 F5:1/4 G5:1/2');
+    expect(items.map((i) => (i.kind === 'measureRest' ? '' : i.duration.base))).toEqual([8, 8, 8, 4, 2]);
+    expect(tupletGroups(items)).toEqual([{ start: 0, end: 2, ratio: { num: 3, numbase: 2 } }]);
+    expect(beamGroups(items, measuresOf(score('C5:1/4'))[0]!)).toEqual([[0, 2]]);
+    expect(eq(itemsLength(items, frac(1)), frac(1))).toBe(true);
+  });
+
+  it('a triplet with a rest inside stays one group; two triplets in a row are two groups', () => {
+    const rest = first('C5:1/12 r:1/12 E5:1/12');
+    expect(tupletGroups(rest).map((g) => [g.start, g.end])).toEqual([[0, 2]]);
+    const two = first('C5:1/6 D5:1/6 E5:1/6 F5:1/12 G5:1/12 A5:1/12');
+    expect(tupletGroups(two).map((g) => [g.start, g.end])).toEqual([[0, 2], [3, 5]]);
+  });
+
+  it('a quintuplet of sixteenths fills one quarter', () => {
+    const items = first('C5:1/20 D5:1/20 E5:1/20 F5:1/20 G5:1/20');
+    expect(tupletGroups(items)).toEqual([{ start: 0, end: 4, ratio: { num: 5, numbase: 4 } }]);
+  });
+});
+
 describe('durationName', () => {
   it('speaks musician', () => {
     expect(durationName(frac(3, 4))).toBe('punktierte Halbe');
     expect(durationName(frac(1, 8))).toBe('Achtel');
     expect(durationName(frac(5, 8))).toBe('Halbe + Achtel');
-    expect(durationName(frac(1, 12))).toBe('1/12 (N-Tole)');
+    expect(durationName(frac(1, 12))).toBe('Achtel (Triole)');
+    expect(durationName(frac(1, 20))).toBe('Sechzehntel (Quintole)');
+    expect(durationName(frac(1, 11))).toBe('1/11 (N-Tole)');
   });
 });

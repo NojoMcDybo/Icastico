@@ -11,12 +11,14 @@
  * a note tied over from the previous measure shows no accidental.
  */
 import { type Score, type Part, type Tone, eventEnd, locateTones, measuresOf, type Measure, validateScore } from '../core/model';
-import { type Fraction, gt } from '../core/time';
+import { type Fraction, compare, div, gt, le, lt, sub, frac } from '../core/time';
 import { getInstrument, type Clef } from '../core/instruments';
 import { keyAlteration, type Pitch } from '../core/pitch';
+import { GUITAR_STRINGS, assignFrets, type Fingering } from '../core/tab';
 import {
   beamGroups,
   notateVoice,
+  tupletGroups,
   type NotatedItem,
   type NotatedNote,
   type UnshownGap,
@@ -58,6 +60,8 @@ export const staffElementId = (measureNumber: number, staffN: number): string =>
 
 export interface MeiResult {
   readonly mei: string;
+  /** xml:id of a tablature note → the fret number to draw in its place (ADR 0022). */
+  readonly tab: ReadonlyMap<string, string>;
   /** xml:id → model reference. */
   readonly elements: ReadonlyMap<string, ElementRef>;
   /** The staves that were engraved, top to bottom. */
@@ -103,7 +107,16 @@ class AccidentalState {
 /** SVG/MEI id of one notehead inside a chord; carries the tone id, so it survives re-sorting. */
 const chordNoteId = (item: NotatedNote, tone: Tone): string => `${item.id}-${tone.id}`;
 
-function noteXml(item: NotatedNote, accidentals: AccidentalState, tiedIn: ReadonlySet<string>, indent: string): string {
+/** Where a lyric syllable sits in its word, from the "-" at the end of the syllables (MEI wordpos). */
+function lyricXml(syllable: string, previousContinues: boolean): { xml: string; continues: boolean } {
+  const continues = syllable.endsWith('-');
+  const text = continues ? syllable.slice(0, -1) : syllable;
+  const wordpos = continues ? (previousContinues ? 'm' : 'i') : previousContinues ? 't' : null;
+  const attrs = wordpos ? ` wordpos="${wordpos}"${continues ? ' con="d"' : ''}` : '';
+  return { xml: `<verse n="1"><syl${attrs}>${esc(text)}</syl></verse>`, continues };
+}
+
+function noteXml(item: NotatedNote, accidentals: AccidentalState, tiedIn: ReadonlySet<string>, indent: string, verse = ''): string {
   const tie =
     item.tiedFromPrevious && item.tiedToNext ? 'm' : item.tiedToNext ? 'i' : item.tiedFromPrevious ? 't' : '';
   const tieAttr = tie ? ` tie="${tie}"` : '';
@@ -112,18 +125,19 @@ function noteXml(item: NotatedNote, accidentals: AccidentalState, tiedIn: Readon
     `pname="${p.step.toLowerCase()}" oct="${p.octave}"${accidentals.attrsFor(p, item.tiedFromPrevious || tiedIn.has(toneId))}`;
 
   if (item.tones.length === 1) {
-    return `${indent}<note xml:id="${item.id}" ${durAttrs(item.duration)} ${pitchAttrs(item.tones[0]!.pitch, item.tones[0]!.id)}${tieAttr}/>`;
+    const head = `${indent}<note xml:id="${item.id}" ${durAttrs(item.duration)} ${pitchAttrs(item.tones[0]!.pitch, item.tones[0]!.id)}${tieAttr}`;
+    return verse ? `${head}>${verse}</note>` : `${head}/>`;
   }
   const notes = item.tones
     .map((t) => `${indent}  <note xml:id="${chordNoteId(item, t)}" ${pitchAttrs(t.pitch, t.id)}${tieAttr}/>`)
     .join('\n');
-  return `${indent}<chord xml:id="${item.id}" ${durAttrs(item.duration)}>\n${notes}\n${indent}</chord>`;
+  return `${indent}<chord xml:id="${item.id}" ${durAttrs(item.duration)}>\n${notes}${verse ? `\n${indent}  ${verse}` : ''}\n${indent}</chord>`;
 }
 
-function itemXml(item: NotatedItem, accidentals: AccidentalState, tiedIn: ReadonlySet<string>, indent: string): string {
+function itemXml(item: NotatedItem, accidentals: AccidentalState, tiedIn: ReadonlySet<string>, indent: string, verse = ''): string {
   switch (item.kind) {
     case 'note':
-      return noteXml(item, accidentals, tiedIn, indent);
+      return noteXml(item, accidentals, tiedIn, indent, verse);
     case 'rest':
       // The gap a glide travels through is time without a rest sign.
       return `${indent}<${item.invisible ? 'space' : 'rest'} xml:id="${item.id}" ${durAttrs(item.duration)}/>`;
@@ -136,6 +150,8 @@ interface StaffSlot {
   readonly n: number;
   readonly part: Part;
   readonly staffIndex: number;
+  /** The tablature staff that goes with a guitar staff. */
+  readonly tab?: boolean;
 }
 
 function staffGrpXml(score: Score, slots: StaffSlot[]): string {
@@ -145,9 +161,11 @@ function staffGrpXml(score: Score, slots: StaffSlot[]): string {
     const own = slots.filter((s) => s.part === part);
     if (own.length === 0) continue;
     const staffDef = (s: StaffSlot, withLabel: boolean, ind: string) =>
-      `${ind}<staffDef n="${s.n}" lines="5" ${clefAttrs(def.staves[s.staffIndex]!.clef)}>` +
-      (withLabel ? `<label>${esc(part.name)}</label><labelAbbr>${esc(def.shortName)}</labelAbbr>` : '') +
-      `</staffDef>`;
+      s.tab
+        ? `${ind}<staffDef n="${s.n}" lines="${GUITAR_STRINGS.length}" keysig.visible="false" meter.visible="false"><label>Tab</label><labelAbbr>Tab</labelAbbr></staffDef>`
+        : `${ind}<staffDef n="${s.n}" lines="5" ${clefAttrs(def.staves[s.staffIndex]!.clef)}>` +
+          (withLabel ? `<label>${esc(part.name)}</label><labelAbbr>${esc(def.shortName)}</labelAbbr>` : '') +
+          `</staffDef>`;
     if (own.length > 1) {
       lines.push(`        <staffGrp symbol="${def.brace ? 'brace' : 'bracket'}" bar.thru="true">`);
       lines.push(`          <label>${esc(part.name)}</label><labelAbbr>${esc(def.shortName)}</labelAbbr>`);
@@ -183,6 +201,7 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
     getInstrument(part.instrument).staves.forEach((_, staffIndex) => {
       if (options.hiddenStaves?.has(`${part.id}:${staffIndex}`)) return;
       slots.push({ n: slots.length + 1, part, staffIndex });
+      if (part.tab && part.instrument === 'guitar' && staffIndex === 0) slots.push({ n: slots.length + 1, part, staffIndex, tab: true });
     });
   }
   if (slots.length === 0) throw new Error('Keine Zeile für die Notenschrift übrig.');
@@ -259,6 +278,45 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
     controls.set(pa.lastMeasure, list);
   }
 
+  // Lyrics: the syllable is written on the first drawn piece of its note; "-" chains syllables into words.
+  const syllables = new Map<string, string>();
+  for (const part of score.parts) {
+    for (const voice of part.voices) {
+      let continues = false;
+      for (const ev of voice.events) {
+        if (ev.lyric === undefined) {
+          continue;
+        }
+        const r = lyricXml(ev.lyric, continues);
+        continues = r.continues;
+        syllables.set(ev.id, r.xml);
+      }
+    }
+  }
+
+  // Tablature: which string and fret plays every tone of a guitar part with the tab staff switched on.
+  const tabNotes = new Map<string, string>();
+  const fingerings = new Map<string, ReadonlyMap<string, Fingering>>();
+  for (const slot of slots) {
+    if (!slot.tab) continue;
+    const events = slot.part.voices.filter((v) => v.staff === slot.staffIndex).flatMap((v) => v.events);
+    fingerings.set(slot.part.id, assignFrets([...events].sort((a, b) => compare(a.onset, b.onset))));
+  }
+
+  /** The notes of one measure of one voice on a tab staff: the same rhythm, at the string lines, numbers drawn later. */
+  const tabItemXml = (item: NotatedItem, fingering: ReadonlyMap<string, Fingering>, indent: string): string => {
+    if (item.kind === 'measureRest') return `${indent}<mRest xml:id="${item.id}-tab"/>`;
+    if (item.kind === 'rest') return `${indent}<${item.invisible ? 'space' : 'rest'} xml:id="${item.id}-tab" ${durAttrs(item.duration)}/>`;
+    const played = item.tones.map((t) => ({ t, f: fingering.get(t.id) })).filter((x): x is { t: Tone; f: Fingering } => x.f !== undefined);
+    if (played.length === 0) return `${indent}<space xml:id="${item.id}-tab" ${durAttrs(item.duration)}/>`;
+    const note = (id: string, f: Fingering) => {
+      tabNotes.set(id, String(f.fret));
+      return `<note xml:id="${id}" ${played.length === 1 ? durAttrs(item.duration) + ' ' : ''}loc="${(GUITAR_STRINGS.length - f.string) * 2}"/>`;
+    };
+    if (played.length === 1) return `${indent}${note(`${item.id}-tab`, played[0]!.f)}`;
+    return `${indent}<chord xml:id="${item.id}-tab" ${durAttrs(item.duration)}>${played.map((x) => note(`${item.id}-${x.t.id}-tab`, x.f)).join('')}</chord>`;
+  };
+
   const body: string[] = [];
   measures.forEach((m, mi) => {
     const change = mi > 0 ? scoreDefChange(measures[mi - 1]!, m) : null;
@@ -279,18 +337,36 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
         body.push(`          <layer n="${li + 1}">`);
         const items = notated.get(voice.id)![mi]!;
         const beams = beamGroups(items, m);
+        const brackets = tupletGroups(items);
+        const suffix = slot.tab ? '-tab' : '';
+        const fingering = slot.tab ? (fingerings.get(slot.part.id) ?? new Map<string, Fingering>()) : null;
         items.forEach((item, i) => {
           const beam = beams.find(([a, b]) => i >= a && i <= b);
           const inBeam = beam !== undefined;
-          if (beam && i === beam[0]) body.push(`            <beam xml:id="${item.id}-beam">`);
-          body.push(itemXml(item, accidentals, tiedIn, inBeam ? '              ' : '            '));
+          const bracket = brackets.find((g) => g.start === i);
+          if (bracket) body.push(`            <tuplet xml:id="${item.id}${suffix}-tuplet" num="${bracket.ratio.num}" numbase="${bracket.ratio.numbase}">`);
+          if (beam && i === beam[0]) body.push(`            <beam xml:id="${item.id}${suffix}-beam">`);
+          const indent = inBeam ? '              ' : '            ';
+          if (fingering) {
+            body.push(tabItemXml(item, fingering, indent));
+          } else {
+            const verse = item.kind === 'note' && !item.tiedFromPrevious ? (syllables.get(item.eventId) ?? '') : '';
+            body.push(itemXml(item, accidentals, tiedIn, indent, verse));
+          }
           if (beam && i === beam[1]) body.push('            </beam>');
+          if (brackets.some((g) => g.end === i)) body.push('            </tuplet>');
         });
         body.push('          </layer>');
       });
       body.push('        </staff>');
     }
     for (const control of controls.get(m.number) ?? []) body.push(`        ${control}`);
+    // Chord symbols sit above the top staff, at their beat inside the measure.
+    for (const c of score.chords ?? []) {
+      if (!le(m.start, c.at) || !lt(c.at, m.end)) continue;
+      const beats = div(sub(c.at, m.gridStart), frac(1, m.sig.unit));
+      body.push(`        <harm xml:id="harm-${m.number}-${c.at.n}-${c.at.d}" staff="${slots[0]!.n}" tstamp="${(beats.n / beats.d + 1).toFixed(4)}">${esc(c.text)}</harm>`);
+    }
     body.push('      </measure>');
   });
 
@@ -311,5 +387,10 @@ ${body.join('\n')}
   </score></mdiv></body></music>
 </mei>
 `;
-  return { mei, elements, staffs: slots.map((s) => ({ n: s.n, partId: s.part.id, staffIndex: s.staffIndex })) };
+  return {
+    mei,
+    elements,
+    tab: tabNotes,
+    staffs: slots.filter((s) => !s.tab).map((s) => ({ n: s.n, partId: s.part.id, staffIndex: s.staffIndex })),
+  };
 }

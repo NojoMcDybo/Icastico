@@ -582,6 +582,6 @@ export class PianoRoll {
     if (this.compact || !p || !layout || !voice || p.x < layout.labelWidth || this.onKeyColumn(e) || (this.barAt(e.target) && !e.altKey)) return;
     const c = drawChange(layout, p.x, p.y, p.x, this.gridOf(s));
     const onset = c.onset;
-    this.host.edit({ kind: 'create', voice, onset, duration: inputLength(s.input), midi: c.midi });
+    this.host.edit({ kind: 'create', voice, onset, duration: inputLength({ ...s.input, tuplet: 0 }), midi: c.midi });
   }
 }

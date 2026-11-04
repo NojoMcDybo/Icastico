@@ -14,12 +14,17 @@ export type UiCommandId =
   | 'file.new'
   | 'file.open'
   | 'file.import'
+  | 'file.exportXml'
+  | 'file.exportPdf'
+  | 'file.extractPart'
   | 'file.save'
   | 'file.saveAs'
   | 'score.settings'
   | 'library.toggle'
   | 'view.roll'
-  | 'play.toggle';
+  | 'play.toggle'
+  | 'text.lyrics'
+  | 'text.chord';
 
 /** Functions handled by the mouse, listed for the help only. */
 export const MOUSE_COMMANDS = new Set([
@@ -38,12 +43,17 @@ export const UI_COMMANDS: ReadonlySet<string> = new Set<UiCommandId>([
   'file.new',
   'file.open',
   'file.import',
+  'file.exportXml',
+  'file.exportPdf',
+  'file.extractPart',
   'file.save',
   'file.saveAs',
   'score.settings',
   'library.toggle',
   'view.roll',
   'play.toggle',
+  'text.lyrics',
+  'text.chord',
 ]);
 
 export type PresetId = 'finale' | 'logic' | 'speedy';

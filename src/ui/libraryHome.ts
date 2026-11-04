@@ -14,6 +14,7 @@ import {
   itemsFor,
   relativeTime,
 } from '../library/library';
+import type { Score } from '../core/model';
 import type { LibraryStore } from '../library/store';
 import { APP_VERSION } from '../version';
 import { ask, inform, promptText } from './dialog';
@@ -31,6 +32,8 @@ export interface LibraryActions {
   openExternal(): Promise<void>;
   /** Imports a MusicXML file as a new score. */
   importFile(): Promise<void>;
+  /** Saves these scores as one PDF. */
+  exportPdf(scores: readonly Score[], title: string): Promise<void>;
   /** A file or folder moved: `from` → `to` (the editor follows its document). */
   relocated(from: string, to: string): void;
   /** The open document went to the trash. */
@@ -345,6 +348,13 @@ export class LibraryHome {
       link('MusicXML importieren …', 'Eine MusicXML-Datei (z. B. aus Finale exportiert) als neue Partitur', () => {
         this.root.hidden = true;
         void this.actions.importFile();
+      }),
+      link('Als PDF speichern …', 'Alle Partituren dieser Ansicht in einem PDF – auf Wunsch mehrere Notenbeispiele pro Seite', () => {
+        const scores = this.visibleItems().flatMap((i) => (i.score ? [i.score] : []));
+        const name = this.view.kind === 'collection' ? this.view.name : 'Bibliothek';
+        if (scores.length === 0) return void inform('Nichts zu speichern', 'In dieser Ansicht gibt es keine Partitur.');
+        this.root.hidden = true;
+        void this.actions.exportPdf(scores, name);
       }),
     ];
     if (this.actions.checkForUpdates) {

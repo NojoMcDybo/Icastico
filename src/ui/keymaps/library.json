@@ -54,8 +54,7 @@
           "title": "Punktierung",
           "command": "input.dot",
           "finale": { "keys": ["Period"], "source": "doku", "note": "In der Eingabe gilt der Punkt für die nächste Note (Annahme), sonst für die ausgewählte." },
-          "logic": { "keys": ["0"], "source": "doku", "note": "Logic: „nächste zwei Noten punktiert“; Icastico punktiert die nächste Note." },
-          "speedy": { "keys": [], "source": "icastico", "note": "Hier punktiert der Punkt die letzte Note („Note punktieren“)." }
+          "logic": { "keys": ["0"], "source": "doku", "note": "Logic: „nächste zwei Noten punktiert“; Icastico punktiert die nächste Note." }
         },
         {
           "id": "input.chordNote",
@@ -72,10 +71,12 @@
           "logic": { "keys": ["Backquote"], "source": "doku", "note": "Gemeint ist die Taste links neben der 1 – auf deutschen Tastaturen ist das ^." }
         },
         {
-          "id": "input.triplets",
-          "title": "Triolen für die nächsten Noten",
-          "logic": { "keys": ["9"], "source": "doku" },
-          "finale": { "keys": [], "source": "annahme", "note": "Taste in Finale Simple Entry unbekannt – bitte ergänzen." }
+          "id": "input.tuplet",
+          "title": "Triolen / Quintolen für die nächsten Noten (noch einmal: aus)",
+          "command": "input.tuplet",
+          "args": { "3": "Triolen", "5": "Quintolen", "7": "Septolen" },
+          "logic": { "keys": { "3": ["9"] }, "source": "doku", "note": "Quintolen und Septolen: Taste von uns." },
+          "finale": { "keys": { "3": ["Alt+9"], "5": ["Alt+8"], "7": ["Alt+0"] }, "source": "icastico", "note": "Finale Simple Entry nutzt hier ein Menü; die Tasten sind von uns gewählt." }
         },
         {
           "id": "input.nextSharp",
@@ -95,20 +96,20 @@
         },
         {
           "id": "input.repeat",
-          "title": "Note wiederholen: Kopie der letzten Note dahinter",
+          "title": "Vorschau-Note setzen und weiter (Enter wiederholt sie)",
           "command": "input.repeat",
-          "speedy": { "keys": ["Enter"], "source": "annahme", "note": "Ohne Note davor beginnt Enter die Eingabe. Danach ändern ↑/↓, Ziffernblock und Zahlenreihe die letzte Note." }
+          "speedy": { "keys": ["Enter"], "source": "annahme", "note": "Die Vorschau-Note steht am Eingabe-Cursor; ↑/↓, Ziffernblock und Zahlenreihe ändern sie. Ohne Eingabe beginnt Enter die Eingabe." }
         },
         {
           "id": "input.length",
-          "title": "Notenwert der letzten und der nächsten Note (Ziffernblock)",
+          "title": "Notenwert der Vorschau-Note (ohne Eingabe: der gewählten Note)",
           "command": "input.length",
           "args": {"1": "64tel", "2": "32tel", "3": "16tel", "4": "Achtel", "5": "Viertel", "6": "Halbe", "7": "Ganze"},
           "speedy": { "keys": { "7": ["Num7"], "6": ["Num6"], "5": ["Num5"], "4": ["Num4"], "3": ["Num3"], "2": ["Num2"], "1": ["Num1"] }, "source": "annahme" }
         },
         {
           "id": "input.interval",
-          "title": "Ton im Intervall über / unter der Note hinzufügen",
+          "title": "Ton im Intervall über / unter der Vorschau-Note hinzufügen",
           "command": "input.interval",
           "args": { "2": "Sekunde darüber", "3": "Terz darüber", "4": "Quarte darüber", "5": "Quinte darüber", "6": "Sexte darüber", "7": "Septime darüber", "8": "Oktave darüber", "-2": "Sekunde darunter", "-3": "Terz darunter", "-4": "Quarte darunter", "-5": "Quinte darunter", "-6": "Sexte darunter", "-7": "Septime darunter", "-8": "Oktave darunter" },
           "speedy": { "keys": { "2": ["2"], "3": ["3"], "4": ["4"], "5": ["5"], "6": ["6"], "7": ["7"], "8": ["8"], "-2": ["Shift+2"], "-3": ["Shift+3"], "-4": ["Shift+4"], "-5": ["Shift+5"], "-6": ["Shift+6"], "-7": ["Shift+7"], "-8": ["Shift+8"] }, "source": "annahme", "note": "Obere Zahlenreihe; mit Umschalt nach unten." }
@@ -126,17 +127,26 @@
       "title": "Letzte / ausgewählte Note ändern",
       "functions": [
         {
-          "id": "edit.dot",
-          "title": "Note punktieren (nochmal: Punkt weg)",
-          "command": "edit.dot",
-          "speedy": { "keys": ["Period"], "source": "annahme", "note": "Ziffernblock-Punkt." }
+          "id": "ghost.step",
+          "title": "Vorschau-Note eine Stufe höher / tiefer (in der Tonart)",
+          "command": "ghost.step",
+          "args": { "1": "höher", "-1": "tiefer" },
+          "speedy": { "keys": { "1": ["ArrowUp"], "-1": ["ArrowDown"] }, "source": "annahme" }
+        },
+        {
+          "id": "ghost.alter",
+          "title": "Vorschau-Note: Kreuz / B",
+          "command": "ghost.alter",
+          "args": { "1": "Kreuz", "-1": "B" },
+          "speedy": { "keys": { "1": ["Plus"], "-1": ["Minus"] }, "source": "annahme" }
         },
         {
           "id": "edit.step",
           "title": "Eine Stufe höher / tiefer (in der Tonart)",
           "command": "edit.step",
           "args": { "1": "höher", "-1": "tiefer" },
-          "finale": { "keys": { "1": ["ArrowUp"], "-1": ["ArrowDown"] }, "source": "annahme" }
+          "finale": { "keys": { "1": ["ArrowUp"], "-1": ["ArrowDown"] }, "source": "annahme" },
+          "speedy": { "keys": [], "source": "icastico", "note": "Hier gilt ↑/↓ für die Vorschau-Note („Vorschau-Note eine Stufe“)." }
         },
         {
           "id": "edit.semitone",
@@ -159,6 +169,7 @@
           "command": "edit.alter",
           "args": { "1": "Kreuz", "-1": "B" },
           "finale": { "keys": { "1": ["Plus"], "-1": ["Minus"] }, "source": "annahme" },
+          "speedy": { "keys": [], "source": "icastico", "note": "Hier gilt +/− für die Vorschau-Note („Vorschau-Note: Vorzeichen“)." },
           "logic": { "keys": { "1": ["Plus"], "-1": ["Minus"] }, "source": "icastico" }
         },
         {
@@ -411,6 +422,48 @@
           "command": "view.roll",
           "finale": { "keys": ["Mod+Shift+P"], "source": "icastico" },
           "logic": { "keys": ["Mod+Shift+P"], "source": "icastico", "note": "In Logic öffnet P den Piano-Roll-Editor; hier ist P ein Ton." }
+        },
+        {
+          "id": "file.exportXml",
+          "title": "Als MusicXML exportieren (für Finale, MuseScore …)",
+          "command": "file.exportXml",
+          "finale": { "keys": ["Mod+Shift+E"], "source": "icastico" },
+          "logic": { "keys": ["Mod+Shift+E"], "source": "icastico" }
+        },
+        {
+          "id": "edit.tab",
+          "title": "Tabulatur unter der Gitarrenzeile an/aus",
+          "command": "edit.tab",
+          "finale": { "keys": ["Mod+T"], "source": "icastico" },
+          "logic": { "keys": ["Mod+T"], "source": "icastico" }
+        },
+        {
+          "id": "file.exportPdf",
+          "title": "Als PDF speichern (A4, Notengröße wählbar)",
+          "command": "file.exportPdf",
+          "finale": { "keys": ["Mod+P"], "source": "icastico", "note": "Aus der Bibliothek lassen sich mehrere Partituren zusammen als PDF speichern." },
+          "logic": { "keys": ["Mod+P"], "source": "icastico" }
+        },
+        {
+          "id": "file.extractPart",
+          "title": "Einzelstimme: ein Instrument als neue Partitur herausziehen",
+          "command": "file.extractPart",
+          "finale": { "keys": ["Mod+Shift+X"], "source": "icastico", "note": "Die Stimme steht danach als eigene Partitur in der Bibliothek (Titel – Instrument)." },
+          "logic": { "keys": ["Mod+Shift+X"], "source": "icastico" }
+        },
+        {
+          "id": "text.lyrics",
+          "title": "Liedtext ab der gewählten Note eingeben",
+          "command": "text.lyrics",
+          "finale": { "keys": ["L"], "source": "icastico", "note": "Eine Silbe pro Note, Bindestrich am Ende = das Wort geht weiter, _ = Note ohne Silbe." },
+          "logic": { "keys": ["L"], "source": "icastico" }
+        },
+        {
+          "id": "text.chord",
+          "title": "Akkordsymbol an dieser Stelle eingeben (leer = löschen)",
+          "command": "text.chord",
+          "finale": { "keys": ["K"], "source": "icastico", "note": "Zum Beispiel Am7 oder C/G; das Symbol bleibt an seiner Zeit stehen." },
+          "logic": { "keys": ["K"], "source": "icastico" }
         },
         {
           "id": "view.help",

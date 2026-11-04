@@ -32,6 +32,16 @@ export interface SavedFile {
   readonly path: string | null;
 }
 
+/** What an export is: the file type for the save dialog and the browser download. */
+export interface ExportKind {
+  readonly name: string;
+  readonly extension: string;
+  readonly mime: string;
+}
+
+const bytesOf = (data: string | Uint8Array): Uint8Array => (typeof data === 'string' ? new TextEncoder().encode(data) : data);
+const withExt = (name: string, extension: string): string => (name.toLowerCase().endsWith('.' + extension) ? name : name + '.' + extension);
+
 export interface Platform {
   readonly kind: 'desktop' | 'browser';
   /** The score library (Documents/Icastico). */
@@ -41,6 +51,8 @@ export interface Platform {
   read(path: string): Promise<OpenedFile>;
   /** Lets the user pick a MusicXML file (.musicxml, .xml, .mxl); null if cancelled. */
   pickImport(): Promise<ImportedFile | null>;
+  /** Saves an export (MusicXML, PDF …) after asking where. Null if cancelled. */
+  exportFile(data: string | Uint8Array, suggestedName: string, kind: ExportKind): Promise<SavedFile | null>;
   /** Writes to `path`, or asks where if `path` is null. Null if cancelled. */
   write(text: string, path: string | null, suggestedName: string): Promise<SavedFile | null>;
   setTitle(title: string): void;
@@ -105,6 +117,14 @@ const desktop: Platform = {
     if (!chosen) return null;
     const target = withExtension(chosen);
     await invoke('write_score_file', { path: target, contents: text });
+    return { name: baseName(target), path: target };
+  },
+
+  async exportFile(data, suggestedName, kind) {
+    const chosen = await save({ defaultPath: withExt(suggestedName, kind.extension), filters: [{ name: kind.name, extensions: [kind.extension] }], title: kind.name + ' speichern' });
+    if (!chosen) return null;
+    const target = withExt(chosen, kind.extension);
+    await invoke('write_file_bytes', { path: target, data: Array.from(bytesOf(data)) });
     return { name: baseName(target), path: target };
   },
 
@@ -199,6 +219,16 @@ const browser: Platform = {
     const a = document.createElement('a');
     a.href = url;
     a.download = withExtension(suggestedName);
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    return { name: a.download, path: null };
+  },
+
+  async exportFile(data, suggestedName, kind) {
+    const url = URL.createObjectURL(new Blob([data as BlobPart], { type: kind.mime }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = withExt(suggestedName, kind.extension);
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
     return { name: a.download, path: null };

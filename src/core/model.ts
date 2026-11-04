@@ -54,6 +54,14 @@ export interface NoteEvent {
   readonly onset: Fraction;
   readonly duration: Fraction;
   readonly tones: readonly Tone[];
+  /** Lyric syllable sung on this note (ADR 0019); a trailing "-" means the word goes on. Absent = none. */
+  readonly lyric?: string;
+}
+
+/** A chord symbol such as "Am7" or "C/G", fixed to a point on the timeline (ADR 0019). */
+export interface ChordSymbol {
+  readonly at: Fraction;
+  readonly text: string;
 }
 
 export interface Voice {
@@ -69,6 +77,8 @@ export interface Part {
   readonly name: string;
   readonly instrument: InstrumentId;
   readonly voices: readonly Voice[];
+  /** Show a tablature staff under the (guitar) staff (ADR 0022); absent = no. */
+  readonly tab?: boolean;
 }
 
 export interface Score {
@@ -88,6 +98,8 @@ export interface Score {
   readonly parts: readonly Part[];
   /** Ties and slides between tones; absent = none. */
   readonly links?: readonly Link[];
+  /** Chord symbols above the top staff, sorted by `at`, one per time; absent = none. */
+  readonly chords?: readonly ChordSymbol[];
 }
 
 /**
@@ -317,6 +329,7 @@ export function validateScore(score: Score): string[] {
   for (const part of score.parts) {
     const instrument = getInstrument(part.instrument);
     if (!ID_PATTERN.test(part.id)) problems.push(`Ungültige Part-ID "${part.id}".`);
+    if (part.tab && part.instrument !== 'guitar') problems.push(`${part.name}: Tabulatur gibt es nur für Gitarre.`);
     const voiceIds = new Set<string>();
     for (const voice of part.voices) {
       if (voiceIds.has(voice.id)) problems.push(`${part.name}: doppelte Stimm-ID ${voice.id}.`);
@@ -336,6 +349,7 @@ export function validateScore(score: Score): string[] {
           problems.push(`${part.name}: Event ${ev.id} überlappt mit dem vorherigen Event derselben Stimme.`);
         }
         if (ev.tones.length === 0) problems.push(`${part.name}: Event ${ev.id} hat keine Tonhöhe.`);
+        if (ev.lyric !== undefined && (ev.lyric === '' || /\s/.test(ev.lyric))) problems.push(`${part.name}: Der Liedtext von ${ev.id} ist ungültig.`);
         for (const tone of ev.tones) {
           if (toneIds.has(tone.id)) problems.push(`Doppelte Ton-ID ${tone.id}.`);
           if (!ID_PATTERN.test(tone.id)) problems.push(`Ungültige Ton-ID "${tone.id}" (erlaubt: Buchstabe, dann Buchstaben/Ziffern/_/-).`);
@@ -351,5 +365,11 @@ export function validateScore(score: Score): string[] {
     }
   }
   problems.push(...linkProblems(score));
+  let lastChord: Fraction | null = null;
+  for (const c of score.chords ?? []) {
+    if (c.text.trim() === '') problems.push('Ein Akkordsymbol ist leer.');
+    if (lt(c.at, ZERO) || (lastChord && !gt(c.at, lastChord))) problems.push(`Akkordsymbol ${c.text}: Zeitpunkt doppelt oder nicht geordnet.`);
+    lastChord = c.at;
+  }
   return problems;
 }

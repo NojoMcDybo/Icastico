@@ -28,10 +28,10 @@ Der Vater des Owners arbeitet mit Finale und muss vorhandene Dateien übernehmen
 - **Klingende Tonhöhe:** `<transpose>` des Instruments wird angewendet; eine Gitarre
   ohne `<transpose>` gilt als „eine Oktave höher notiert“ und wird entsprechend
   tiefer übernommen.
-- **N-Tolen:** Icastico kann sie noch nicht schreiben. Noten in Triolen usw. werden
-  auf das 1/32-Raster **gerundet** (der Takt bleibt vollständig), mit Hinweis.
-  Auch sonstige Zeiten außerhalb des 1/64-Rasters werden gerundet.
-- **Nicht übernommen und gemeldet:** Vorschlagsnoten, Liedtext, Akkordsymbole,
+- **N-Tolen:** Triolen, Quintolen und Septolen bleiben exakt (ADR 0020). Alles andere (z. B. 11:8)
+  wird auf das 1/64-Raster **gerundet** (der Takt bleibt vollständig), mit Hinweis.
+- **Liedtext und Akkordsymbole:** die erste Strophe und die Akkordsymbole werden übernommen (ADR 0019).
+- **Nicht übernommen und gemeldet:** Vorschlagsnoten, weitere Strophen,
   Schlagzeugnoten, Textanweisungen. Alles andere (Bögen, Dynamik, Artikulation,
   Tabulatur, Seitenlayout) wird stillschweigend nicht gelesen – das steht in der
   Roadmap.
@@ -48,5 +48,4 @@ Der Vater des Owners arbeitet mit Finale und muss vorhandene Dateien übernehmen
   mit Stimmen gehen, Verzierungen und Layout nicht.
 - Stimmen werden unverändert nach (System, Stimmennummer) übernommen, auch mehr als
   vier pro System; Bearbeiten in der Roll begrenzt neue Stimmen weiter auf vier.
-- Nicht gebaut: Export nach MusicXML, Import von `.musx`, Liedtext/Akkordsymbole
-  (fehlen noch im Modell), echte N-Tolen.
+- Nicht gebaut: Import von `.musx`. Der Export nach MusicXML steht in ADR 0021.

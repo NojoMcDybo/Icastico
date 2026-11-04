@@ -22,9 +22,10 @@ export const FILE_EXTENSION = 'icastico';
  * 3 = tones with permanent ids instead of plain pitch names (ADR 0012),
  * 4 = optional `links` (ties and slides between tones, ADR 0014),
  * 5 = optional `tempo` (quarter notes per minute, ADR 0015),
- * 6 = optional loudness `vol` and `curve` per tone, optional `curve` per link (ADR 0016).
+ * 6 = optional loudness `vol` and `curve` per tone, optional `curve` per link (ADR 0016),
+ * 7 = optional `lyric` per note, `chords` (chord symbols) per score (ADR 0019), `tab` per part (ADR 0022).
  */
-export const FORMAT_VERSION = 6;
+export const FORMAT_VERSION = 7;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -44,11 +45,13 @@ function scoreToJson(score: Score): unknown {
     keys: score.keys.map((k) => ({ at: fracToString(k.at), fifths: k.fifths })),
     ...(score.pickup ? { pickup: fracToString(score.pickup) } : {}),
     ...(score.tempo !== undefined ? { tempo: score.tempo } : {}),
+    ...(score.chords?.length ? { chords: score.chords.map((c) => ({ at: fracToString(c.at), text: c.text })) } : {}),
     ...(score.links?.length ? { links: score.links.map((l) => ({ id: l.id, kind: l.kind, from: l.from, to: l.to, ...(l.curve ? { curve: curveToJson(l.curve) } : {}) })) } : {}),
     parts: score.parts.map((p) => ({
       id: p.id,
       name: p.name,
       instrument: p.instrument,
+      ...(p.tab ? { tab: true } : {}),
       voices: p.voices.map((v) => ({
         id: v.id,
         staff: v.staff,
@@ -56,6 +59,7 @@ function scoreToJson(score: Score): unknown {
           id: e.id,
           at: fracToString(e.onset),
           dur: fracToString(e.duration),
+          ...(e.lyric !== undefined ? { lyric: e.lyric } : {}),
           tones: e.tones.map((t) => ({
             id: t.id,
             pitch: pitchToString(t.pitch),
@@ -168,7 +172,13 @@ function readEvent(v: unknown, where: string): NoteEvent {
       return fail(`${where} (${id}): unbekannte Tonhöhe „${name}“.`);
     }
   });
-  return { id, onset: time(o.at, `${where} (${id}).at`), duration: time(o.dur, `${where} (${id}).dur`), tones };
+  return {
+    id,
+    onset: time(o.at, `${where} (${id}).at`),
+    duration: time(o.dur, `${where} (${id}).dur`),
+    tones,
+    ...(o.lyric !== undefined ? { lyric: str(o.lyric, `${where} (${id}).lyric`) } : {}),
+  };
 }
 
 const LINK_KINDS: readonly string[] = ['tie', 'slide'];
@@ -203,6 +213,7 @@ function readPart(v: unknown, where: string): Part {
     id: str(o.id, `${where}.id`),
     name: str(o.name, `${where}.name`),
     instrument: instrument as InstrumentId,
+    ...(o.tab !== undefined ? { tab: o.tab === true } : {}),
     voices: arr(o.voices, `${where}.voices`).map((voice, i) => readVoice(voice, `${where}, Stimme ${i + 1}`)),
   };
 }
@@ -227,6 +238,16 @@ function readScore(v: unknown): Score {
     ...(o.pickup !== undefined ? { pickup: time(o.pickup, 'Auftakt') } : {}),
     ...(o.tempo !== undefined ? { tempo: int(o.tempo, 'Tempo') } : {}),
     ...(o.links !== undefined && arr(o.links, 'Verbindungen').length > 0 ? { links: arr(o.links, 'Verbindungen').map(readLink) } : {}),
+    ...(o.chords !== undefined && arr(o.chords, 'Akkordsymbole').length > 0
+      ? {
+          chords: arr(o.chords, 'Akkordsymbole')
+            .map((c, i) => {
+              const e = obj(c, `Akkordsymbol ${i + 1}`);
+              return { at: time(e.at, `Akkordsymbol ${i + 1}`), text: str(e.text, `Akkordsymbol ${i + 1}`) };
+            })
+            .sort((a, b) => compare(a.at, b.at)),
+        }
+      : {}),
     parts: arr(o.parts, 'Instrumente').map((p, i) => readPart(p, `Instrument ${i + 1}`)),
   };
   const problems = validateScore(score);
@@ -247,6 +268,8 @@ const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
   4: (doc) => ({ ...doc, version: 5 }),
   // 5 → 6: adds the optional "vol" and "curve" of tones and "curve" of links. Version-5 files have none.
   5: (doc) => ({ ...doc, version: 6 }),
+  // 6 → 7: adds the optional "lyric" of notes and "chords" of the score. Version-6 files have none.
+  6: (doc) => ({ ...doc, version: 7 }),
 };
 
 /** Applies `fn` to every event object of a (still unvalidated) score; anything unexpected is left for the reader to reject. */

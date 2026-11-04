@@ -144,7 +144,7 @@ describe('MusicXML import: piano, voices, guitar, tuplets, leftovers', () => {
     expect(clarinet.notes.join(' ')).toMatch(/Klarinette/);
   });
 
-  it('rounds tuplet notes to the 1/32 grid (no N-tuplets yet), keeps the bar whole and says what it left out', () => {
+  it('keeps triplets exactly (ADR 0020), keeps the bar whole and says what it left out', () => {
     const third = `<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>`;
     const xml = doc([
       {
@@ -154,20 +154,49 @@ describe('MusicXML import: piano, voices, guitar, tuplets, leftovers', () => {
           <harmony><root><root-step>C</root-step></root></harmony>
           <note><grace/><pitch><step>B</step><octave>4</octave></pitch></note>
           ${note('C', 5, 1, third)}${note('D', 5, 1, third)}${note('E', 5, 1, third)}${rest(5)}
-          <note><pitch><step>C</step><octave>5</octave></pitch><duration>3</duration><lyric><text>la</text></lyric></note>
+          <note><pitch><step>C</step><octave>5</octave></pitch><duration>3</duration><lyric number="1"><text>la</text></lyric><lyric number="2"><text>li</text></lyric></note>
         </measure>`,
       },
     ]);
     const { score, notes } = importMusicXml(xml);
     const triplet = score.parts[0]!.voices[0]!.events.slice(0, 3);
-    expect(triplet.map((e) => e.duration)).toEqual([frac(3, 32), frac(1, 16), frac(3, 32)]);
-    expect(triplet[2]!.onset.n / triplet[2]!.onset.d + 3 / 32).toBeCloseTo(1 / 4, 10); // the triplet still fills a quarter
+    expect(triplet.map((e) => e.duration)).toEqual([frac(1, 12), frac(1, 12), frac(1, 12)]);
+    expect(triplet[2]!.onset).toEqual(frac(1, 6)); // the triplet fills exactly a quarter
     expect(validateScore(score)).toEqual([]);
     const text = notes.join('\n');
     expect(text).toMatch(/Vorschlagsnoten: 1×/);
-    expect(text).toMatch(/Akkordsymbole: 1×/);
-    expect(text).toMatch(/Liedtext: 1×/);
-    expect(text).toMatch(/\d Noten .*gerundet/);
+    expect(text).toMatch(/Weitere Strophen: 1×/);
+    expect(text).not.toMatch(/Akkordsymbole|Liedtext/);
+    expect(text).not.toMatch(/gerundet/);
+  });
+
+  it('rounds rhythms it cannot write (here 11 notes in the time of 8) to the 1/64 grid and says so', () => {
+    const odd = '<time-modification><actual-notes>11</actual-notes><normal-notes>8</normal-notes></time-modification>';
+    const xml = doc([{ id: 'P1', name: 'Gesang', xml: `<measure number="1">${attrs().replace('<divisions>2', '<divisions>11')}${note('C', 5, 1, odd)}${note('D', 5, 1, odd)}${rest(42)}</measure>` }]);
+    const { score, notes } = importMusicXml(xml);
+    expect(validateScore(score)).toEqual([]);
+    expect(score.parts[0]!.voices[0]!.events.every((e) => e.duration.d <= 64)).toBe(true);
+    expect(notes.join(' ')).toMatch(/1\/64-Raster/);
+  });
+
+  it('takes over the first verse (with hyphens) and chord symbols', () => {
+    const syl = (text: string, syllabic: string) => `<lyric number="1"><syllabic>${syllabic}</syllabic><text>${text}</text></lyric>`;
+    const xml = doc([
+      {
+        id: 'P1',
+        name: 'Gesang',
+        xml: `<measure number="1">${attrs()}
+          <harmony><root><root-step>A</root-step></root><kind text="m7">minor-seventh</kind></harmony>
+          ${note('C', 5, 2, syl('Hel', 'begin'))}${note('D', 5, 2, syl('lo', 'end'))}
+          <harmony><root><root-step>B</root-step><root-alter>-1</root-alter></root><kind>major-seventh</kind><bass><bass-step>D</bass-step></bass></harmony>
+          ${note('E', 5, 2, syl('Welt', 'single'))}${note('F', 5, 2)}
+        </measure>`,
+      },
+    ]);
+    const { score, notes } = importMusicXml(xml);
+    expect(score.parts[0]!.voices[0]!.events.map((e) => e.lyric)).toEqual(['Hel-', 'lo', 'Welt', undefined]);
+    expect(score.chords).toEqual([{ at: frac(0), text: 'Am7' }, { at: frac(1, 2), text: 'Bbmaj7/D' }]);
+    expect(notes.join(' ')).not.toMatch(/Liedtext|Akkord/);
   });
 
   it('meter changes at a barline and several parts share the structure', () => {

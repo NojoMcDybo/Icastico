@@ -46,3 +46,8 @@ Was wird dadurch leichter, was schwerer?
 | 0016 | [Akkorde aus mehreren Wegen, Lautstärke-Linien und Gleitverläufe](0016-akkorde-und-verlaeufe.md) | angenommen |
 | 0017 | [MusicXML importieren](0017-musicxml-import.md) | angenommen |
 | 0018 | [Dritte Tastenbelegung „Finale-Ziffernblock“](0018-finale-ziffernblock.md) | angenommen |
+| 0019 | [Liedtext und Akkordsymbole](0019-liedtext-und-akkordsymbole.md) | angenommen |
+| 0020 | [Triolen, Quintolen, Septolen](0020-n-tolen.md) | angenommen |
+| 0021 | [MusicXML exportieren](0021-musicxml-export.md) | angenommen |
+| 0022 | [Gitarrentabulatur](0022-tabulatur.md) | angenommen |
+| 0023 | [PDF, Notenblätter und Einzelstimmen](0023-pdf-und-einzelstimmen.md) | angenommen |

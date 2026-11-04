@@ -1622,3 +1622,28 @@ button.lcd__cell:hover:not(:disabled) {
     padding-inline: 8px;
   }
 }
+
+/* The preview note of Finale's numpad typing: a ghost where Enter will put the note */
+.ghost {
+  position: absolute;
+  pointer-events: none;
+}
+
+.ghost__head {
+  border-radius: 50%;
+  background: var(--accent-ink);
+  opacity: 0.45;
+  transform: rotate(-20deg);
+}
+
+.ghost__ledger {
+  background: var(--accent-ink);
+  opacity: 0.45;
+}
+
+.ghost__label {
+  font: 600 11px/1.2 var(--font-ui, 'Segoe UI Variable', system-ui, sans-serif);
+  color: var(--accent-ink);
+  opacity: 0.8;
+  white-space: nowrap;
+}

@@ -69,6 +69,30 @@ export function saveLastOpened(path: string): void {
   }
 }
 
+const PDF = 'icastico.pdf';
+
+/** The page setup of the last PDF export. */
+export function loadPdfSetup(): { landscape: boolean; scale: number; pack: boolean } {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(PDF) ?? 'null');
+    if (typeof raw === 'object' && raw !== null) {
+      const o = raw as Record<string, unknown>;
+      return { landscape: o.landscape === true, scale: [45, 60, 75].includes(Number(o.scale)) ? Number(o.scale) : 60, pack: o.pack === true };
+    }
+  } catch {
+    // fall through to the default
+  }
+  return { landscape: false, scale: 60, pack: false };
+}
+
+export function savePdfSetup(setup: { landscape: boolean; scale: number; pack: boolean }): void {
+  try {
+    localStorage.setItem(PDF, JSON.stringify(setup));
+  } catch {
+    // not remembered
+  }
+}
+
 const KEYMAP = 'icastico.keymap';
 
 /** Chosen key layout ("finale", "logic" or "speedy"); Finale by default. */

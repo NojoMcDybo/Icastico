@@ -34,11 +34,21 @@ fn read_file_bytes(path: String) -> Result<tauri::ipc::Response, String> {
 /// never leaves a half-written score behind – the old file stays intact.
 #[tauri::command]
 fn write_score_file(path: String, contents: String) -> Result<(), String> {
-    let target = PathBuf::from(&path);
+    write_atomic(&path, contents.as_bytes())
+}
+
+/// The same for binary exports (PDF, compressed MusicXML).
+#[tauri::command]
+fn write_file_bytes(path: String, data: Vec<u8>) -> Result<(), String> {
+    write_atomic(&path, &data)
+}
+
+fn write_atomic(path: &str, contents: &[u8]) -> Result<(), String> {
+    let target = PathBuf::from(path);
     let tmp = temp_path(&target);
     let result = (|| -> std::io::Result<()> {
         let mut file = File::create(&tmp)?;
-        file.write_all(contents.as_bytes())?;
+        file.write_all(contents)?;
         file.sync_all()?;
         drop(file);
         std::fs::rename(&tmp, &target)
@@ -87,6 +97,7 @@ pub fn run() {
             read_score_file,
             read_file_bytes,
             write_score_file,
+            write_file_bytes,
             take_pending_file,
             library::library_root,
             library::library_scan,
@@ -134,6 +145,17 @@ mod tests {
         assert_eq!(read_score_file(path.clone()).unwrap(), "zwei");
         assert!(!temp_path(Path::new(&path)).exists(), "temporary file must be gone");
 
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn writes_raw_bytes_atomically() {
+        let dir = std::env::temp_dir().join(format!("icastico-wbytes-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("Lied.pdf").to_string_lossy().into_owned();
+        write_file_bytes(path.clone(), vec![0x25, 0x50, 0x44, 0x46, 0x00, 0xff]).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), vec![0x25, 0x50, 0x44, 0x46, 0x00, 0xff]);
+        assert!(!temp_path(Path::new(&path)).exists());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

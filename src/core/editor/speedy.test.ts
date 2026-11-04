@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { frac } from '../time';
 import { pitchToString } from '../pitch';
-import { type CommandId, newScoreState, runCommand } from './commands';
+import { type CommandId, chordSymbolText, ghostPitches, lyricsText, newScoreState, runCommand, setChordSymbol, setLyrics } from './commands';
 import { getVoice, type EditorState, type VoiceRef } from './state';
 
 const VOICE: VoiceRef = { partId: 'voice', voiceId: 'voice-v1' };
@@ -9,44 +9,102 @@ const run = (s: EditorState, ...steps: [CommandId, number?][]): EditorState => s
 const notes = (s: EditorState): string[] =>
   getVoice(s.score, VOICE).voice.events.map((e) => `${e.tones.map((t) => pitchToString(t.pitch)).join(',')}:${e.duration.n}/${e.duration.d}`);
 
-describe('Finale numpad typing (Enter repeats, arrows and numbers change the last note)', () => {
-  it('Enter without a note before the caret places the middle-line note, then copies it', () => {
+describe('Finale numpad typing: a ghost note at the caret (ADR 0018)', () => {
+  it('Enter puts the ghost note (staff middle line at first) and the next Enter repeats it', () => {
     const s = run(newScoreState(), ['input.repeat'], ['input.repeat']);
     expect(notes(s)).toHaveLength(2);
     expect(notes(s)[0]).toBe(notes(s)[1]);
   });
 
-  it('↑ and a length key change the note just entered; Enter then copies the changed note', () => {
-    const s = run(newScoreState(), ['input.repeat'], ['edit.step', 2], ['input.length', 4], ['input.repeat']);
-    const [first, second] = notes(s);
-    expect(first).toMatch(/:1\/8$/);
-    expect(second).toBe(first);
-    expect(getVoice(s.score, VOICE).voice.events[1]!.onset).toEqual(frac(1, 8));
+  it('↑/↓ and the length key change the ghost, not the notes already there; Enter places it', () => {
+    let s = run(newScoreState(), ['input.repeat']);
+    const before = notes(s)[0]!;
+    s = run(s, ['ghost.step', 2], ['input.length', 4]);
+    expect(notes(s)).toEqual([before]); // nothing moved yet
+    expect(ghostPitches(s)!.map(pitchToString)).not.toEqual(getVoice(s.score, VOICE).voice.events[0]!.tones.map((t) => pitchToString(t.pitch)));
+    s = run(s, ['input.repeat'], ['input.repeat']);
+    const [first, second, third] = notes(s);
+    expect(first).toBe(before);
+    expect(second).toMatch(/:1\/8$/);
+    expect(third).toBe(second);
+    expect(getVoice(s.score, VOICE).voice.events[2]!.onset).toEqual(frac(3, 8));
   });
 
-  it('the length key also sets the next note when there is nothing before the caret', () => {
-    const s = run(newScoreState(), ['input.length', 6], ['input.repeat']);
+  it('the length key changes the selected note when nothing is being typed', () => {
+    let s = run(newScoreState(), ['input.repeat'], ['edit.escape']);
+    s = run(s, ['input.length', 6]);
     expect(notes(s)[0]).toMatch(/:1\/2$/);
   });
 
-  it('number row: interval above and below add tones to the note', () => {
-    const s = run(newScoreState(), ['input.repeat'], ['input.interval', 3], ['input.interval', -5]);
-    const tones = getVoice(s.score, VOICE).voice.events[0]!.tones;
-    expect(tones).toHaveLength(3);
-    // third above the middle-line note and a fifth below it
-    const [low, mid, high] = tones.map((t) => t.pitch);
-    expect(high!.octave * 7 + 'CDEFGAB'.indexOf(high!.step) - (mid!.octave * 7 + 'CDEFGAB'.indexOf(mid!.step))).toBe(2);
-    expect(mid!.octave * 7 + 'CDEFGAB'.indexOf(mid!.step) - (low!.octave * 7 + 'CDEFGAB'.indexOf(low!.step))).toBe(4);
+  it('number row: interval above and below add tones to the ghost; Enter places the chord and copies it', () => {
+    let s = run(newScoreState(), ['input.interval', 3], ['input.interval', -5]);
+    expect(ghostPitches(s)).toHaveLength(3);
+    s = run(s, ['input.repeat'], ['input.repeat']);
+    const events = getVoice(s.score, VOICE).voice.events;
+    expect(events.map((e) => e.tones.length)).toEqual([3, 3]);
+    const pos = (p: { step: string; octave: number }) => p.octave * 7 + 'CDEFGAB'.indexOf(p.step);
+    const [low, mid, high] = events[0]!.tones.map((t) => t.pitch);
+    expect(pos(high!) - pos(mid!)).toBe(2); // a third above
+    expect(pos(mid!) - pos(low!)).toBe(4); // a fifth below
   });
 
-  it('Enter copies a whole chord', () => {
-    const s = run(newScoreState(), ['input.repeat'], ['input.interval', 5], ['input.repeat']);
-    expect(getVoice(s.score, VOICE).voice.events.map((e) => e.tones.length)).toEqual([2, 2]);
-  });
-
-  it('the dot key dots the last note while the caret waits behind it', () => {
-    const s = run(newScoreState(), ['input.repeat'], ['edit.dot']);
+  it('the dot key dots the ghost note', () => {
+    const s = run(newScoreState(), ['input.dot'], ['input.repeat']);
     expect(notes(s)[0]).toMatch(/:3\/8$/);
     expect(s.caret!.time).toEqual(frac(3, 8));
+  });
+
+  it('moving the caret forgets the ghost: the notes before it are the model again', () => {
+    let s = run(newScoreState(), ['input.repeat'], ['ghost.step', 3]);
+    expect(ghostPitches(s)).not.toBeNull();
+    s = run(s, ['nav.horizontal', -1]);
+    expect(s.input.ghost).toBeNull();
+  });
+});
+
+describe('lyrics and chord symbols (ADR 0019)', () => {
+  const three = (): EditorState => run(newScoreState(), ['input.repeat'], ['input.repeat'], ['input.repeat']);
+  const lyrics = (s: EditorState): (string | undefined)[] => getVoice(s.score, VOICE).voice.events.map((e) => e.lyric);
+
+  it('one syllable per note from the first note on, "_" skips a note', () => {
+    let s = three();
+    s = { ...s, caret: null, selection: { kind: 'event', ...VOICE, eventId: getVoice(s.score, VOICE).voice.events[0]!.id } };
+    s = setLyrics(s, 'Hel- _ lo');
+    expect(lyrics(s)).toEqual(['Hel-', undefined, 'lo']);
+    expect(lyricsText(s)).toBe('Hel- _ lo');
+  });
+
+  it('notes after the last syllable lose their lyric; too many syllables are reported', () => {
+    let s = three();
+    const first = getVoice(s.score, VOICE).voice.events[0]!.id;
+    s = { ...s, caret: null, selection: { kind: 'event', ...VOICE, eventId: first } };
+    s = setLyrics(setLyrics(s, 'a b c'), 'x');
+    expect(lyrics(s)).toEqual(['x', undefined, undefined]);
+    expect(setLyrics(s, 'a b c d').message).toMatch(/1 Silbe/);
+  });
+
+  it('chord symbols sit at the caret time, are replaced and removed with empty text', () => {
+    let s = run(newScoreState(), ['input.repeat']);
+    s = setChordSymbol(s, 'Am7');
+    expect(s.score.chords).toEqual([{ at: frac(1, 4), text: 'Am7' }]);
+    expect(chordSymbolText(s)).toBe('Am7');
+    s = setChordSymbol(setChordSymbol(s, 'F'), '');
+    expect(s.score.chords).toBeUndefined();
+  });
+});
+
+describe('tuplet mode (ADR 0020)', () => {
+  it('triplet eighths: three notes fill exactly a quarter; the mode toggles off again', () => {
+    let s = run(newScoreState(), ['input.length', 4], ['input.tuplet', 3], ['input.repeat'], ['input.repeat'], ['input.repeat']);
+    expect(notes(s)).toHaveLength(3);
+    expect(getVoice(s.score, VOICE).voice.events.map((e) => `${e.duration.n}/${e.duration.d}`)).toEqual(['1/12', '1/12', '1/12']);
+    expect(s.caret!.time).toEqual(frac(1, 4));
+    s = run(s, ['input.tuplet', 3], ['input.note', 4]);
+    expect(getVoice(s.score, VOICE).voice.events[3]!.duration).toEqual(frac(1, 8));
+  });
+
+  it('quintuplet sixteenths fit a quarter', () => {
+    const s = run(newScoreState(), ['input.length', 3], ['input.tuplet', 5], ...Array.from({ length: 5 }, (): [CommandId] => ['input.repeat']));
+    expect(s.caret!.time).toEqual(frac(1, 4));
   });
 });

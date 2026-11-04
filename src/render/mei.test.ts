@@ -92,6 +92,94 @@ describe('Verovio renders our MEI', () => {
   });
 });
 
+describe('lyrics and chord symbols (ADR 0019)', () => {
+  let engraver: Engraver;
+  beforeAll(async () => {
+    engraver = await Engraver.create();
+  });
+  const withText = () => {
+    const score = demoScore();
+    const voice = score.parts.find((p) => p.id === 'voice')!;
+    const [e1, e2, e3] = voice.voices[0]!.events;
+    const lyrics = new Map([[e1!.id, 'Hel-'], [e2!.id, 'lo'], [e3!.id, 'Welt']]);
+    return {
+      ...score,
+      chords: [{ at: frac(0), text: 'Am7' }, { at: frac(1), text: 'D/F#' }],
+      parts: score.parts.map((p) => (p.id !== 'voice' ? p : { ...p, voices: p.voices.map((v) => ({ ...v, events: v.events.map((e) => (lyrics.has(e.id) ? { ...e, lyric: lyrics.get(e.id)! } : e)) })) })),
+    };
+  };
+
+  it('writes syllables with word positions and chord symbols at their beat', () => {
+    const { mei } = scoreToMei(withText());
+    expect(mei).toMatch(/<syl wordpos="i" con="d">Hel<\/syl>/);
+    expect(mei).toMatch(/<syl wordpos="t">lo<\/syl>/);
+    expect(mei).toMatch(/<syl>Welt<\/syl>/);
+    expect(mei).toMatch(/<harm [^>]*tstamp="1\.0000">Am7<\/harm>/);
+    expect(mei).toMatch(/<harm [^>]*tstamp="1\.0000">D\/F#<\/harm>/); // bar 2, beat 1
+  });
+
+  it('Verovio draws both without warnings', () => {
+    const { log, pages } = engraver.engrave(scoreToMei(withText()).mei);
+    expect(log).toBe('');
+    expect(pages.join('')).toContain('Am7');
+    expect(pages.join('')).toContain('Welt');
+  });
+});
+
+describe('tuplets (ADR 0020)', () => {
+  let engraver: Engraver;
+  beforeAll(async () => {
+    engraver = await Engraver.create();
+  });
+  const triplets = () => {
+    const score = demoScore();
+    const events = [
+      ...[0, 1, 2].map((i) => ({ id: `t${i}`, onset: frac(i, 12), duration: frac(1, 12), tones: [{ id: `t${i}-t1`, pitch: { step: 'C' as const, alter: 0, octave: 5 } }] })),
+      { id: 'q', onset: frac(1, 4), duration: frac(1, 4), tones: [{ id: 'q-t1', pitch: { step: 'D' as const, alter: 0, octave: 5 } }] },
+    ];
+    return { ...score, links: [], parts: score.parts.map((p) => (p.id !== 'voice' ? p : { ...p, voices: [{ ...p.voices[0]!, events }] })) };
+  };
+
+  it('writes a tuplet bracket around the group', () => {
+    const { mei } = scoreToMei(triplets());
+    expect(mei).toMatch(/<tuplet [^>]*num="3" numbase="2">\s*<beam/);
+  });
+
+  it('Verovio draws the triplet without warnings', () => {
+    const { log, pages } = engraver.engrave(scoreToMei(triplets()).mei);
+    expect(log).toBe('');
+    expect(pages.join('')).toContain('class="tuplet');
+  });
+});
+
+describe('tablature (ADR 0022)', () => {
+  let engraver: Engraver;
+  beforeAll(async () => {
+    engraver = await Engraver.create();
+  });
+  const withTab = () => ({ ...demoScore(), parts: demoScore().parts.map((p) => (p.instrument === 'guitar' ? { ...p, tab: true } : p)) });
+
+  it('adds a six-line staff under the guitar staff with notes on the string lines', () => {
+    const { mei, tab, staffs } = scoreToMei(withTab());
+    expect(mei).toMatch(/<staffDef n="\d+" lines="6"/);
+    expect(mei).toMatch(/<note xml:id="[^"]*-tab"[^>]*loc="\d+"\/>/);
+    expect(tab.size).toBeGreaterThan(0);
+    expect(staffs.map((s) => s.n)).toEqual([1, 2, 4, 5]); // the tab staff (3) is not a staff of the model
+  });
+
+  it('Verovio draws it without warnings and the numbers replace the noteheads', () => {
+    const { mei, tab } = scoreToMei(withTab());
+    const { log, pages } = engraver.engrave(mei, { tab });
+    expect(log).toBe('');
+    const svg = pages.join('');
+    expect((svg.match(/class="tabnumber"/g) ?? []).length).toBe(tab.size);
+  });
+
+  it('no tab staff unless switched on', () => {
+    expect(scoreToMei(demoScore()).tab.size).toBe(0);
+  });
+});
+
 describe('staves shown as piano roll are left out', () => {
   let engraver: Engraver;
   beforeAll(async () => {

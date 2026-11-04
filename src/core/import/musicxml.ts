@@ -2,16 +2,18 @@
  * MusicXML (score-partwise) → Icastico score (ADR 0017).
  *
  * What is taken over: parts, staves and voices, notes, chords, rests, ties, key, meter changes,
- * an upbeat, the tempo, title and composer. What is left out is reported (grace notes, lyrics,
- * chord symbols, tablature …) – nothing is dropped silently.
+ * an upbeat, the tempo, title and composer, the first verse of the lyrics and chord symbols
+ * (ADR 0019). What is left out is reported (grace notes, more verses, tablature …) – nothing is
+ * dropped silently.
  *
  * Pitches in Icastico are sounding pitches: a `<transpose>` of the part is applied; a guitar part
  * without one is taken as written an octave above sound (the convention for guitar).
  */
-import { type Fraction, ZERO, add, eq, frac, isDyadic, le, lt, sub } from '../time';
+import { type Fraction, ZERO, add, compare, eq, frac, le, lt, sub } from '../time';
 import { type Pitch, STEPS, midiOf, spellMidi } from '../pitch';
 import { type InstrumentId, getInstrument } from '../instruments';
 import {
+  type ChordSymbol,
   type KeyChange,
   type Link,
   type MeterChange,
@@ -25,13 +27,83 @@ import {
   measureLength,
   validateScore,
 } from '../model';
+import { decomposeTuplet } from '../notation/notate';
 import { type XmlElement, XmlError, child, childText, childrenNamed, parseXml } from './xml';
 
-/** Times Icastico can notate lie on a 1/64 grid; others (tuplets) are rounded to the nearest 1/32 for now. */
-function fit(t: Fraction, grid: number): { time: Fraction; rounded: boolean } {
-  if (isDyadic(t) && t.d <= 64) return { time: t, rounded: false };
-  return { time: frac(Math.round((t.n * grid) / t.d), grid), rounded: true };
+export const KIND_TEXT: Record<string, string> = {
+  major: '',
+  minor: 'm',
+  augmented: 'aug',
+  diminished: 'dim',
+  dominant: '7',
+  'major-seventh': 'maj7',
+  'minor-seventh': 'm7',
+  'diminished-seventh': 'dim7',
+  'half-diminished': 'm7b5',
+  'major-minor': 'm(maj7)',
+  'major-sixth': '6',
+  'minor-sixth': 'm6',
+  'dominant-ninth': '9',
+  'major-ninth': 'maj9',
+  'minor-ninth': 'm9',
+  'dominant-11th': '11',
+  'dominant-13th': '13',
+  'suspended-second': 'sus2',
+  'suspended-fourth': 'sus4',
+  power: '5',
+  none: '',
+};
+
+const noteName = (step: string | undefined, alter: string | undefined): string => {
+  const a = Math.round(intOf(alter, 0));
+  return `${step ?? ''}${a > 0 ? '#'.repeat(a) : a < 0 ? 'b'.repeat(-a) : ''}`;
+};
+
+/** "Am7/G" from a <harmony> element; null if there is no root (e.g. only a function name). */
+function chordText(el: XmlElement): string | null {
+  const root = child(el, 'root');
+  const step = root ? childText(root, 'root-step') : undefined;
+  if (!root || !step) return null;
+  const kind = child(el, 'kind');
+  const written = kind?.attrs.text;
+  const suffix = written !== undefined ? written : (KIND_TEXT[kind?.text ?? ''] ?? kind?.text ?? '');
+  const bass = child(el, 'bass');
+  const bassName = bass && childText(bass, 'bass-step') ? `/${noteName(childText(bass, 'bass-step'), childText(bass, 'bass-alter'))}` : '';
+  return `${noteName(step, childText(root, 'root-alter'))}${suffix}${bassName}`;
 }
+
+/** The syllable of the first verse of a note ("Hel-" when the word goes on), or null. */
+function syllableOf(note: XmlElement): string | null {
+  const verse = childrenNamed(note, 'lyric')[0];
+  const text = verse ? childText(verse, 'text')?.trim().replace(/\s+/g, '_') : undefined;
+  if (!verse || !text) return null;
+  const syllabic = childText(verse, 'syllabic');
+  return syllabic === 'begin' || syllabic === 'middle' ? `${text}-` : text;
+}
+
+/** Positions Icastico can place: a 1/64 grid, or the same with a factor 3, 5 or 7 (triplets, quintuplets, septuplets; ADR 0020). */
+function placeable(t: Fraction): boolean {
+  let d = t.d;
+  let twos = 0;
+  while (d % 2 === 0) {
+    d /= 2;
+    twos++;
+  }
+  return (d === 1 || d === 3 || d === 5 || d === 7) && 2 ** twos <= 256;
+}
+
+/** A length the notation can write (power of two ≥ 1/64, or a supported tuplet). */
+function writable(length: Fraction): boolean {
+  if (!lt(ZERO, length)) return false;
+  try {
+    decomposeTuplet(length);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const snap = (t: Fraction): Fraction => frac(Math.round((t.n * 64) / t.d), 64);
 
 export class ImportError extends Error {
   override readonly name = 'ImportError';
@@ -50,6 +122,7 @@ interface Raw {
   /** Tie from this note into the next one of the voice / from the previous one into this. */
   readonly tieStart: boolean[];
   readonly tieStop: boolean[];
+  readonly lyric: string | null;
 }
 
 const STEP_SET = new Set<string>(STEPS);
@@ -109,6 +182,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
   const starts: Fraction[] = [];
 
   const parts: Part[] = [];
+  const chordSymbols = new Map<string, ChordSymbol>();
   const links: Link[] = [];
   let linkNumber = 0;
 
@@ -177,7 +251,10 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
           if (partIndex === 0 && tempo === undefined && Number.isFinite(bpm)) tempo = Math.max(MIN_TEMPO, Math.min(MAX_TEMPO, Math.round(bpm)));
           if (el.name === 'direction' && child(el, 'direction-type') && child(child(el, 'direction-type')!, 'words')) skip('Textanweisungen');
         } else if (el.name === 'harmony') {
-          skip('Akkordsymbole');
+          const text = chordText(el);
+          const time = placeable(at(cursor)) ? at(cursor) : snap(at(cursor));
+          if (!text) skip('Akkordsymbole ohne Grundton');
+          else if (!chordSymbols.has(`${time.n}/${time.d}`)) chordSymbols.set(`${time.n}/${time.d}`, { at: time, text });
         } else if (el.name === 'note') {
           if (child(el, 'grace')) {
             skip('Vorschlagsnoten');
@@ -186,7 +263,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
           const dur = Math.round(intOf(childText(el, 'duration'), 0));
           const isChord = child(el, 'chord') !== undefined;
           const onsetPos = isChord ? lastOnset : cursor;
-          if (child(el, 'lyric')) skip('Liedtext');
+          if (childrenNamed(el, 'lyric').length > 1) skip('Weitere Strophen');
           if (!isChord) {
             lastOnset = cursor;
             cursor += dur;
@@ -217,12 +294,15 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
           const key = `${staff}:${childText(el, 'voice') ?? '1'}`;
           const tieStart = childrenNamed(el, 'tie').some((t) => t.attrs.type === 'start');
           const tieStop = childrenNamed(el, 'tie').some((t) => t.attrs.type === 'stop');
-          const inTuplet = child(el, 'time-modification') !== undefined;
-          const grid = inTuplet ? 32 : 64;
-          const start = fit(at(onsetPos), grid);
-          const finish = fit(at(onsetPos + dur), grid);
-          if (start.rounded || finish.rounded) roundedNotes++;
-          if (isChord && last && eq(last.onset, start.time)) {
+          let start = at(onsetPos);
+          let finish = at(onsetPos + dur);
+          if (!placeable(start) || !placeable(finish) || !writable(sub(finish, start))) {
+            // e.g. a 9:8 tuplet: Icastico cannot write it, so it lands on the nearest 1/64
+            start = snap(start);
+            finish = snap(finish);
+            roundedNotes++;
+          }
+          if (isChord && last && eq(last.onset, start)) {
             if (!last.pitches.some((p) => midiOf(p) === midiOf(pitch))) {
               last.pitches.push(pitch);
               last.tieStart.push(tieStart);
@@ -230,7 +310,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
             }
             continue;
           }
-          const raw: Raw = { onset: start.time, duration: lt(start.time, finish.time) ? sub(finish.time, start.time) : frac(1, grid), pitches: [pitch], tieStart: [tieStart], tieStop: [tieStop] };
+          const raw: Raw = { onset: start, duration: lt(start, finish) ? sub(finish, start) : frac(1, 64), pitches: [pitch], tieStart: [tieStart], tieStop: [tieStop], lyric: syllableOf(el) };
           const list = raws.get(key) ?? [];
           list.push(raw);
           raws.set(key, list);
@@ -280,7 +360,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
         // Tones are sorted by sounding pitch; the tie flags travel with their tone.
         const order = raw.pitches.map((_, ti) => ti).sort((a, b) => midiOf(raw.pitches[a]!) - midiOf(raw.pitches[b]!));
         const tones = order.map((src, ti) => ({ id: `${id}-t${ti + 1}`, pitch: raw.pitches[src]!, src }));
-        lane.events.push({ id, onset: raw.onset, duration: raw.duration, tones: tones.map(({ id: toneId, pitch }) => ({ id: toneId, pitch })) });
+        lane.events.push({ id, onset: raw.onset, duration: raw.duration, tones: tones.map(({ id: toneId, pitch }) => ({ id: toneId, pitch })), ...(raw.lyric ? { lyric: raw.lyric } : {}) });
         lane.end = add(raw.onset, raw.duration);
         tones.forEach((t) => {
           toneAt.set(`${key}|${raw.onset.n}/${raw.onset.d}|${midiOf(t.pitch)}`, t.id);
@@ -315,6 +395,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
     ...(pickup ? { pickup } : {}),
     ...(tempo !== undefined && tempo !== DEFAULT_TEMPO ? { tempo } : {}),
     ...(links.length ? { links } : {}),
+    ...(chordSymbols.size ? { chords: [...chordSymbols.values()].sort((a, b) => compare(a.at, b.at)) } : {}),
     parts,
   };
   const problems = validateScore(score);
@@ -322,6 +403,6 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
     throw new ImportError(`Die Partitur lässt sich nicht übernehmen:\n- ${problems.slice(0, 5).join('\n- ')}`);
   }
   for (const [what, n] of skipped) notes.push(`${what}: ${n}× nicht übernommen.`);
-  if (roundedNotes > 0) notes.push(`${roundedNotes} Noten (Triolen und andere N-Tolen) sind auf das Raster (1/32) gerundet, denn N-Tolen kann Icastico noch nicht schreiben.`);
+  if (roundedNotes > 0) notes.push(`${roundedNotes} Noten haben einen Rhythmus, den Icastico nicht schreiben kann (nur Triolen, Quintolen und Septolen gehen); sie sind auf das 1/64-Raster gerundet.`);
   return { score, notes: [...new Set(notes)] };
 }

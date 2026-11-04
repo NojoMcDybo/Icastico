@@ -100,11 +100,11 @@ describe('key-binding library', () => {
     expect(findBinding(speedy, 'Shift+3')).toMatchObject({ command: 'input.interval', arg: -3 });
     expect(findBinding(speedy, 'Enter')).toMatchObject({ command: 'input.repeat' });
     expect(findBinding(speedy, 'Num0')).toMatchObject({ command: 'input.rest' });
-    expect(findBinding(speedy, 'Period')).toMatchObject({ command: 'edit.dot' });
+    expect(findBinding(speedy, 'Period')).toMatchObject({ command: 'input.dot' });
     // everything else keeps the Finale keys
     expect(findBinding(speedy, 'T')).toMatchObject({ command: 'edit.tie' });
-    expect(findBinding(speedy, 'ArrowUp')).toMatchObject({ command: 'edit.step', arg: 1 });
-    expect(findBinding(speedy, 'Plus')).toMatchObject({ command: 'edit.alter', arg: 1 });
+    expect(findBinding(speedy, 'ArrowUp')).toMatchObject({ command: 'ghost.step', arg: 1 });
+    expect(findBinding(speedy, 'Plus')).toMatchObject({ command: 'ghost.alter', arg: 1 });
     expect(findBinding(finale, 'Num5')).toBeUndefined();
   });
 
@@ -150,7 +150,8 @@ describe('key-binding library', () => {
       keys: '1 … 7',
       text: 'Notenwert der nächsten Note: 1 = 64tel · 2 = 32tel · 3 = 16tel · 4 = Achtel · 5 = Viertel · 6 = Halbe · 7 = Ganze',
     });
-    expect(finale.help.flatMap((g) => g.entries).some((e) => e.text.startsWith('Triolen'))).toBe(false); // planned only
+    expect(finale.help.flatMap((g) => g.entries).some((e) => e.text.startsWith('Triolen'))).toBe(true);
+    expect(logic.help.flatMap((g) => g.entries).find((e) => e.text.startsWith('Triolen'))!.keys).toBe('9');
     const logicInput = logic.help.find((g) => g.title === 'Eingabe')!;
     expect(logicInput.entries.find((e) => e.text.startsWith('Notenwert'))!.text).toMatch(/^Notenwert der nächsten Note: 1 = Ganze · 2 = Halbe/);
   });

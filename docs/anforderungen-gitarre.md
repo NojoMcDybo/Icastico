@@ -9,10 +9,10 @@ Zwischenstand; offene Punkte stehen unten. Vergleich mit dem Stand von Icastico 
 | Wunsch | Stand |
 |---|---|
 | Gitarrennoten, mehrstimmig (Melodie + Bass in einem System) | Mehrere Stimmen pro Zeile gehen (bis 4, ADR 0016); Halsrichtung automatisch durch Verovio, nicht einstellbar |
-| Leadsheets: Melodie, Akkordsymbole, Liedtext | fehlt (Akkordsymbole, Liedtext) |
-| Ensemblepartituren und Einzelstimmen | Mehrere Instrumente im Modell möglich; Auszug von Einzelstimmen fehlt |
-| Unterrichtsmaterial: mehrere kurze Notenbeispiele auf einer Seite | fehlt (Seitenlayout) |
-| Gitarrentabulatur, allein oder mit Noten | fehlt |
+| Leadsheets: Melodie, Akkordsymbole, Liedtext | geht (ADR 0019): K = Akkordsymbol, L = Liedtext; eine Strophe |
+| Ensemblepartituren und Einzelstimmen | geht: mehrere Instrumente; Strg+Umschalt+X zieht eine Einzelstimme heraus (ADR 0023) |
+| Unterrichtsmaterial: mehrere kurze Notenbeispiele auf einer Seite | geht: Bibliothek → „Als PDF speichern …“ mit „Mehrere pro Seite“; kein freies Seitenlayout (ADR 0023) |
+| Gitarrentabulatur, allein oder mit Noten | geht mit Noten (Strg+T, ADR 0022); „nur Tabulatur“ ohne Notenzeile nicht |
 | Klavier mit verbundenem Violin-/Bassschlüsselsystem | geht (Klavier-Instrument) |
 | **MusicXML importieren** (und damit Finale-Dateien übernehmen) | geht seit 0.11.0 (ADR 0017): Strg+Umschalt+I; N-Tolen gerundet, Liedtext/Akkordsymbole noch nicht |
 
@@ -39,15 +39,15 @@ nicht billig.
 
 ## Noch zu besprechen
 
-- Übernahme vorhandener Finale-Dateien (Weg: MusicXML-Export aus Finale, später ggf. `.musx` direkt)
-- Seitenlayout, Ausdruck/PDF, Wiedergabe
-- Liedtext, Akkordsymbole, Tabulatur: genaue Bedienung
+- Übernahme vorhandener Finale-Dateien: Weg ist der MusicXML-Export aus Finale (`.musx` direkt: bewusst zurückgestellt)
+- Freies Seitenlayout (Umbrüche von Hand, Systemabstand, Kopf-/Fußzeilen)
+- Mehrere Strophen, Tabulatur ohne Notenzeile, Spieltechniken in der Tabulatur
 
 ## Mögliche Reihenfolge (Empfehlung)
 
 1. ~~MusicXML-Import~~ (gebaut, ADR 0017)
-2. ~~Eigene Tastenbelegung „Finale-Ziffernblock“~~ (gebaut, ADR 0018)
-3. Akkordsymbole und Liedtext (Leadsheet)
-4. Tabulatur
-5. Seitenlayout, PDF, Einzelstimmen
+2. ~~Eigene Tastenbelegung „Finale-Ziffernblock“~~ (gebaut, ADR 0018, mit Vorschau-Note)
+3. ~~Akkordsymbole und Liedtext (Leadsheet)~~ (gebaut, ADR 0019)
+4. ~~Tabulatur~~ (gebaut, ADR 0022)
+5. ~~PDF, Einzelstimmen, Notenblatt~~ (gebaut, ADR 0023; freies Seitenlayout fehlt)
 6. Der Notenkopf-Sonderfall

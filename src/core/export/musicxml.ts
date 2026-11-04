@@ -1,0 +1,228 @@
+/**
+ * Icastico score → MusicXML 3.1 (score-partwise), so other programs (Finale, MuseScore, Dorico …) can read it.
+ *
+ * Written from the notation layer, not from the raw timeline: notes that cross barlines are already split
+ * and tied, rests are filled in, tuplets are grouped – exactly what the engraving shows.
+ *
+ * Left out (reported): glides and loudness lines (MusicXML has no equivalent we write), and everything the
+ * notation does not show. Chord symbols and lyrics are written (ADR 0019).
+ */
+import { type Fraction, add, frac, le, lt, sub } from '../time';
+import { type Pitch } from '../pitch';
+import { getInstrument } from '../instruments';
+import { type Measure, type Part, type Score, type Voice, DEFAULT_TEMPO, measuresOf, validateScore } from '../model';
+import {
+  type NotatedItem,
+  type NotatedNote,
+  notateVoice,
+  realValue,
+  tupletGroups,
+} from '../notation/notate';
+import { KIND_TEXT } from '../import/musicxml';
+
+export interface ExportResult {
+  readonly xml: string;
+  /** German remarks about what could not be written. */
+  readonly notes: readonly string[];
+}
+
+const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+const gcd = (a: number, b: number): number => (b === 0 ? Math.abs(a) : gcd(b, a % b));
+const lcm = (a: number, b: number): number => (a / gcd(a, b)) * b;
+
+const TYPE_NAMES: Record<number, string> = { 1: 'whole', 2: 'half', 4: 'quarter', 8: 'eighth', 16: '16th', 32: '32nd', 64: '64th' };
+
+/** Divisions per quarter note such that every onset and duration of the score is a whole number of divisions. */
+function divisionsFor(score: Score, measures: readonly Measure[]): number {
+  let d = 1;
+  const need = (t: Fraction) => {
+    const q = frac(t.n * 4, t.d); // in quarter notes
+    d = lcm(d, q.d);
+  };
+  for (const part of score.parts) for (const voice of part.voices) for (const e of voice.events) (need(e.onset), need(e.duration));
+  for (const m of measures) (need(m.start), need(m.end));
+  for (const c of score.chords ?? []) need(c.at);
+  // Rests of tuplet gaps and split notes land on the same denominators; one more factor covers beat-aligned pieces.
+  return d;
+}
+
+function pitchXml(p: Pitch, octaveShift: number): string {
+  const alter = p.alter !== 0 ? `<alter>${p.alter}</alter>` : '';
+  return `<pitch><step>${p.step}</step>${alter}<octave>${p.octave + octaveShift}</octave></pitch>`;
+}
+
+/** "Am7/G" → MusicXML <harmony>; null when the text does not start with a note name. */
+function harmonyXml(text: string, offset: number): string | null {
+  const slash = text.lastIndexOf('/');
+  const main = slash > 0 ? text.slice(0, slash) : text;
+  const bassText = slash > 0 ? text.slice(slash + 1) : '';
+  const root = /^([A-G])([#b]{0,2})(.*)$/.exec(main);
+  const bass = bassText ? /^([A-G])([#b]{0,2})$/.exec(bassText) : null;
+  if (!root || (bassText && !bass)) return null;
+  const alterOf = (s: string) => (s.startsWith('#') ? s.length : -s.length);
+  const rootAlter = root[2] ? `<root-alter>${alterOf(root[2])}</root-alter>` : '';
+  const suffix = root[3] ?? '';
+  const known = Object.entries(KIND_TEXT).find(([, v]) => v === suffix && suffix !== '');
+  const kind = suffix === '' ? '<kind>major</kind>' : known ? `<kind text="${esc(suffix)}">${known[0]}</kind>` : `<kind text="${esc(suffix)}">other</kind>`;
+  const bassXml = bass ? `<bass><bass-step>${bass[1]}</bass-step>${bass[2] ? `<bass-alter>${alterOf(bass[2])}</bass-alter>` : ''}</bass>` : '';
+  const off = offset > 0 ? `<offset>${offset}</offset>` : '';
+  return `<harmony><root><root-step>${root[1]}</root-step>${rootAlter}</root>${kind}${bassXml}${off}</harmony>`;
+}
+
+function clefXml(number: number, sign: string, line: number, octave: number, many: boolean): string {
+  return `<clef${many ? ` number="${number}"` : ''}><sign>${sign}</sign><line>${line}</line>${octave !== 0 ? `<clef-octave-change>${octave}</clef-octave-change>` : ''}</clef>`;
+}
+
+export function exportMusicXml(score: Score, appVersion = ''): ExportResult {
+  const problems = validateScore(score);
+  if (problems.length > 0) throw new Error(`Partitur ungültig:\n- ${problems.join('\n- ')}`);
+  const notes: string[] = [];
+  const lastChord = score.chords?.[score.chords.length - 1]?.at; // a chord symbol after the last note still needs its bar
+  const measures = measuresOf(score, 1, lastChord);
+  const divisions = divisionsFor(score, measures);
+  const units = (t: Fraction): number => Math.round((t.n * 4 * divisions) / t.d);
+
+  const links = score.links ?? [];
+  const tieOut = new Set(links.filter((l) => l.kind === 'tie').map((l) => l.from));
+  const tieIn = new Set(links.filter((l) => l.kind === 'tie').map((l) => l.to));
+  const slides = links.filter((l) => l.kind === 'slide').length;
+  if (slides > 0) notes.push(`Gleiten: ${slides}× nicht geschrieben (MusicXML kennt es nicht in dieser Form).`);
+  if (score.parts.some((p) => p.voices.some((v) => v.events.some((e) => e.tones.some((t) => t.volume !== undefined || t.curve))))) {
+    notes.push('Lautstärke und Lautstärkelinien sind nicht in der Datei.');
+  }
+  if (links.some((l) => l.curve)) notes.push('Gleit-Verläufe sind nicht in der Datei.');
+
+  const partList = score.parts.map((p, i) => `    <score-part id="P${i + 1}"><part-name>${esc(p.name)}</part-name></score-part>`).join('\n');
+  const partXml = score.parts.map((part, pi) => partToXml(part, pi));
+
+  function partToXml(part: Part, partIndex: number): string {
+    const def = getInstrument(part.instrument);
+    const manyStaves = def.staves.length > 1;
+    // Voices to write: per staff those with notes, or the first one if the staff is empty.
+    const voices: Voice[] = [];
+    def.staves.forEach((_, staffIndex) => {
+      const onStaff = part.voices.filter((v) => v.staff === staffIndex);
+      voices.push(...(onStaff.some((v) => v.events.length > 0) ? onStaff.filter((v) => v.events.length > 0) : onStaff.slice(0, 1)));
+    });
+    const notated = new Map(voices.map((v) => [v.id, notateVoice(v, measures)]));
+    const out: string[] = [`  <part id="P${partIndex + 1}">`];
+    // Lyrics: "-" at the end of a syllable continues the word.
+    const continues = new Map<string, boolean>();
+
+    measures.forEach((m, mi) => {
+      const prev = measures[mi - 1];
+      const length = units(sub(m.end, m.start));
+      out.push(`    <measure number="${m.number}"${m.number === 0 ? ' implicit="yes"' : ''}>`);
+      const attrs: string[] = [];
+      if (mi === 0) attrs.push(`<divisions>${divisions}</divisions>`);
+      if (!prev || prev.fifths !== m.fifths) attrs.push(`<key><fifths>${m.fifths}</fifths></key>`);
+      if (!prev || prev.sig.count !== m.sig.count || prev.sig.unit !== m.sig.unit) attrs.push(`<time><beats>${m.sig.count}</beats><beat-type>${m.sig.unit}</beat-type></time>`);
+      if (mi === 0) {
+        if (manyStaves) attrs.push(`<staves>${def.staves.length}</staves>`);
+        def.staves.forEach((st, i) => attrs.push(clefXml(i + 1, st.clef.shape, st.clef.line, st.clef.octave, manyStaves)));
+      }
+      if (attrs.length) out.push(`      <attributes>${attrs.join('')}</attributes>`);
+      if (mi === 0 && partIndex === 0) {
+        const bpm = score.tempo ?? DEFAULT_TEMPO;
+        out.push(`      <direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${bpm}</per-minute></metronome></direction-type><sound tempo="${bpm}"/></direction>`);
+      }
+
+      voices.forEach((voice, vi) => {
+        if (vi > 0) out.push(`      <backup><duration>${length}</duration></backup>`);
+        const items = notated.get(voice.id)![mi]!;
+        const brackets = tupletGroups(items);
+        const staffTag = manyStaves ? `<staff>${voice.staff + 1}</staff>` : '';
+        const octaveShift = -def.staves[voice.staff]!.clef.octave; // guitar is written an octave above its sound
+        // Chord symbols are written once, in the first voice of the first part, before the item they fall into.
+        const harmonies = partIndex === 0 && vi === 0 ? (score.chords ?? []).filter((c) => le(m.start, c.at) && lt(c.at, m.end)) : [];
+        const written = new Set<string>();
+
+        items.forEach((item, i) => {
+          const start = item.kind === 'measureRest' ? m.start : item.onset;
+          const real = item.kind === 'measureRest' ? sub(m.end, m.start) : realValue(item.duration, item.tuplet);
+          const next = add(start, real);
+          for (const c of harmonies) {
+            const key = `${c.at.n}/${c.at.d}`;
+            if (written.has(key) || !(le(start, c.at) && lt(c.at, next))) continue;
+            written.add(key);
+            const xml = harmonyXml(c.text, units(sub(c.at, start))) ?? `<direction><direction-type><words>${esc(c.text)}</words></direction-type></direction>`;
+            out.push(`      ${xml}`);
+          }
+          out.push(...itemToXml(item, i, brackets, vi + 1, staffTag, octaveShift, voice, continues, units, length, tieOut, tieIn).map((l) => `      ${l}`));
+        });
+      });
+      out.push('    </measure>');
+    });
+    out.push('  </part>');
+    return out.join('\n');
+  }
+
+  const composer = score.composer ? `<creator type="composer">${esc(score.composer)}</creator>` : '';
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="3.1">
+  <work><work-title>${esc(score.title)}</work-title></work>
+  <identification>${composer}<encoding><software>Icastico${appVersion ? ` ${esc(appVersion)}` : ''}</software></encoding></identification>
+  <part-list>
+${partList}
+  </part-list>
+${partXml.join('\n')}
+</score-partwise>
+`;
+  return { xml, notes };
+}
+
+function itemToXml(
+  item: NotatedItem,
+  index: number,
+  brackets: ReturnType<typeof tupletGroups>,
+  voiceNo: number,
+  staffTag: string,
+  octaveShift: number,
+  voice: Voice,
+  continues: Map<string, boolean>,
+  units: (t: Fraction) => number,
+  measureUnits: number,
+  tieOut: ReadonlySet<string>,
+  tieIn: ReadonlySet<string>,
+): string[] {
+  if (item.kind === 'measureRest') {
+    return [`<note><rest measure="yes"/><duration>${measureUnits}</duration><voice>${voiceNo}</voice>${staffTag}</note>`];
+  }
+  const duration = units(realValue(item.duration, item.tuplet));
+  const type = `<type>${TYPE_NAMES[item.duration.base]}</type>${'<dot/>'.repeat(item.duration.dots)}`;
+  const modification = item.tuplet ? `<time-modification><actual-notes>${item.tuplet.num}</actual-notes><normal-notes>${item.tuplet.numbase}</normal-notes></time-modification>` : '';
+  const bracket = brackets.find((g) => g.start === index);
+  const bracketEnd = brackets.some((g) => g.end === index);
+
+  if (item.kind === 'rest') {
+    const tuplet = tupletNotation(bracket !== undefined, bracketEnd);
+    return [`<note><rest/><duration>${duration}</duration><voice>${voiceNo}</voice>${type}${modification}${staffTag}${tuplet}</note>`];
+  }
+  const lyric = !item.tiedFromPrevious ? lyricXml(voice, item, continues) : '';
+  return item.tones.map((tone, ti) => {
+    const stop = item.tiedFromPrevious || tieIn.has(tone.id);
+    const start = item.tiedToNext || tieOut.has(tone.id);
+    const ties = `${stop ? '<tie type="stop"/>' : ''}${start ? '<tie type="start"/>' : ''}`;
+    const tied = `${stop ? '<tied type="stop"/>' : ''}${start ? '<tied type="start"/>' : ''}`;
+    const tuplet = tupletNotation(ti === 0 && bracket !== undefined, ti === 0 && bracketEnd, tied);
+    return `<note>${ti > 0 ? '<chord/>' : ''}${pitchXml(tone.pitch, octaveShift)}<duration>${duration}</duration>${ties}<voice>${voiceNo}</voice>${type}${modification}${staffTag}${tuplet}${ti === 0 ? lyric : ''}</note>`;
+  });
+}
+
+function tupletNotation(start: boolean, stop: boolean, tied = ''): string {
+  const inner = `${tied}${stop ? '<tuplet type="stop"/>' : ''}${start ? '<tuplet type="start"/>' : ''}`;
+  return inner ? `<notations>${inner}</notations>` : '';
+}
+
+function lyricXml(voice: Voice, item: NotatedNote, continues: Map<string, boolean>): string {
+  const event = voice.events.find((e) => e.id === item.eventId);
+  if (!event || event.lyric === undefined) return '';
+  const goesOn = event.lyric.endsWith('-');
+  const text = (goesOn ? event.lyric.slice(0, -1) : event.lyric).replace(/_/g, ' ');
+  const was = continues.get(voice.id) ?? false;
+  const syllabic = goesOn ? (was ? 'middle' : 'begin') : was ? 'end' : 'single';
+  continues.set(voice.id, goesOn);
+  return `<lyric number="1"><syllabic>${syllabic}</syllabic><text>${esc(text)}</text></lyric>`;
+}

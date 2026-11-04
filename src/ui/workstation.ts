@@ -4,19 +4,23 @@
  *
  * Rendering is skipped when only caret/selection changed (decorate only).
  */
-import { type CommandId, newScoreState, runCommand } from '../core/editor/commands';
+import { type CommandId, chordSymbolText, ghostPitches, lyricsText, newScoreState, runCommand, setChordSymbol, setLyrics } from '../core/editor/commands';
 import { demoScore } from '../core/demo';
 import { History } from '../core/editor/history';
-import { type EditorState, type VoiceRef, createEditorState, getVoice, inputLength } from '../core/editor/state';
+import { type EditorState, type VoiceRef, createEditorState, getVoice, inputLength, staffCenter } from '../core/editor/state';
 import { applyRollEdit } from '../core/editor/rollEdits';
 import { FileFormatError, parseScoreFile, serializeScore } from '../core/file/format';
 import { musicXmlText } from '../core/import/container';
 import { type ImportResult, ImportError, importMusicXml } from '../core/import/musicxml';
+import { extractPart } from '../core/extract';
+import { pdfDialog } from './pdfDialog';
+import { scoresToPdf } from './pdfExport';
+import { exportMusicXml, type ExportResult } from '../core/export/musicxml';
 import { getInstrument } from '../core/instruments';
 import { type Score, keyAt, measuresOf, meterAt, withTempo } from '../core/model';
 import { secondsOf, tempoOf, timeAt } from '../core/playback';
 import { durationName } from '../core/notation/notate';
-import { pitchToString } from '../core/pitch';
+import { type Pitch, STEPS, midiOf, pitchToString } from '../core/pitch';
 import { type Fraction, ZERO, eq, le, lt } from '../core/time';
 import { applyScoreChanges, createScore, emptyScore } from '../core/templates';
 import { dirOf, fileNameOf, preferredFileName } from '../library/library';
@@ -25,7 +29,7 @@ import { type ElementRef, type MeiResult, scoreToMei, staffElementId } from '../
 import type { Engraver } from '../render/verovio';
 import type { Platform } from '../platform/files';
 import { APP_VERSION } from '../version';
-import { ask, inform, isDialogOpen } from './dialog';
+import { ask, inform, isDialogOpen, promptText } from './dialog';
 import { LibraryHome } from './libraryHome';
 import { CurvePopup, type ShapeHost } from './curvePopup';
 import { PianoRoll, type RollHost } from './pianoRoll';
@@ -54,7 +58,7 @@ import {
 } from './lanes';
 import { Thumbnails } from './thumbnails';
 import type { UpdateChecker } from './updates';
-import { loadNewScoreDefaults, loadView, saveKeymapPreset, saveLastOpened, saveNewScoreDefaults, saveView } from './preferences';
+import { loadNewScoreDefaults, loadPdfSetup, loadView, savePdfSetup, saveKeymapPreset, saveLastOpened, saveNewScoreDefaults, saveView } from './preferences';
 import { scoreDialog } from './scoreDialog';
 import { comboOf, numpadComboOf } from './keys';
 import { type Keymap, type PresetId, type UiCommandId, buildKeymap, findBinding, KEY_LIBRARY, PRESETS } from './keymaps/library';
@@ -193,6 +197,7 @@ export class Workstation {
           newScore: (collection) => this.fileNew(collection),
           openExternal: () => this.fileOpen(),
           importFile: () => this.fileImport(),
+          exportPdf: (scores, title) => this.exportPdf(scores, title),
           relocated: (from, to) => this.relocated(from, to),
           closedByTrash: () => this.closeDocument(),
           ...(updates ? { checkForUpdates: () => updates.checkNow() } : {}),
@@ -337,6 +342,21 @@ export class Workstation {
         return;
       case 'play.toggle':
         this.togglePlay();
+        return;
+      case 'file.exportXml':
+        void this.fileExportXml();
+        return;
+      case 'file.extractPart':
+        void this.fileExtractPart();
+        return;
+      case 'file.exportPdf':
+        void this.exportPdf([this.history.committed.score], this.history.committed.score.title);
+        return;
+      case 'text.lyrics':
+        void this.editLyrics();
+        return;
+      case 'text.chord':
+        void this.editChord();
         return;
       case 'file.new':
         void this.fileNew();
@@ -594,6 +614,75 @@ export class Workstation {
     }
   }
 
+  /** One instrument of the open score as a new score in the library (ADR 0023). */
+  async fileExtractPart(): Promise<void> {
+    if (this.empty) return;
+    const score = this.history.committed.score;
+    if (score.parts.length < 2) {
+      await inform('Nur ein Instrument', 'Diese Partitur hat nur ein Instrument – eine Einzelstimme würde ihr gleichen.');
+      return this.update();
+    }
+    const choice = await ask({
+      title: 'Einzelstimme herausziehen',
+      text: 'Welches Instrument soll als eigene Partitur angelegt werden? Die ursprüngliche Partitur bleibt unverändert.',
+      buttons: [...score.parts.map((p) => ({ id: p.id, label: p.name })), { id: '', label: 'Abbrechen' }],
+      cancel: '',
+    });
+    if (!choice) return this.update();
+    const part = extractPart(score, choice);
+    if (!(await this.confirmDiscard())) return this.update();
+    let location: DocumentLocation | null = null;
+    if (this.store) {
+      const collection = this.library?.isOpen ? this.library.collection : this.currentCollection;
+      const path = await this.withBusy(() => this.store!.createScore(part, collection), 'Partitur konnte nicht angelegt werden');
+      if (!path) return this.update();
+      saveLastOpened(path);
+      location = { path, inLibrary: true };
+    }
+    this.load({ ...createEditorState(part), message: 'Einzelstimme angelegt: ' + part.title }, location);
+  }
+
+  /** One or several scores as a PDF of A4 pages (ADR 0023). */
+  async exportPdf(scores: readonly Score[], title: string): Promise<void> {
+    const setup = await pdfDialog({ title: scores.length > 1 ? 'Als PDF speichern: ' + title : 'Als PDF speichern', scoreCount: scores.length, initial: loadPdfSetup() });
+    if (!setup) return this.update();
+    savePdfSetup(setup);
+    let pdf: Uint8Array;
+    try {
+      pdf = await this.withBusy(() => scoresToPdf(this.engraver, scores, setup, title), 'PDF konnte nicht erzeugt werden') ?? new Uint8Array();
+    } catch (err) {
+      await inform('PDF nicht möglich', errorText(err));
+      return this.update();
+    }
+    if (pdf.length === 0) return this.update();
+    const base = preferredFileName(title).replace(/[.][^.]+$/, '');
+    const saved = await this.withBusy(() => this.platform.exportFile(pdf, base, { name: 'PDF', extension: 'pdf', mime: 'application/pdf' }), 'PDF konnte nicht gespeichert werden');
+    if (saved) this.history.apply({ ...this.state, message: 'PDF gespeichert: ' + saved.name });
+    this.update();
+  }
+
+  /** The open score as a MusicXML file (ADR 0021). */
+  async fileExportXml(): Promise<void> {
+    if (this.empty) return;
+    const score = this.history.committed.score;
+    let result: ExportResult;
+    try {
+      result = exportMusicXml(score, APP_VERSION);
+    } catch (err) {
+      await inform('Export nicht möglich', errorText(err));
+      return this.update();
+    }
+    const base = preferredFileName(score.title).replace(/[.][^.]+$/, '');
+    const saved = await this.withBusy(
+      () => this.platform.exportFile(result.xml, base, { name: 'MusicXML', extension: 'musicxml', mime: 'application/vnd.recordare.musicxml+xml' }),
+      'Export fehlgeschlagen',
+    );
+    if (!saved) return this.update();
+    this.history.apply({ ...this.state, message: 'Exportiert: ' + saved.name });
+    this.update();
+    if (result.notes.length > 0) await inform('Export abgeschlossen', '„' + saved.name + '“ ist gespeichert. Nicht alles ließ sich schreiben:\n\n- ' + result.notes.join('\n- '));
+  }
+
   /** Replaces the document; undo history starts fresh. */
   private load(state: EditorState, location: DocumentLocation | null): void {
     clearTimeout(this.autosaveTimer);
@@ -653,6 +742,40 @@ export class Workstation {
       return getVoice(s.score, sel).voice.events.find((e) => e.id === sel.eventId)?.onset ?? ZERO;
     }
     return ZERO;
+  }
+
+  /** Lyrics from the selected note on, typed as one line – an undoable change (ADR 0019). */
+  private async editLyrics(): Promise<void> {
+    const start = lyricsText(this.state);
+    if (start === null) {
+      this.history.apply({ ...this.state, message: 'Erst eine Note auswählen, dann L drücken.' });
+      return this.update();
+    }
+    const text = await promptText({
+      title: 'Liedtext',
+      label: 'Eine Silbe pro Note. Bindestrich am Ende: das Wort geht weiter. „_“: Note ohne Silbe.',
+      value: start,
+      confirm: 'Übernehmen',
+    });
+    if (text !== null) this.history.apply(setLyrics(this.state, text));
+    this.update();
+  }
+
+  /** The chord symbol at the caret / selected note – an undoable change (ADR 0019). */
+  private async editChord(): Promise<void> {
+    const start = chordSymbolText(this.state);
+    if (start === null) {
+      this.history.apply({ ...this.state, message: 'Erst eine Note auswählen, dann K drücken.' });
+      return this.update();
+    }
+    const text = await promptText({
+      title: 'Akkordsymbol',
+      label: 'Zum Beispiel Am7, C/G, Fmaj7. Leer lassen, um es zu löschen.',
+      value: start,
+      confirm: 'Übernehmen',
+    });
+    if (text !== null) this.history.apply(setChordSymbol(this.state, text));
+    this.update();
   }
 
   /** Title, key, meter, upbeat of the open score – an undoable change. */
@@ -806,7 +929,7 @@ export class Workstation {
       ? { kind: 'event' as const, ...voice, eventId: ref.eventId, ...(ref.toneId ? { toneId: ref.toneId } : {}) }
       : { kind: 'gap' as const, ...voice, time: ref.onset };
     const caret = s.caret ? { ...voice, time: ref.onset } : null;
-    this.history.apply({ ...s, selection, caret, message: null });
+    this.history.apply({ ...s, selection, caret, input: { ...s.input, ghost: null }, message: null });
     this.update();
   }
 
@@ -1026,7 +1149,7 @@ export class Workstation {
         const s = this.state;
         const caret = s.caret && selection && caretTime ? { partId: selection.partId, voiceId: selection.voiceId, time: caretTime } : s.caret;
         if (!selection && s.caret) return;
-        this.history.apply({ ...s, selection, caret, message: null });
+        this.history.apply({ ...s, selection, caret, input: { ...s.input, ghost: null }, message: null });
         this.update();
       },
       activate: () => this.activateLane(lane),
@@ -1222,6 +1345,7 @@ export class Workstation {
     const { pages, log } = this.engraver.engrave(result.mei, {
       pageWidth: Math.round((width * 100) / SCALE),
       scale: SCALE,
+      tab: result.tab,
     });
     if (log) console.warn('[Verovio]', log);
     this.el.pages.replaceChildren(
@@ -1243,7 +1367,7 @@ export class Workstation {
     const s = this.state;
     const elements = this.result?.elements;
     this.el.pages.querySelectorAll('.is-selected').forEach((n) => n.classList.remove('is-selected'));
-    this.el.pages.querySelectorAll('.caret').forEach((n) => n.remove());
+    this.el.pages.querySelectorAll('.caret, .ghost').forEach((n) => n.remove());
     if (!elements) {
       this.el.pages.querySelectorAll('.staff-mode').forEach((n) => n.remove());
       return;
@@ -1316,6 +1440,41 @@ export class Workstation {
     line.style.height = `${staffBox.height + 20}px`;
     page.appendChild(line);
     line.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (this.keymap.id === 'speedy') this.drawGhost(page, pageBox, staff, ref, x);
+  }
+
+  /** The preview note of Finale's numpad typing: a notehead (with ledger lines and its name) where Enter will put it. */
+  private drawGhost(page: HTMLElement, pageBox: DOMRect, staff: Element, ref: ElementRef, x: number): void {
+    const pitches = ghostPitches(this.state);
+    const lines = [...staff.children].filter((c) => c.tagName.toLowerCase() === 'path').slice(0, 5);
+    if (!pitches || lines.length !== 5) return;
+    const top = lines[0]!.getBoundingClientRect();
+    const bottom = lines[4]!.getBoundingClientRect();
+    const gap = (bottom.top - top.top) / 4;
+    const middle = (top.top + top.bottom) / 2 + 2 * gap;
+    const centre = staffCenter(this.state.score, { partId: ref.partId, voiceId: ref.voiceId });
+    const pos = (p: Pitch) => p.octave * 7 + STEPS.indexOf(p.step);
+    const put = (cls: string, left: number, topPx: number, w: number, h: number, text = '') => {
+      const el = document.createElement('div');
+      el.className = `ghost ${cls}`;
+      el.style.left = `${left - pageBox.left}px`;
+      el.style.top = `${topPx - pageBox.top}px`;
+      el.style.width = `${w}px`;
+      el.style.height = `${h}px`;
+      if (text) el.textContent = text;
+      page.appendChild(el);
+    };
+    const head = gap * 1.35;
+    for (const p of pitches) {
+      const steps = pos(p) - pos(centre); // half staff spaces above the middle line
+      const y = middle - steps * (gap / 2);
+      for (let n = 6; n <= Math.abs(steps); n += 2) {
+        put('ghost__ledger', x + 2, middle - Math.sign(steps) * n * (gap / 2) - 0.5, head + 8, 1);
+      }
+      put('ghost__head', x + 6, y - gap / 2, head, gap);
+    }
+    const label = [...pitches].sort((a, b) => midiOf(a) - midiOf(b)).map(pitchToString).join(' ');
+    put('ghost__label', x + head + 12, middle - gap * 3.4, 80, gap * 1.2, label);
   }
 
   private renderStatus(): void {

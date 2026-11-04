@@ -5,7 +5,7 @@
 // Exits non-zero on the first failed expectation. Screenshots go to the
 // output dir (default: a temp folder).
 import { createRequire } from 'node:module';
-import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, copyFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { preview } from 'vite';
@@ -599,7 +599,7 @@ try {
   await type('Escape');
   await saved();
   const shaped = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Verlauf-Test.icastico'))[1].contents;
-  check(/"version": 6/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 6)');
+  check(/"version": 7/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 7)');
   await type('Control+Enter');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true', null, { timeout: 30000 });
   await page.waitForTimeout(1500);
@@ -617,7 +617,7 @@ try {
   <part id="P1">
     <measure number="1"><attributes><divisions>2</divisions><key><fifths>1</fifths></key><time><beats>3</beats><beat-type>4</beat-type></time><staves>2</staves></attributes>
       <direction><sound tempo="96"/></direction>
-      ${xmlNote('B', 4, 2, '<voice>1</voice><staff>1</staff>')}${xmlNote('D', 5, 2, '<chord/><voice>1</voice><staff>1</staff><lyric><text>la</text></lyric>')}${xmlNote('G', 4, 4, '<voice>1</voice><staff>1</staff><tie type="start"/>')}
+      ${xmlNote('B', 4, 2, '<voice>1</voice><staff>1</staff>')}${xmlNote('D', 5, 2, '<chord/><voice>1</voice><staff>1</staff><lyric number="1"><text>la</text></lyric><lyric number="2"><text>li</text></lyric>')}${xmlNote('G', 4, 4, '<voice>1</voice><staff>1</staff><tie type="start"/>')}
       <backup><duration>6</duration></backup>
       ${xmlNote('G', 2, 6, '<voice>2</voice><staff>2</staff>')}
     </measure>
@@ -632,7 +632,7 @@ try {
   await type('Control+Shift+I');
   await (await chooser).setFiles({ name: 'finale-export.musicxml', mimeType: 'application/xml', buffer: Buffer.from(sample) });
   await page.waitForSelector('.modal h2:text("Import abgeschlossen")');
-  check(/Liedtext: 1×/.test(await page.locator('.modal').textContent()), 'MusicXML-Import: ein Hinweis nennt, was nicht übernommen wurde (Liedtext)');
+  check(/Weitere Strophen: 1×/.test(await page.locator('.modal').textContent()), 'MusicXML-Import: ein Hinweis nennt, was nicht übernommen wurde (zweite Strophe)');
   await page.click('.modal button:text("OK")');
   await page.waitForFunction(() => document.querySelector('#doc-title')?.textContent === 'Aus Finale');
   check((await page.locator('.page g.note').count()) >= 5 && (await page.locator('.page g.chord').count()) === 1 && (await page.locator('.page g.tie').count()) === 1, 'MusicXML-Import: Noten, Akkord und Haltebogen erscheinen in der Notenschrift');
@@ -653,14 +653,97 @@ try {
   check((await page.textContent('.help__desc')).includes('Ziffernblock'), 'Tastenhilfe: auf Finale-Ziffernblock umgeschaltet');
   await type('Escape');
   await newScore('Ziffernblock-Test');
-  await type('Enter', 'ArrowUp', 'Numpad4', 'Enter', '3');
-  check((await notes()) === 3 && (await page.locator('.page g.chord').count()) === 1, 'Ziffernblock: Enter setzt eine Note, die Kopie bekommt mit der 3 eine Terz darüber (Akkord)');
+  await type('Numpad4', 'ArrowUp');
+  check((await notes()) === 0 && (await page.locator('.ghost__head').count()) === 1 && (await page.locator('.ghost__label').textContent()) !== '', 'Ziffernblock: Die Vorschau-Note steht am Cursor, noch ist keine Note gesetzt');
+  await page.screenshot({ path: join(outDir, 'vorschau-note.png') });
+  await type('Enter', '3', 'Enter');
+  check((await notes()) === 3 && (await page.locator('.page g.chord').count()) === 1, 'Ziffernblock: Enter setzt die Vorschau-Note, mit der 3 kommt eine Terz darüber, Enter setzt den Akkord');
   await saved();
   const speedyFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Ziffernblock-Test.icastico'))[1].contents;
-  check((speedyFile.match(/"dur": "1\/8"/g) ?? []).length === 2, 'Ziffernblock 4 macht die letzte Note zum Achtel, Enter kopiert den Achtel');
+  check((speedyFile.match(/"dur": "1\/8"/g) ?? []).length === 2, 'Ziffernblock 4 macht die Vorschau-Note zum Achtel, beide gesetzten Noten sind Achtel');
   await type('F1');
   await page.click('[data-preset="finale"]');
   await type('Escape');
+
+  // ── Liedtext und Akkordsymbole (L, K) ──
+  await newScore('Leadsheet-Test');
+  await type('5', 'c', 'd', 'e', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft');
+  await type('k');
+  await page.waitForSelector('.modal h2:text("Akkordsymbol")');
+  await page.fill('#prompt-input', 'Am7');
+  await page.click('.modal button[type="submit"]');
+  await type('l');
+  await page.waitForSelector('.modal h2:text("Liedtext")');
+  await page.fill('#prompt-input', 'Hal- lo _');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction(() => document.querySelectorAll('.page g.harm').length === 1 && document.querySelectorAll('.page g.verse').length === 2);
+  check(/Am7/.test(await page.locator('.page g.harm').textContent()), 'Akkordsymbol Am7 erscheint über der Notenzeile');
+  check((await page.locator('.page g.verse').allTextContents()).map((t) => t.replace(/\s+/g, '')).join('|') === 'Hal|lo', 'Liedtext „Hal-lo“ steht unter den ersten beiden Noten');
+  await page.screenshot({ path: join(outDir, 'leadsheet.png') });
+  await saved();
+  const leadFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Leadsheet-Test.icastico'))[1].contents;
+  check(/"lyric": "Hal-"/.test(leadFile) && /"text": "Am7"/.test(leadFile), 'Liedtext und Akkordsymbol stehen in der gespeicherten Datei');
+  await type('Control+z');
+  check((await page.locator('.page g.verse').count()) === 0, 'Rückgängig nimmt den Liedtext zurück');
+
+  // ── Triolen (Alt+9 in der Finale-Belegung) ──
+  await newScore('Triolen-Test');
+  await type('4', 'Alt+9', 'c', 'd', 'e', 'Alt+9', '5', 'g');
+  check((await page.locator('.page g.tuplet').count()) === 1 && (await notes()) === 4, 'Triolen: drei Achteltriolen haben eine Klammer mit der 3, danach folgt eine normale Viertel');
+  await page.screenshot({ path: join(outDir, 'triolen.png') });
+
+  // ── MusicXML exportieren (Strg+Umschalt+E) ──
+  await newScore('Export-Test');
+  await type('5', 'c', 'e', 'g');
+  await type('k');
+  await page.waitForSelector('.modal h2:text("Akkordsymbol")');
+  await page.fill('#prompt-input', 'C');
+  await page.click('.modal button[type="submit"]');
+  const downloading = page.waitForEvent('download');
+  await type('Control+Shift+E');
+  const xmlDownload = await downloading;
+  const exportedXml = readFileSync(await xmlDownload.path(), 'utf8');
+  check(xmlDownload.suggestedFilename() === 'Export-Test.musicxml' && exportedXml.includes('<score-partwise') && (exportedXml.match(/<note>/g) ?? []).length >= 3 && exportedXml.includes('<root-step>C</root-step>'), 'MusicXML-Export: Datei „Export-Test.musicxml“ enthält Noten und das Akkordsymbol');
+
+  // ── Tabulatur (Strg+T) ──
+  await type('Control+n');
+  await page.waitForSelector('.modal h2:text("Neue Partitur")');
+  await page.fill('#f-title', 'Tab-Test');
+  await page.click('.modal [data-instrument="guitar"]');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction(() => document.querySelector('#doc-title')?.textContent === 'Tab-Test');
+  await type('Alt+ArrowDown', 'Control+t');
+  check((await page.locator('.page .tabnumber').count()) === 0 && /Tabulatur eingeschaltet/.test(await status()), 'Tabulatur: Strg+T schaltet sie in der Gitarrenzeile ein (ohne Noten noch keine Zahlen)');
+  await type('5', 'e', 'a', 'd');
+  await page.waitForFunction(() => document.querySelectorAll('.page .tabnumber').length === 3);
+  check((await page.locator('.page .tabnumber').allTextContents()).every((t) => /^[0-9]+$/.test(t.trim())), 'Tabulatur: Jede der drei Noten bekommt eine Bundzahl');
+  await page.screenshot({ path: join(outDir, 'tabulatur.png') });
+  await type('Control+t');
+  check((await page.locator('.page .tabnumber').count()) === 0, 'Tabulatur: Strg+T schaltet sie wieder aus');
+
+  // ── PDF (Strg+P) ──
+  await newScore('PDF-Test');
+  await type('5', 'c', 'e', 'g');
+  const pdfLoading = page.waitForEvent('download');
+  await type('Control+p');
+  await page.waitForSelector('.modal h2:text("Als PDF speichern")');
+  await page.selectOption('#pdf-format', 'landscape');
+  await page.click('.modal button[type="submit"]');
+  const pdfDownload = await pdfLoading;
+  const pdfPath = await pdfDownload.path();
+  const pdfBytes = readFileSync(pdfPath);
+  copyFileSync(pdfPath, join(outDir, 'pdf-test.pdf'));
+  check(pdfDownload.suggestedFilename() === 'PDF-Test.pdf' && pdfBytes.subarray(0, 8).toString() === '%PDF-1.4' && pdfBytes.subarray(-6).toString().includes('%%EOF') && pdfBytes.length > 20000, 'PDF: Strg+P speichert „PDF-Test.pdf“ als gültige PDF-Datei (Querformat)');
+  check(pdfBytes.toString('latin1').includes('/MediaBox [0 0 841.89 595.28]'), 'PDF: Querformat ergibt eine Seite 841 × 595 Punkte');
+
+  // ── Einzelstimme herausziehen (Strg+Umschalt+X) ──
+  await type('Control+Shift+X');
+  await page.waitForSelector('.modal h2:text("Einzelstimme herausziehen")');
+  await page.click('.modal button:text("Gitarre")');
+  await page.waitForFunction(() => document.querySelector('#doc-title')?.textContent?.startsWith('PDF-Test – Gitarre'));
+  await saved();
+  check(Object.keys(await files()).some((path) => path.endsWith('PDF-Test – Gitarre.icastico')), 'Einzelstimme: „PDF-Test – Gitarre“ liegt als eigene Partitur in der Bibliothek');
+  check((await page.locator('.page g.staff').count()) >= 1 && !(await page.locator('.page').first().textContent())?.includes('Gesang'), 'Einzelstimme: die neue Partitur zeigt nur noch die Gitarre');
 
   check(errors.length === 0, `Keine Fehler in der Konsole${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   console.log(`\nAlle ${step} Prüfungen bestanden. Screenshots: ${outDir}`);

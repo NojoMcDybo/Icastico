@@ -5,6 +5,7 @@
  */
 import createVerovioModule from 'verovio/wasm';
 import { VerovioToolkit } from 'verovio/esm';
+import { applyTabNumbers } from './tab';
 
 export interface EngraveOptions {
   /** Page width in Verovio units (1/10 mm at scale 100). */
@@ -13,6 +14,8 @@ export interface EngraveOptions {
   readonly scale?: number;
   /** Fixed page height (e.g. A4 preview pictures); default: as tall as the music. */
   readonly pageHeight?: number;
+  /** Tablature notes (xml:id → fret number) to draw as numbers, from `scoreToMei`. */
+  readonly tab?: ReadonlyMap<string, string>;
 }
 
 export interface EngraveResult {
@@ -55,7 +58,10 @@ export class Engraver {
     }
     const pages: string[] = [];
     const count = this.toolkit.getPageCount();
-    for (let page = 1; page <= count; page++) pages.push(this.toolkit.renderToSVG(page, false));
+    for (let page = 1; page <= count; page++) {
+      const svg = this.toolkit.renderToSVG(page, false);
+      pages.push(options.tab?.size ? applyTabNumbers(svg, options.tab) : svg);
+    }
     return { pages, log: this.toolkit.getLog().trim() };
   }
 }

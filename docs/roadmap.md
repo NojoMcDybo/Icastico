@@ -79,10 +79,15 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 
 - [ ] Wiedergabe (SoundFont-Synth in Rust), Cursor läuft mit
 - [ ] MIDI-Keyboard-Eingabe (Step + Echtzeit mit Quantisierer)
-- [x] MusicXML importieren (`.musicxml`, `.xml`, `.mxl`; Strg+Umschalt+I): Noten, Akkorde, Stimmen, Haltebögen, Tonart, Taktart, Auftakt, Tempo; N-Tolen vorerst gerundet (ADR 0017)
-- [x] Belegung „Finale-Ziffernblock“ (ADR 0018): Ziffernblock = Notenwert, Enter = Note wiederholen, Zahlenreihe = Intervall (Umschalt: darunter), Punkt an der letzten Note
-- [ ] MusicXML exportieren; Finale-Dateien (`.musx`) direkt lesen
-- [ ] PDF-Export
+- [x] MusicXML importieren (`.musicxml`, `.xml`, `.mxl`; Strg+Umschalt+I): Noten, Akkorde, Stimmen, Haltebögen, Tonart, Taktart, Auftakt, Tempo, Triolen/Quintolen/Septolen, Liedtext (1. Strophe), Akkordsymbole (ADR 0017, 0019, 0020)
+- [x] Belegung „Finale-Ziffernblock“ (ADR 0018): Ziffernblock = Notenwert, Vorschau-Note am Cursor, Enter setzt sie, ↑/↓ und Zahlenreihe ändern sie
+- [x] Liedtext (L) und Akkordsymbole (K), Dateiformat 7 (ADR 0019)
+- [x] Triolen, Quintolen, Septolen: Eingabe-Modus, Notenschrift mit Klammer, MusicXML (ADR 0020)
+- [x] MusicXML exportieren (Strg+Umschalt+E), Hin-und-zurück-Test (ADR 0021)
+- [x] Gitarrentabulatur (Strg+T), berechnete Griffe (ADR 0022)
+- [x] PDF-Export (Strg+P), Notenblatt mit mehreren Beispielen pro Seite, Einzelstimme herausziehen (ADR 0023)
+- [ ] Finale-Dateien (`.musx`) direkt lesen – verschlüsseltes Binärformat, bewusst zurückgestellt (ADR 0021)
+- [ ] Seitenlayout von Hand (Umbrüche, Systemabstand, Kopf-/Fußzeile), mehrere Strophen, Tabulatur-Spieltechniken
 
 ## Schritt 4 – Audio→Noten
 

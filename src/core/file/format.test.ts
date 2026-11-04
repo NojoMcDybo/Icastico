@@ -9,6 +9,7 @@ import version2File from './fixtures/version2.icastico?raw';
 import version3File from './fixtures/version3.icastico?raw';
 import version4File from './fixtures/version4.icastico?raw';
 import version5File from './fixtures/version5.icastico?raw';
+import version6File from './fixtures/version6.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -253,5 +254,47 @@ describe('format version 6: loudness and curves (ADR 0016)', () => {
     expect(attempt((d) => (tone(d).curve = [[0, 1], [0.6, 1], [0.4, 1], [1, 1]]))).toThrow(/von links nach rechts/);
     expect(attempt((d) => (d.score.links[0]!.curve = [[0, 0.5], [1, 1]]))).toThrow(/beginnt beim ersten Ton/);
     expect(attempt((d) => (tone(d).curve = 'sanft'))).toThrow(/Liste erwartet/);
+  });
+});
+
+describe('format version 7: lyrics and chord symbols (ADR 0019)', () => {
+  it('opens files saved by Icastico 0.10.0 (format version 6): loudness kept, no text', () => {
+    const score = parseScoreFile(version6File);
+    expect(fileVersion(version6File)).toBe(6);
+    expect(score.parts[0]!.voices[0]!.events[0]!.tones[0]!.volume).toBe(64);
+    expect(score.chords).toBeUndefined();
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  it('keeps lyric syllables and chord symbols exactly', () => {
+    const base = parseScoreFile(version6File);
+    const score: Score = {
+      ...base,
+      chords: [{ at: frac(0, 1), text: 'Am7' }, { at: frac(3, 4), text: 'F/C' }],
+      parts: base.parts.map((p) => ({ ...p, voices: p.voices.map((v, vi) => ({ ...v, events: v.events.map((e, ei) => (vi === 0 && ei < 2 ? { ...e, lyric: ei === 0 ? 'Hel-' : 'lo' } : e)) })) })),
+    };
+    const text = serializeScore(score, '0.0.0');
+    expect(text).toContain('"lyric": "Hel-"');
+    expect(text).toContain('"text": "F/C"');
+    expect(parseScoreFile(text)).toEqual(score);
+  });
+
+  it('keeps the tablature switch of a guitar part and refuses it elsewhere', () => {
+    const base = demoScore();
+    const guitar = base.parts.findIndex((p) => p.instrument === 'guitar');
+    const on: Score = { ...base, parts: base.parts.map((p, i) => (i === guitar ? { ...p, tab: true } : p)) };
+    expect(serializeScore(on, '0')).toContain('"tab": true');
+    expect(parseScoreFile(serializeScore(on, '0')).parts[guitar]!.tab).toBe(true);
+    const wrong: Score = { ...base, parts: base.parts.map((p, i) => (i === guitar ? p : { ...p, tab: true })) };
+    expect(() => parseScoreFile(serializeScore(wrong, '0'))).toThrow(/Tabulatur/);
+  });
+
+  it('rejects an empty chord symbol and a lyric with a space', () => {
+    const base = parseScoreFile(version6File);
+    expect(() => parseScoreFile(serializeScore({ ...base, chords: [{ at: frac(0, 1), text: ' ' }] }, '0'))).toThrow(/Akkordsymbol/);
+    const bad = { ...base, parts: base.parts.map((p, pi) => (pi ? p : { ...p, voices: p.voices.map((v, vi) => (vi ? v : { ...v, events: v.events.map((e, i) => (i ? e : { ...e, lyric: 'a b' })) })) })) };
+    expect(() => parseScoreFile(serializeScore(bad, '0'))).toThrow(/Liedtext/);
   });
 });

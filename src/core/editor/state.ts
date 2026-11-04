@@ -36,6 +36,13 @@ export interface InputSettings {
   readonly chord: boolean;
   /** The chord being built in chord mode (its first note), if any. */
   readonly chordEvent: string | null;
+  /** Tuplet mode (ADR 0020): 0 = off, else the number of notes (3 = triplets) squeezed into the time of the next lower power of two. */
+  readonly tuplet: 0 | 3 | 5 | 7;
+  /**
+   * The preview note ("ghost") of Finale's numpad typing: the pitches Enter would put at the caret, changed with
+   * the arrow keys and the interval keys. Null = not touched yet: the notes before the caret are repeated.
+   */
+  readonly ghost: readonly Pitch[] | null;
 }
 
 export interface EditorState {
@@ -54,15 +61,23 @@ export function createEditorState(score: Score): EditorState {
     score,
     caret: null,
     selection: null,
-    input: { base: frac(1, 4), dots: 0, insert: false, pendingTie: false, chord: false, chordEvent: null },
+    input: { base: frac(1, 4), dots: 0, insert: false, pendingTie: false, chord: false, chordEvent: null, tuplet: 0, ghost: null },
     message: null,
     nextId: 1,
   };
 }
 
-/** Length of the next note: base value with optional dot. */
-export const inputLength = (input: InputSettings): Fraction =>
+/** Length of the next note as written: base value with optional dot. */
+export const writtenInputLength = (input: InputSettings): Fraction =>
   input.dots === 1 ? add(input.base, frac(input.base.n, input.base.d * 2)) : input.base;
+
+/** Length of the next note: the written value, shortened in tuplet mode (a triplet eighth is 1/12). */
+export const inputLength = (input: InputSettings): Fraction => {
+  const written = writtenInputLength(input);
+  if (input.tuplet === 0) return written;
+  const numbase = input.tuplet === 3 ? 2 : 4;
+  return frac(written.n * numbase, written.d * input.tuplet);
+};
 
 export function getVoice(score: Score, ref: VoiceRef): { part: Part; voice: Voice } {
   const part = score.parts.find((p) => p.id === ref.partId);
