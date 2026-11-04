@@ -14,7 +14,7 @@ Zwischenstand; offene Punkte stehen unten. Vergleich mit dem Stand von Icastico 
 | Unterrichtsmaterial: mehrere kurze Notenbeispiele auf einer Seite | fehlt (Seitenlayout) |
 | Gitarrentabulatur, allein oder mit Noten | fehlt |
 | Klavier mit verbundenem Violin-/Bassschlüsselsystem | geht (Klavier-Instrument) |
-| **MusicXML importieren** (und damit Finale-Dateien übernehmen) | geht (ADR 0017, noch nicht veröffentlicht): Strg+Umschalt+I; N-Tolen gerundet, Liedtext/Akkordsymbole noch nicht |
+| **MusicXML importieren** (und damit Finale-Dateien übernehmen) | geht seit 0.11.0 (ADR 0017): Strg+Umschalt+I; N-Tolen gerundet, Liedtext/Akkordsymbole noch nicht |
 
 ## Bedienung (Tastatur, Finale-gewohnt)
 
