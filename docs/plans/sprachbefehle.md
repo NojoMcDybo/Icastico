@@ -19,9 +19,13 @@ Cloud-Erkennung · Dauer-Mikrofon ohne Taste · andere Sprachen als Deutsch.
 ## 2. So fühlt es sich an
 
 1. Eingabe läuft (Cursor blinkt). Hände sind am Instrument oder an der Maus.
-2. **Sprechtaste halten** (Vorschlag: `V` für „Voice“, einstellbar; später
-   Fußschalter über MIDI) und ein Wort sagen: „fünf“.
-3. Taste loslassen. In der Statuszeile steht kurz **„verstanden: fünf →
+2. **`R` drücken** (wie „Record“ in Logic; einstellbar; später auch
+   Fußschalter über MIDI) und ein Wort sagen: „fünf“. **Kurz tippen** =
+   Aufnahme an, nochmal tippen = aus (wie Logic). **Gedrückt halten** =
+   nur solange du die Taste hältst (robuster, wenn Musik im Raum ist).
+   Beides auf derselben Taste; die Statuszeile zeigt „● Aufnahme“, solange
+   das Mikrofon offen ist.
+3. Wort fertig (Taste loslassen bzw. kurze Sprechpause). In der Statuszeile steht kurz **„verstanden: fünf →
    Viertel“**, und der Befehl wirkt wie die Taste `5`.
 4. Unsicher erkannt = **nichts passiert**, Statuszeile: „nicht verstanden“.
    (Lieber ein Befehl zu wenig als ein falscher.)
@@ -29,6 +33,28 @@ Cloud-Erkennung · Dauer-Mikrofon ohne Taste · andere Sprachen als Deutsch.
 
 Mehrere Befehle in einem Atemzug („fünf Punkt höher“) sind ein späterer
 Ausbau (v1.1); v1 = ein Wort pro Tastendruck, das ist am robustesten.
+
+### Tastenkonflikt: `R` ist heute „Note → Pause“
+
+In der Finale-Belegung (ADR 0006) steht `R` für **Note in Pause umwandeln**
+(`edit.toRest`). **Entf** tut aber schon genau dasselbe (`edit.delete` ist
+derselbe Befehl). Es geht also **keine Funktion verloren**, wenn `R` zur
+Aufnahmetaste wird – nur die Finale-Gewohnheit „R = Pause machen“ fällt weg
+(Finale-Umsteiger greifen automatisch zu `R`). Entscheidung vom Owner:
+**`R` = Aufnahme**. Folgen, die bei der Umsetzung zu erledigen sind:
+
+- `src/ui/keymaps/finale.ts`: `R` aus `edit.toRest` entfernen, `Delete` bleibt;
+  Hilfetext „R / Entf“ → „Entf“.
+- **ADR 0006** ergänzen: Abweichung von Finale, vom Owner bestimmt.
+- Sprachbefehl „zur Pause“ (siehe unten) bleibt als Ersatz auf der Stimme.
+
+**Weitsicht – `R` meint später dreierlei „Aufnahme“** (wie in Logic):
+Sprache (dieser Plan, v1), **MIDI einspielen** (Schritt 3) und **Einsingen →
+Noten** (Schritt 4). Ein Knopf, drei Quellen. Vorschlag, damit das nicht
+kollidiert: Die **aktive Eingabequelle** (Sprache / MIDI / Mikrofon-Gesang)
+wird in der Workstation gewählt (Workspace pro Instrument, Schritt 2); `R`
+startet immer die Aufnahme der aktiven Quelle. Für v1 gibt es nur
+„Sprache“, also keine Auswahl nötig – die Frage steht erst bei Schritt 3 an.
 
 ## 3. Wortschatz v1
 
@@ -170,7 +196,7 @@ billig und lohnen sich auch ohne Sprache.
 | 1 | **Wortschatz + Matcher** | `vocabulary.de.ts`, `matcher.ts`, Tests. Rein TypeScript, kein Mikrofon | S | Nichts zu sehen – aber Grundlage, auch für Befehlspalette (Schritt 2) |
 | 2 | **Befehlszeile als Attrappe** | `platform/voice.ts` mit Browser-Attrappe; kleines Textfeld (nur Entwicklung/Test), E2E: „fünf“ → Viertel | S | Tippen statt Sprechen, gleiche Wirkung |
 | 3 | **Sprachtest-Build** (Spike) | Rust: Mikrofon + A/B (+ evtl. C). Eigener Dialog „Sprachtest“: Wort sagen, sehen was erkannt wurde, Ergebnisse als Datei speichern | M–L | **Owner spricht die Wortliste ein, schickt die Ergebnisdatei** → ADR 0011 wird entschieden |
-| 4 | **Integration** | Sprechtaste, Statuszeile, „unsicher = nichts tun“, Mikrofonrechte, Einstellung (Mikrofon, Sprechtaste) | M | Echtes Diktieren in der Workstation |
+| 4 | **Integration** | Aufnahmetaste `R` (Keymap + Hilfe + ADR 0006 anpassen), Statuszeile „● Aufnahme“, „unsicher = nichts tun“, Mikrofonrechte, Einstellung (Mikrofon, Taste) | M | Echtes Diktieren in der Workstation |
 | 5 | **Auslieferung** | Modell in Installer/Update, Windows- und macOS-Build in CI grün, Größe prüfen | M | Installer mit Sprachbefehlen |
 | 6 | **Feinschliff mit dem Owner** | Wortschatz anpassen (eigene Synonyme als Datei), Fußschalter (MIDI, passt zu Schritt 3 der Roadmap), Zwei-Wort-Befehle | S–M | Fühlt sich nach *seinem* Programm an |
 
@@ -222,7 +248,9 @@ Befehlspalette per Stimme · Liedtext-Diktat · weitere Sprachen.
 | Frage | Empfehlung |
 |---|---|
 | Plan freigeben, ab wann? | Nach Schritt 1; Paket 1–2 darf vorher |
-| Sprechtaste | `V` halten (einstellbar); später Fußschalter |
+| Sprechtaste | **`R` – entschieden** (tippen = an/aus, halten = Sprechen); später Fußschalter |
+| `R` kollidiert mit „Note → Pause“ (Finale) – ok? | Ja, `Entf` macht dasselbe; Finale-Hilfe und ADR 0006 anpassen |
+| Soll `R` später auch MIDI- und Gesangsaufnahme starten (wie Logic)? | Ja, je nach aktiver Eingabequelle (Entscheidung bei Schritt 3) |
 | Tonnamen in v1? | Nein, nur Befehle (steht so in der Ideensammlung) |
 | Installer-Größe: wie viel Zuwachs ist ok? | bis ~100 MB |
 | Wortliste: passen die Wörter in Abschnitt 3 zu dir? | Beim Sprachtest anpassen |

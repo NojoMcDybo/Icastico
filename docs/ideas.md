@@ -101,7 +101,7 @@ zuverlässigsten. Stimmt das, oder willst du auch Tonnamen sprechen?
 
 - **Taste zum Sprechen statt Dauer-Mikrofon.** Wer Gitarre oder Klavier
   spielt, hat Musik im Mikrofon; die darf keine Befehle auslösen. Vorschlag:
-  Sprechtaste gedrückt halten, ggf. Fußschalter. Gleiche Taste kann später
+  Aufnahmetaste `R` (wie Logic; tippen = an/aus, halten = Sprechen), ggf. Fußschalter. Gleiche Taste kann später
   für Einsingen dienen.
 - **Offline**, nicht Cloud (Vision: Cloud ist Nicht-Ziel). Läuft nativ in
   Rust (Regel 7), Modell wird mitgeliefert oder einmalig geladen. Die
