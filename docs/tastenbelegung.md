@@ -2,7 +2,8 @@
 
 > Erzeugt aus `src/ui/keymaps/library.json` mit `npm run keys:doc` – nicht von Hand ändern.
 
-Alle Funktionen eines Notenprogramms mit ihren Tasten in **Finale** und **Logic Pro** –
+Alle Funktionen eines Notenprogramms mit ihren Tasten in **Finale**, **Logic Pro** und der
+Belegung **Finale-Ziffernblock** (Ziffernblock = Notenwert, obere Zahlenreihe = Intervall) –
 auch solche, die Icastico noch nicht kann („geplant“). In Icastico ist die Belegung
 umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 
@@ -11,85 +12,89 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 
 ## Eingabe
 
-| Funktion | Finale | Logic Pro | Icastico |
-|---|---|---|---|
-| Eingabe starten / beenden | `Enter` | `Enter` *(Icastico)* – In Logic schaltet der Knopf „MIDI In“ die Schritteingabe ein. | ✓ |
-| Notenwert der nächsten Note | `1` 64tel, `2` 32tel, `3` 16tel, `4` Achtel, `5` Viertel, `6` Halbe, `7` Ganze | `1` Ganze, `2` Halbe, `3` Viertel, `4` Achtel, `5` 16tel, `6` 32tel, `7` 64tel – Logic: 8 = 128tel (gibt es in Icastico noch nicht). | ✓ |
-| Note nach Stammton (Tonart wird beachtet) | `C` C, `D` D, `E` E, `F` F, `G` G, `A` A, `B` / `H` H – B ist wie in Finale das englische B (= H). H ist eine Icastico-Ergänzung. | – | ✓ |
-| Note nach Klaviertaste (schwarze Tasten nach Tonart) | – | `A` C, `W` Cis/Des, `S` D, `E` Dis/Es, `D` E, `F` F, `T` Fis/Ges, `G` G, `Y` Gis/As, `H` A, `U` Ais/B, `J` H – Auf deutschen Tastaturen liegt Y unten links (Z und Y sind vertauscht). | ✓ |
-| Pause eingeben | `0` | `Leertaste` | ✓ |
-| Punktierung | `.` – In der Eingabe gilt der Punkt für die nächste Note (Annahme), sonst für die ausgewählte. | `0` – Logic: „nächste zwei Noten punktiert“; Icastico punktiert die nächste Note. | ✓ |
-| Ton zum Akkord hinzufügen (darüber) | `Umschalt+C` C, `Umschalt+D` D, `Umschalt+E` E, `Umschalt+F` F, `Umschalt+G` G, `Umschalt+A` A, `Umschalt+B` / `Umschalt+H` H *(Annahme)* | – | ✓ |
-| Akkordmodus an/aus (nächste Töne übereinander) | `` ` `` *(Icastico)* – Finale hat das nicht als Taste; wir nehmen dieselbe wie Logic. Alternativ: Umschalt + Buchstabe fügt einen Ton zum Akkord. | `` ` `` – Gemeint ist die Taste links neben der 1 – auf deutschen Tastaturen ist das ^. | ✓ |
-| Triolen für die nächsten Noten | *Taste in Finale Simple Entry unbekannt – bitte ergänzen.* | `9` | geplant |
-| Kreuz für die nächste Note | – | `Umschalt+3` – Auf US-Tastaturen ist Umschalt+3 das #. | geplant |
-| B für die nächste Note | – | `Umschalt+B` | geplant |
-| Eingabe-Oktave höher / tiefer | – | `X` höher, `Umschalt+X` zwei höher, `Z` tiefer, `Umschalt+Z` zwei tiefer – Icastico wählt die Oktave automatisch nah an der vorigen Note. | geplant |
-| Einfügen statt Überschreiben | `Einfg` / `Strg+I` *(Icastico)* | `Einfg` / `Strg+I` *(Icastico)* | ✓ |
+| Funktion | Finale | Logic Pro | Finale-Ziffernblock | Icastico |
+|---|---|---|---|---|
+| Eingabe starten / beenden | `Enter` | `Enter` *(Icastico)* – In Logic schaltet der Knopf „MIDI In“ die Schritteingabe ein. | *Enter wiederholt hier die Note; die Eingabe beendet Esc.* | ✓ |
+| Notenwert der nächsten Note | `1` 64tel, `2` 32tel, `3` 16tel, `4` Achtel, `5` Viertel, `6` Halbe, `7` Ganze | `1` Ganze, `2` Halbe, `3` Viertel, `4` Achtel, `5` 16tel, `6` 32tel, `7` 64tel – Logic: 8 = 128tel (gibt es in Icastico noch nicht). | *Hier gilt der Ziffernblock („Notenwert“ unten).* | ✓ |
+| Note nach Stammton (Tonart wird beachtet) | `C` C, `D` D, `E` E, `F` F, `G` G, `A` A, `B` / `H` H – B ist wie in Finale das englische B (= H). H ist eine Icastico-Ergänzung. | – | (wie Finale) | ✓ |
+| Note nach Klaviertaste (schwarze Tasten nach Tonart) | – | `A` C, `W` Cis/Des, `S` D, `E` Dis/Es, `D` E, `F` F, `T` Fis/Ges, `G` G, `Y` Gis/As, `H` A, `U` Ais/B, `J` H – Auf deutschen Tastaturen liegt Y unten links (Z und Y sind vertauscht). | (wie Finale) | ✓ |
+| Pause eingeben | `0` | `Leertaste` | `Ziffernblock 0` / `0` *(Annahme)* – Ziffernblock 0 wie bei Finale. | ✓ |
+| Punktierung | `.` – In der Eingabe gilt der Punkt für die nächste Note (Annahme), sonst für die ausgewählte. | `0` – Logic: „nächste zwei Noten punktiert“; Icastico punktiert die nächste Note. | *Hier punktiert der Punkt die letzte Note („Note punktieren“).* | ✓ |
+| Ton zum Akkord hinzufügen (darüber) | `Umschalt+C` C, `Umschalt+D` D, `Umschalt+E` E, `Umschalt+F` F, `Umschalt+G` G, `Umschalt+A` A, `Umschalt+B` / `Umschalt+H` H *(Annahme)* | – | (wie Finale) | ✓ |
+| Akkordmodus an/aus (nächste Töne übereinander) | `` ` `` *(Icastico)* – Finale hat das nicht als Taste; wir nehmen dieselbe wie Logic. Alternativ: Umschalt + Buchstabe fügt einen Ton zum Akkord. | `` ` `` – Gemeint ist die Taste links neben der 1 – auf deutschen Tastaturen ist das ^. | (wie Finale) | ✓ |
+| Triolen für die nächsten Noten | *Taste in Finale Simple Entry unbekannt – bitte ergänzen.* | `9` | (wie Finale) | geplant |
+| Kreuz für die nächste Note | – | `Umschalt+3` – Auf US-Tastaturen ist Umschalt+3 das #. | (wie Finale) | geplant |
+| B für die nächste Note | – | `Umschalt+B` | (wie Finale) | geplant |
+| Eingabe-Oktave höher / tiefer | – | `X` höher, `Umschalt+X` zwei höher, `Z` tiefer, `Umschalt+Z` zwei tiefer – Icastico wählt die Oktave automatisch nah an der vorigen Note. | (wie Finale) | geplant |
+| Note wiederholen: Kopie der letzten Note dahinter | – | – | `Enter` *(Annahme)* – Ohne Note davor beginnt Enter die Eingabe. Danach ändern ↑/↓, Ziffernblock und Zahlenreihe die letzte Note. | ✓ |
+| Notenwert der letzten und der nächsten Note (Ziffernblock) | – | – | `Ziffernblock 1` 64tel, `Ziffernblock 2` 32tel, `Ziffernblock 3` 16tel, `Ziffernblock 4` Achtel, `Ziffernblock 5` Viertel, `Ziffernblock 6` Halbe, `Ziffernblock 7` Ganze *(Annahme)* | ✓ |
+| Ton im Intervall über / unter der Note hinzufügen | – | – | `2` Sekunde darüber, `3` Terz darüber, `4` Quarte darüber, `5` Quinte darüber, `6` Sexte darüber, `7` Septime darüber, `8` Oktave darüber, `Umschalt+2` Sekunde darunter, `Umschalt+3` Terz darunter, `Umschalt+4` Quarte darunter, `Umschalt+5` Quinte darunter, `Umschalt+6` Sexte darunter, `Umschalt+7` Septime darunter, `Umschalt+8` Oktave darunter *(Annahme)* – Obere Zahlenreihe; mit Umschalt nach unten. | ✓ |
+| Einfügen statt Überschreiben | `Einfg` / `Strg+I` *(Icastico)* | `Einfg` / `Strg+I` *(Icastico)* | (wie Finale) | ✓ |
 
 ## Letzte / ausgewählte Note ändern
 
-| Funktion | Finale | Logic Pro | Icastico |
-|---|---|---|---|
-| Eine Stufe höher / tiefer (in der Tonart) | `↑` höher, `↓` tiefer *(Annahme)* | – | ✓ |
-| Einen Halbton höher / tiefer (E → F) | – | `Alt+↑` höher, `Alt+↓` tiefer | ✓ |
-| Eine Oktave höher / tiefer | `Strg+↑` höher, `Strg+↓` tiefer *(Annahme)* | `Alt+Umschalt+↑` höher, `Alt+Umschalt+↓` tiefer | ✓ |
-| Vorzeichen ändern (E → Eis, E → Es) | `+` Kreuz, `−` B *(Annahme)* | `+` Kreuz, `−` B *(Icastico)* | ✓ |
-| Notenwert der Note ändern | `Alt+1` 64tel, `Alt+2` 32tel, `Alt+3` 16tel, `Alt+4` Achtel, `Alt+5` Viertel, `Alt+6` Halbe, `Alt+7` Ganze | `Alt+1` Ganze, `Alt+2` Halbe, `Alt+3` Viertel, `Alt+4` Achtel, `Alt+5` 16tel, `Alt+6` 32tel, `Alt+7` 64tel *(Icastico)* | ✓ |
-| Haltebogen zur nächsten Note gleicher Tonhöhe (nochmal: lösen) | `T` | `Umschalt+T` *(Icastico)* – T ist in Logic die Taste für Fis. | ✓ |
-| Gleiten zur nächsten Note (nochmal: lösen). Die Lücke dazwischen ist die Gleitdauer | `Strg+Umschalt+G` *(Icastico)* | `Strg+Umschalt+G` *(Icastico)* | ✓ |
-| Note in Pause umwandeln | `R` | – | ✓ |
-| Note löschen (wird zur Pause) | `Entf` *(Annahme)* | `Entf` | ✓ |
-| Letzte Note löschen und zurückgehen | `⌫` *(Annahme)* | `⌫` *(Icastico)* | ✓ |
-| Angeklickten Akkordton in eine eigene Stimme lösen | `Strg+Umschalt+D` *(Icastico)* | `Strg+Umschalt+D` *(Icastico)* | ✓ |
-| Note in der Zeit verschieben (um den gewählten Notenwert) | `Alt+→` später, `Alt+←` früher *(Icastico)* | `Alt+→` später, `Alt+←` früher *(Icastico)* | ✓ |
-| Note verlängern / verkürzen (um den gewählten Notenwert) | `Umschalt+→` länger, `Umschalt+←` kürzer *(Icastico)* | `Umschalt+→` länger, `Umschalt+←` kürzer *(Icastico)* | ✓ |
-| Note mit der Maus nach oben / unten ziehen | `Ziehen` *(Icastico)* – Stufenweise in der Tonart. | `Ziehen` *(Icastico)* – Stufenweise in der Tonart; mit Alt in Halbtönen. | ✓ |
-| Note auf eine andere Note ziehen (Akkord) | `Ziehen` *(Icastico)* – Die gezogene Note übernimmt Anfang und Länge der anderen und klingt mit ihr zusammen. | `Ziehen` *(Icastico)* – Die gezogene Note übernimmt Anfang und Länge der anderen und klingt mit ihr zusammen. | ✓ |
-| Piano-Roll: neue Note über eine bestehende zeichnen | `Alt+Ziehen` *(Icastico)* – Gleicher Anfang und gleiche Länge = Akkord, sonst eine zweite Stimme. | `Alt+Ziehen` *(Icastico)* – Gleicher Anfang und gleiche Länge = Akkord, sonst eine zweite Stimme. | ✓ |
-| Piano-Roll: Balken anklicken – Lautstärke und Ein-/Ausblenden | `Klick` *(Icastico)* – Menü mit Lautstärke und einer Linie über die Länge der Note. | `Klick` *(Icastico)* – Menü mit Lautstärke und einer Linie über die Länge der Note. | ✓ |
-| Piano-Roll: Gleit-Linie anklicken – Verlauf des Übergangs | `Klick` *(Icastico)* – Die Linie bestimmt, wie Tonhöhe und Lautstärke durch die Lücke wandern. | `Klick` *(Icastico)* – Die Linie bestimmt, wie Tonhöhe und Lautstärke durch die Lücke wandern. | ✓ |
-| Im Lautstärke-/Verlaufsmenü: Punkt auf die Linie setzen | `P` *(Icastico)* – An der Stelle des Mauszeigers. Punkt ziehen formt die ganze Linie, Doppelklick oder Entf entfernt ihn. | `P` *(Icastico)* – An der Stelle des Mauszeigers. Punkt ziehen formt die ganze Linie, Doppelklick oder Entf entfernt ihn. | ✓ |
-| Rückgängig | `Strg+Z` | `Strg+Z` | ✓ |
-| Wiederholen | `Strg+Y` / `Strg+Umschalt+Z` | `Strg+Umschalt+Z` | ✓ |
-| Kopieren | `Strg+C` | `Strg+C` | geplant |
-| Einfügen | `Strg+V` | `Strg+V` | geplant |
-| Ausschneiden | `Strg+X` | `Strg+X` | geplant |
-| Alles auswählen | `Strg+A` | `Strg+A` | geplant |
-| Quantisieren (eingespielte Noten ins Raster) | – | `Q` | geplant |
+| Funktion | Finale | Logic Pro | Finale-Ziffernblock | Icastico |
+|---|---|---|---|---|
+| Note punktieren (nochmal: Punkt weg) | – | – | `.` *(Annahme)* – Ziffernblock-Punkt. | ✓ |
+| Eine Stufe höher / tiefer (in der Tonart) | `↑` höher, `↓` tiefer *(Annahme)* | – | (wie Finale) | ✓ |
+| Einen Halbton höher / tiefer (E → F) | – | `Alt+↑` höher, `Alt+↓` tiefer | (wie Finale) | ✓ |
+| Eine Oktave höher / tiefer | `Strg+↑` höher, `Strg+↓` tiefer *(Annahme)* | `Alt+Umschalt+↑` höher, `Alt+Umschalt+↓` tiefer | (wie Finale) | ✓ |
+| Vorzeichen ändern (E → Eis, E → Es) | `+` Kreuz, `−` B *(Annahme)* | `+` Kreuz, `−` B *(Icastico)* | (wie Finale) | ✓ |
+| Notenwert der Note ändern | `Alt+1` 64tel, `Alt+2` 32tel, `Alt+3` 16tel, `Alt+4` Achtel, `Alt+5` Viertel, `Alt+6` Halbe, `Alt+7` Ganze | `Alt+1` Ganze, `Alt+2` Halbe, `Alt+3` Viertel, `Alt+4` Achtel, `Alt+5` 16tel, `Alt+6` 32tel, `Alt+7` 64tel *(Icastico)* | (wie Finale) | ✓ |
+| Haltebogen zur nächsten Note gleicher Tonhöhe (nochmal: lösen) | `T` | `Umschalt+T` *(Icastico)* – T ist in Logic die Taste für Fis. | (wie Finale) | ✓ |
+| Gleiten zur nächsten Note (nochmal: lösen). Die Lücke dazwischen ist die Gleitdauer | `Strg+Umschalt+G` *(Icastico)* | `Strg+Umschalt+G` *(Icastico)* | (wie Finale) | ✓ |
+| Note in Pause umwandeln | `R` | – | (wie Finale) | ✓ |
+| Note löschen (wird zur Pause) | `Entf` *(Annahme)* | `Entf` | (wie Finale) | ✓ |
+| Letzte Note löschen und zurückgehen | `⌫` *(Annahme)* | `⌫` *(Icastico)* | (wie Finale) | ✓ |
+| Angeklickten Akkordton in eine eigene Stimme lösen | `Strg+Umschalt+D` *(Icastico)* | `Strg+Umschalt+D` *(Icastico)* | (wie Finale) | ✓ |
+| Note in der Zeit verschieben (um den gewählten Notenwert) | `Alt+→` später, `Alt+←` früher *(Icastico)* | `Alt+→` später, `Alt+←` früher *(Icastico)* | (wie Finale) | ✓ |
+| Note verlängern / verkürzen (um den gewählten Notenwert) | `Umschalt+→` länger, `Umschalt+←` kürzer *(Icastico)* | `Umschalt+→` länger, `Umschalt+←` kürzer *(Icastico)* | (wie Finale) | ✓ |
+| Note mit der Maus nach oben / unten ziehen | `Ziehen` *(Icastico)* – Stufenweise in der Tonart. | `Ziehen` *(Icastico)* – Stufenweise in der Tonart; mit Alt in Halbtönen. | (wie Finale) | ✓ |
+| Note auf eine andere Note ziehen (Akkord) | `Ziehen` *(Icastico)* – Die gezogene Note übernimmt Anfang und Länge der anderen und klingt mit ihr zusammen. | `Ziehen` *(Icastico)* – Die gezogene Note übernimmt Anfang und Länge der anderen und klingt mit ihr zusammen. | (wie Finale) | ✓ |
+| Piano-Roll: neue Note über eine bestehende zeichnen | `Alt+Ziehen` *(Icastico)* – Gleicher Anfang und gleiche Länge = Akkord, sonst eine zweite Stimme. | `Alt+Ziehen` *(Icastico)* – Gleicher Anfang und gleiche Länge = Akkord, sonst eine zweite Stimme. | (wie Finale) | ✓ |
+| Piano-Roll: Balken anklicken – Lautstärke und Ein-/Ausblenden | `Klick` *(Icastico)* – Menü mit Lautstärke und einer Linie über die Länge der Note. | `Klick` *(Icastico)* – Menü mit Lautstärke und einer Linie über die Länge der Note. | (wie Finale) | ✓ |
+| Piano-Roll: Gleit-Linie anklicken – Verlauf des Übergangs | `Klick` *(Icastico)* – Die Linie bestimmt, wie Tonhöhe und Lautstärke durch die Lücke wandern. | `Klick` *(Icastico)* – Die Linie bestimmt, wie Tonhöhe und Lautstärke durch die Lücke wandern. | (wie Finale) | ✓ |
+| Im Lautstärke-/Verlaufsmenü: Punkt auf die Linie setzen | `P` *(Icastico)* – An der Stelle des Mauszeigers. Punkt ziehen formt die ganze Linie, Doppelklick oder Entf entfernt ihn. | `P` *(Icastico)* – An der Stelle des Mauszeigers. Punkt ziehen formt die ganze Linie, Doppelklick oder Entf entfernt ihn. | (wie Finale) | ✓ |
+| Rückgängig | `Strg+Z` | `Strg+Z` | (wie Finale) | ✓ |
+| Wiederholen | `Strg+Y` / `Strg+Umschalt+Z` | `Strg+Umschalt+Z` | (wie Finale) | ✓ |
+| Kopieren | `Strg+C` | `Strg+C` | (wie Finale) | geplant |
+| Einfügen | `Strg+V` | `Strg+V` | (wie Finale) | geplant |
+| Ausschneiden | `Strg+X` | `Strg+X` | (wie Finale) | geplant |
+| Alles auswählen | `Strg+A` | `Strg+A` | (wie Finale) | geplant |
+| Quantisieren (eingespielte Noten ins Raster) | – | `Q` | (wie Finale) | geplant |
 
 ## Bewegen
 
-| Funktion | Finale | Logic Pro | Icastico |
-|---|---|---|---|
-| Vor / zurück | `→` vor, `←` zurück *(Annahme)* | `→` vor, `←` zurück – Logic: nächstes / voriges Ereignis auswählen. | ✓ |
-| System wechseln | `Alt+↓` darunter, `Alt+↑` darüber *(Annahme)* | `↓` darunter, `↑` darüber – Logic: Spur darüber / darunter auswählen. | ✓ |
-| Eingabe beenden, dann Auswahl aufheben | `Esc` *(Icastico)* | `Esc` *(Icastico)* | ✓ |
-| Vergrößern / verkleinern | – | `Strg+→` größer, `Strg+←` kleiner | geplant |
+| Funktion | Finale | Logic Pro | Finale-Ziffernblock | Icastico |
+|---|---|---|---|---|
+| Vor / zurück | `→` vor, `←` zurück *(Annahme)* | `→` vor, `←` zurück – Logic: nächstes / voriges Ereignis auswählen. | (wie Finale) | ✓ |
+| System wechseln | `Alt+↓` darunter, `Alt+↑` darüber *(Annahme)* | `↓` darunter, `↑` darüber – Logic: Spur darüber / darunter auswählen. | (wie Finale) | ✓ |
+| Eingabe beenden, dann Auswahl aufheben | `Esc` *(Icastico)* | `Esc` *(Icastico)* | (wie Finale) | ✓ |
+| Vergrößern / verkleinern | – | `Strg+→` größer, `Strg+←` kleiner | (wie Finale) | geplant |
 
 ## Datei & Ansicht
 
-| Funktion | Finale | Logic Pro | Icastico |
-|---|---|---|---|
-| Neue Partitur | `Strg+N` | `Strg+N` | ✓ |
-| Bibliothek | `Strg+O` *(Icastico)* – In Finale/Logic: Öffnen. | `Strg+O` *(Icastico)* – In Finale/Logic: Öffnen. | ✓ |
-| Datei von außerhalb der Bibliothek öffnen | `Strg+Umschalt+O` *(Icastico)* | `Strg+Umschalt+O` *(Icastico)* | ✓ |
-| MusicXML importieren (z. B. aus Finale) | `Strg+Umschalt+I` *(Icastico)* | `Strg+Umschalt+I` *(Icastico)* | ✓ |
-| Speichern (Bibliothek speichert auch selbst) | `Strg+S` | `Strg+S` | ✓ |
-| Kopie speichern unter … | `Strg+Umschalt+S` | `Strg+Umschalt+S` | ✓ |
-| Partitur-Einstellungen (Titel, Tonart, Taktart, Auftakt) | `Strg+,` *(Icastico)* | `Strg+,` *(Icastico)* | ✓ |
-| Drucken | `Strg+P` | `Strg+P` | geplant |
-| Piano-Roll für die gewählte Zeile ein / aus | `Strg+Umschalt+P` *(Icastico)* | `Strg+Umschalt+P` *(Icastico)* – In Logic öffnet P den Piano-Roll-Editor; hier ist P ein Ton. | ✓ |
-| Tastenhilfe | `F1` / `?` *(Icastico)* | `F1` / `?` *(Icastico)* | ✓ |
+| Funktion | Finale | Logic Pro | Finale-Ziffernblock | Icastico |
+|---|---|---|---|---|
+| Neue Partitur | `Strg+N` | `Strg+N` | (wie Finale) | ✓ |
+| Bibliothek | `Strg+O` *(Icastico)* – In Finale/Logic: Öffnen. | `Strg+O` *(Icastico)* – In Finale/Logic: Öffnen. | (wie Finale) | ✓ |
+| Datei von außerhalb der Bibliothek öffnen | `Strg+Umschalt+O` *(Icastico)* | `Strg+Umschalt+O` *(Icastico)* | (wie Finale) | ✓ |
+| MusicXML importieren (z. B. aus Finale) | `Strg+Umschalt+I` *(Icastico)* | `Strg+Umschalt+I` *(Icastico)* | (wie Finale) | ✓ |
+| Speichern (Bibliothek speichert auch selbst) | `Strg+S` | `Strg+S` | (wie Finale) | ✓ |
+| Kopie speichern unter … | `Strg+Umschalt+S` | `Strg+Umschalt+S` | (wie Finale) | ✓ |
+| Partitur-Einstellungen (Titel, Tonart, Taktart, Auftakt) | `Strg+,` *(Icastico)* | `Strg+,` *(Icastico)* | (wie Finale) | ✓ |
+| Drucken | `Strg+P` | `Strg+P` | (wie Finale) | geplant |
+| Piano-Roll für die gewählte Zeile ein / aus | `Strg+Umschalt+P` *(Icastico)* | `Strg+Umschalt+P` *(Icastico)* – In Logic öffnet P den Piano-Roll-Editor; hier ist P ein Ton. | (wie Finale) | ✓ |
+| Tastenhilfe | `F1` / `?` *(Icastico)* | `F1` / `?` *(Icastico)* | (wie Finale) | ✓ |
 
 ## Wiedergabe & Aufnahme
 
-| Funktion | Finale | Logic Pro | Icastico |
-|---|---|---|---|
-| Wiedergabe starten / stoppen | `Strg+Enter` *(Icastico)* | `Strg+Enter` *(Icastico)* – In Logic startet die Leertaste die Wiedergabe; hier ist sie die Pause der Schritteingabe. | ✓ |
-| Aufnahme | – | `R` | geplant |
-| Metronom an / aus | – | `K` | geplant |
-| Wiederholbereich (Cycle) an / aus | – | `C` | geplant |
+| Funktion | Finale | Logic Pro | Finale-Ziffernblock | Icastico |
+|---|---|---|---|---|
+| Wiedergabe starten / stoppen | `Strg+Enter` *(Icastico)* | `Strg+Enter` *(Icastico)* – In Logic startet die Leertaste die Wiedergabe; hier ist sie die Pause der Schritteingabe. | (wie Finale) | ✓ |
+| Aufnahme | – | `R` | (wie Finale) | geplant |
+| Metronom an / aus | – | `K` | (wie Finale) | geplant |
+| Wiederholbereich (Cycle) an / aus | – | `C` | (wie Finale) | geplant |
 
 ## Quellen
 

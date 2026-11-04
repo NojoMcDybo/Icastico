@@ -171,10 +171,21 @@ function inputDuration(s: EditorState, n: number): EditorState {
   return base ? { ...s, input: { ...s.input, base, dots: 0 }, message: null } : s;
 }
 
+/** Numpad length: the next note gets it, and so does the note right before the caret (Finale's ghost note). */
+function inputLengthKey(s: EditorState, n: number): EditorState {
+  const next = inputDuration(s, n);
+  return next.caret && target(next) ? editDuration(next, n) : next;
+}
+
 function toggleDot(s: EditorState): EditorState {
   if (s.caret || s.selection?.kind !== 'event') {
     return { ...s, input: { ...s.input, dots: s.input.dots === 1 ? 0 : 1 }, message: null };
   }
+  return dotNote(s);
+}
+
+/** Dots the note itself (also while the caret is waiting right behind it). */
+function dotNote(s: EditorState): EditorState {
   const t = target(s);
   if (!t) return say(s, NO_NOTE);
   if (!isDyadic(t.event.duration)) return say(s, 'Punktierung geht bei N-Tolen nicht.');
@@ -295,6 +306,57 @@ function enterPitch(s0: EditorState, step: Pitch['step'], alterOverride: number 
     input: { ...s.input, pendingTie: false },
     message: null,
   };
+}
+
+/**
+ * Finale's numpad way of typing: Enter puts a copy of the note before the caret
+ * behind it (same pitches and length); without such a note it starts input.
+ * Then ↑/↓, a length key or an interval key change that last note.
+ */
+function repeatNote(s: EditorState): EditorState {
+  const caret = s.caret;
+  if (!caret) return toggleInput(s);
+  if (s.input.chord) return endChord(s);
+  const prev = getVoice(s.score, caret).voice.events.find((e) => eq(eventEnd(e), caret.time));
+  if (!prev) {
+    const p = referencePitch(s, caret);
+    return enterPitch(s, p.step, p.alter);
+  }
+  const [id, nextId] = freshEventId(s.score, caret, s.nextId);
+  const ev: NoteEvent = {
+    id,
+    onset: caret.time,
+    duration: prev.duration,
+    tones: prev.tones.map((t, i) => ({ id: `${id}-t${i + 1}`, pitch: t.pitch })),
+  };
+  let score = updateEvents(s.score, caret, (events) => insertSorted(makeRoom(events, caret.time, ev.duration, s.input.insert), ev));
+  if (s.input.pendingTie && prev.tones.length === 1) {
+    const kept = linksOf(score).filter((l) => l.from !== prev.tones[0]!.id);
+    score = withLinks(score, [...kept, { id: freshLinkId(score, kept), kind: 'tie' as const, from: prev.tones[0]!.id, to: ev.tones[0]!.id }]);
+  }
+  return {
+    ...s,
+    score,
+    nextId,
+    selection: selectEvent(caret, ev),
+    caret: { ...caret, time: add(caret.time, ev.duration) },
+    input: { ...s.input, pendingTie: false },
+    message: null,
+  };
+}
+
+/** Finale's number row: adds the tone an interval (2 = second … 8 = octave) above (n > 0) or below (n < 0) the note. */
+function addInterval(s: EditorState, n: number): EditorState {
+  const t = target(s);
+  if (!t) return say(s, NO_NOTE);
+  const sorted = sortTones(t.event.tones);
+  const key = keyAt(s.score, t.event.onset);
+  const pitch = n > 0 ? stepPitch(sorted[sorted.length - 1]!.pitch, n - 1, key) : stepPitch(sorted[0]!.pitch, n + 1, key);
+  if (t.event.tones.some((tone) => samePitch(tone.pitch, pitch))) return s;
+  const score = updateEvents(s.score, t.ref, (events) =>
+    events.map((e) => (e.id === t.event.id ? { ...e, tones: sortTones([...e.tones, { id: freshToneId(s.score, e.id), pitch }]) } : e)),
+  );
+  return { ...s, score, selection: selectEvent(t.ref, t.event), message: null };
 }
 
 function addChordNote(s: EditorState, stepIndex: number): EditorState {
@@ -624,6 +686,10 @@ export const COMMANDS = {
   'input.dot': { title: 'Punktierung', run: toggleDot },
   'input.note': { title: 'Note eingeben', run: enterNote },
   'input.pitchClass': { title: 'Note nach Klaviertaste eingeben', run: enterPitchClass },
+  'input.length': { title: 'Notenwert (Ziffernblock)', run: inputLengthKey },
+  'input.repeat': { title: 'Note wiederholen (Finale-Ziffernblock)', run: repeatNote },
+  'input.interval': { title: 'Ton im Intervall darüber/darunter', run: addInterval },
+  'edit.dot': { title: 'Note punktieren', run: dotNote },
   'input.chordNote': { title: 'Ton zum Akkord hinzufügen', run: addChordNote },
   'input.chordMode': { title: 'Akkordmodus an/aus', run: toggleChordMode },
   'input.rest': { title: 'Pause eingeben', run: enterRest },

@@ -46,7 +46,7 @@ export const UI_COMMANDS: ReadonlySet<string> = new Set<UiCommandId>([
   'play.toggle',
 ]);
 
-export type PresetId = 'finale' | 'logic';
+export type PresetId = 'finale' | 'logic' | 'speedy';
 export type KeySource = 'doku' | 'annahme' | 'icastico';
 
 export interface PresetKeys {
@@ -65,6 +65,8 @@ export interface LibraryFunction {
   readonly args?: Readonly<Record<string, string>>;
   readonly finale?: PresetKeys;
   readonly logic?: PresetKeys;
+  /** Finale-Ziffernblock; where missing, the Finale keys apply. */
+  readonly speedy?: PresetKeys;
 }
 
 export interface LibraryGroup {
@@ -79,7 +81,7 @@ export interface KeyLibrary {
 }
 
 export const KEY_LIBRARY = data as unknown as KeyLibrary;
-export const PRESETS: readonly PresetId[] = ['finale', 'logic'];
+export const PRESETS: readonly PresetId[] = ['finale', 'logic', 'speedy'];
 
 export interface KeyBinding {
   readonly combo: string;
@@ -132,11 +134,12 @@ const NAMES_PC: Record<string, string> = {
   Enter: 'Enter',
 };
 const NAMES_MAC: Record<string, string> = { ...NAMES_PC, Mod: '⌘', Alt: '⌥', Shift: '⇧', Delete: '⌦' };
+const numpadName = (p: string): string | null => (/^Num\d$/.test(p) ? `Ziffernblock ${p.slice(3)}` : null);
 
 /** "Mod+Shift+Z" → "Strg+Umschalt+Z" (Windows) or "⌘⇧Z" (Mac). */
 export function displayCombo(combo: string, mac = false): string {
   const names = mac ? NAMES_MAC : NAMES_PC;
-  const parts = combo.split('+').map((p) => names[p] ?? p);
+  const parts = combo.split('+').map((p) => names[p] ?? numpadName(p) ?? p);
   return mac && parts.length > 1 ? parts.join('') : parts.join('+');
 }
 
@@ -162,7 +165,7 @@ export function buildKeymap(id: PresetId, library: KeyLibrary = KEY_LIBRARY, mac
   for (const group of library.groups) {
     const entries: { keys: string; text: string }[] = [];
     for (const fn of group.functions) {
-      const preset = fn[id];
+      const preset = fn[id] ?? (id === 'speedy' ? fn.finale : undefined);
       if (!fn.command || !preset || keyPairs(preset.keys).every((p) => p.keys.length === 0)) continue;
       entries.push(helpEntry(fn, preset, mac));
       if (MOUSE_COMMANDS.has(fn.command)) continue;
@@ -211,7 +214,8 @@ export function renderKeyDoc(library: KeyLibrary = KEY_LIBRARY): string {
     '',
     '> Erzeugt aus `src/ui/keymaps/library.json` mit `npm run keys:doc` – nicht von Hand ändern.',
     '',
-    'Alle Funktionen eines Notenprogramms mit ihren Tasten in **Finale** und **Logic Pro** –',
+    'Alle Funktionen eines Notenprogramms mit ihren Tasten in **Finale**, **Logic Pro** und der',
+    'Belegung **Finale-Ziffernblock** (Ziffernblock = Notenwert, obere Zahlenreihe = Intervall) –',
     'auch solche, die Icastico noch nicht kann („geplant“). In Icastico ist die Belegung',
     'umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.',
     '',
@@ -220,10 +224,10 @@ export function renderKeyDoc(library: KeyLibrary = KEY_LIBRARY): string {
     '',
   ];
   for (const group of library.groups) {
-    lines.push(`## ${group.title}`, '', '| Funktion | Finale | Logic Pro | Icastico |', '|---|---|---|---|');
+    lines.push(`## ${group.title}`, '', '| Funktion | Finale | Logic Pro | Finale-Ziffernblock | Icastico |', '|---|---|---|---|---|');
     for (const fn of group.functions) {
       const status = fn.command ? '✓' : 'geplant';
-      lines.push(`| ${fn.title} | ${docCell(fn, fn.finale)} | ${docCell(fn, fn.logic)} | ${status} |`);
+      lines.push(`| ${fn.title} | ${docCell(fn, fn.finale)} | ${docCell(fn, fn.logic)} | ${fn.speedy ? docCell(fn, fn.speedy) : '(wie Finale)'} | ${status} |`);
     }
     lines.push('');
   }

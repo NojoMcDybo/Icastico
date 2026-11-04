@@ -45,3 +45,4 @@ Was wird dadurch leichter, was schwerer?
 | 0015 | [Wiedergabe mit eingebautem Klang und Tempo in der Partitur](0015-wiedergabe.md) | angenommen (Klang vorläufig) |
 | 0016 | [Akkorde aus mehreren Wegen, Lautstärke-Linien und Gleitverläufe](0016-akkorde-und-verlaeufe.md) | angenommen |
 | 0017 | [MusicXML importieren](0017-musicxml-import.md) | angenommen |
+| 0018 | [Dritte Tastenbelegung „Finale-Ziffernblock“](0018-finale-ziffernblock.md) | angenommen |

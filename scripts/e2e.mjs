@@ -647,6 +647,21 @@ try {
   check(/keine MusicXML-Partitur/.test(await page.locator('.modal').textContent()), 'Eine Datei, die kein MusicXML ist, wird mit klarer Meldung abgelehnt');
   await page.click('.modal button:text("OK")');
 
+  // ── Finale-Ziffernblock: Enter wiederholt, Ziffernblock = Notenwert, Zahlenreihe = Intervall ──
+  await type('F1');
+  await page.click('[data-preset="speedy"]');
+  check((await page.textContent('.help__desc')).includes('Ziffernblock'), 'Tastenhilfe: auf Finale-Ziffernblock umgeschaltet');
+  await type('Escape');
+  await newScore('Ziffernblock-Test');
+  await type('Enter', 'ArrowUp', 'Numpad4', 'Enter', '3');
+  check((await notes()) === 3 && (await page.locator('.page g.chord').count()) === 1, 'Ziffernblock: Enter setzt eine Note, die Kopie bekommt mit der 3 eine Terz darüber (Akkord)');
+  await saved();
+  const speedyFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Ziffernblock-Test.icastico'))[1].contents;
+  check((speedyFile.match(/"dur": "1\/8"/g) ?? []).length === 2, 'Ziffernblock 4 macht die letzte Note zum Achtel, Enter kopiert den Achtel');
+  await type('F1');
+  await page.click('[data-preset="finale"]');
+  await type('Escape');
+
   check(errors.length === 0, `Keine Fehler in der Konsole${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   console.log(`\nAlle ${step} Prüfungen bestanden. Screenshots: ${outDir}`);
 } catch (err) {

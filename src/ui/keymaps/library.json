@@ -3,7 +3,8 @@
   "about": "Icastico key-binding library (ADR 0011). Every function a notation editor needs, with its Finale and Logic Pro keys. 'command' = implemented in Icastico; functions without it are planned. Key syntax: Mod = Ctrl (Windows) / Cmd (Mac), Alt = Alt / Option. source: doku = from the program's documentation, annahme = our guess (please verify), icastico = our own addition.",
   "presets": {
     "finale": { "name": "Finale", "description": "Simple Entry: Zahlen für Notenwerte, Buchstaben für Tonhöhen" },
-    "logic": { "name": "Logic Pro", "description": "Step-Input-Tastatur: Tasten wie eine Klaviatur (A = C, W = Cis …), 1 = Ganze" }
+    "logic": { "name": "Logic Pro", "description": "Step-Input-Tastatur: Tasten wie eine Klaviatur (A = C, W = Cis …), 1 = Ganze" },
+    "speedy": { "name": "Finale-Ziffernblock", "description": "Ziffernblock = Notenwert, Enter = Note wiederholen, ↑/↓ = Tonhöhe, obere Zahlenreihe = Intervall darüber (Umschalt: darunter)" }
   },
   "groups": [
     {
@@ -14,7 +15,8 @@
           "title": "Eingabe starten / beenden",
           "command": "input.toggle",
           "finale": { "keys": ["Enter"], "source": "doku" },
-          "logic": { "keys": ["Enter"], "source": "icastico", "note": "In Logic schaltet der Knopf „MIDI In“ die Schritteingabe ein." }
+          "logic": { "keys": ["Enter"], "source": "icastico", "note": "In Logic schaltet der Knopf „MIDI In“ die Schritteingabe ein." },
+          "speedy": { "keys": [], "source": "icastico", "note": "Enter wiederholt hier die Note; die Eingabe beendet Esc." }
         },
         {
           "id": "input.duration",
@@ -22,7 +24,8 @@
           "command": "input.duration",
           "args": { "7": "Ganze", "6": "Halbe", "5": "Viertel", "4": "Achtel", "3": "16tel", "2": "32tel", "1": "64tel" },
           "finale": { "keys": { "7": ["7"], "6": ["6"], "5": ["5"], "4": ["4"], "3": ["3"], "2": ["2"], "1": ["1"] }, "source": "doku" },
-          "logic": { "keys": { "7": ["1"], "6": ["2"], "5": ["3"], "4": ["4"], "3": ["5"], "2": ["6"], "1": ["7"] }, "source": "doku", "note": "Logic: 8 = 128tel (gibt es in Icastico noch nicht)." }
+          "logic": { "keys": { "7": ["1"], "6": ["2"], "5": ["3"], "4": ["4"], "3": ["5"], "2": ["6"], "1": ["7"] }, "source": "doku", "note": "Logic: 8 = 128tel (gibt es in Icastico noch nicht)." },
+          "speedy": { "keys": [], "source": "icastico", "note": "Hier gilt der Ziffernblock („Notenwert“ unten)." }
         },
         {
           "id": "input.note",
@@ -43,14 +46,16 @@
           "title": "Pause eingeben",
           "command": "input.rest",
           "finale": { "keys": ["0"], "source": "doku" },
-          "logic": { "keys": ["Space"], "source": "doku" }
+          "logic": { "keys": ["Space"], "source": "doku" },
+          "speedy": { "keys": ["Num0", "0"], "source": "annahme", "note": "Ziffernblock 0 wie bei Finale." }
         },
         {
           "id": "input.dot",
           "title": "Punktierung",
           "command": "input.dot",
           "finale": { "keys": ["Period"], "source": "doku", "note": "In der Eingabe gilt der Punkt für die nächste Note (Annahme), sonst für die ausgewählte." },
-          "logic": { "keys": ["0"], "source": "doku", "note": "Logic: „nächste zwei Noten punktiert“; Icastico punktiert die nächste Note." }
+          "logic": { "keys": ["0"], "source": "doku", "note": "Logic: „nächste zwei Noten punktiert“; Icastico punktiert die nächste Note." },
+          "speedy": { "keys": [], "source": "icastico", "note": "Hier punktiert der Punkt die letzte Note („Note punktieren“)." }
         },
         {
           "id": "input.chordNote",
@@ -89,6 +94,26 @@
           "logic": { "keys": { "1": ["X"], "-1": ["Z"], "2": ["Shift+X"], "-2": ["Shift+Z"] }, "source": "doku", "note": "Icastico wählt die Oktave automatisch nah an der vorigen Note." }
         },
         {
+          "id": "input.repeat",
+          "title": "Note wiederholen: Kopie der letzten Note dahinter",
+          "command": "input.repeat",
+          "speedy": { "keys": ["Enter"], "source": "annahme", "note": "Ohne Note davor beginnt Enter die Eingabe. Danach ändern ↑/↓, Ziffernblock und Zahlenreihe die letzte Note." }
+        },
+        {
+          "id": "input.length",
+          "title": "Notenwert der letzten und der nächsten Note (Ziffernblock)",
+          "command": "input.length",
+          "args": {"1": "64tel", "2": "32tel", "3": "16tel", "4": "Achtel", "5": "Viertel", "6": "Halbe", "7": "Ganze"},
+          "speedy": { "keys": { "7": ["Num7"], "6": ["Num6"], "5": ["Num5"], "4": ["Num4"], "3": ["Num3"], "2": ["Num2"], "1": ["Num1"] }, "source": "annahme" }
+        },
+        {
+          "id": "input.interval",
+          "title": "Ton im Intervall über / unter der Note hinzufügen",
+          "command": "input.interval",
+          "args": { "2": "Sekunde darüber", "3": "Terz darüber", "4": "Quarte darüber", "5": "Quinte darüber", "6": "Sexte darüber", "7": "Septime darüber", "8": "Oktave darüber", "-2": "Sekunde darunter", "-3": "Terz darunter", "-4": "Quarte darunter", "-5": "Quinte darunter", "-6": "Sexte darunter", "-7": "Septime darunter", "-8": "Oktave darunter" },
+          "speedy": { "keys": { "2": ["2"], "3": ["3"], "4": ["4"], "5": ["5"], "6": ["6"], "7": ["7"], "8": ["8"], "-2": ["Shift+2"], "-3": ["Shift+3"], "-4": ["Shift+4"], "-5": ["Shift+5"], "-6": ["Shift+6"], "-7": ["Shift+7"], "-8": ["Shift+8"] }, "source": "annahme", "note": "Obere Zahlenreihe; mit Umschalt nach unten." }
+        },
+        {
           "id": "input.insertMode",
           "title": "Einfügen statt Überschreiben",
           "command": "input.insertMode",
@@ -100,6 +125,12 @@
     {
       "title": "Letzte / ausgewählte Note ändern",
       "functions": [
+        {
+          "id": "edit.dot",
+          "title": "Note punktieren (nochmal: Punkt weg)",
+          "command": "edit.dot",
+          "speedy": { "keys": ["Period"], "source": "annahme", "note": "Ziffernblock-Punkt." }
+        },
         {
           "id": "edit.step",
           "title": "Eine Stufe höher / tiefer (in der Tonart)",

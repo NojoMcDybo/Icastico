@@ -80,6 +80,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [ ] Wiedergabe (SoundFont-Synth in Rust), Cursor läuft mit
 - [ ] MIDI-Keyboard-Eingabe (Step + Echtzeit mit Quantisierer)
 - [x] MusicXML importieren (`.musicxml`, `.xml`, `.mxl`; Strg+Umschalt+I): Noten, Akkorde, Stimmen, Haltebögen, Tonart, Taktart, Auftakt, Tempo; N-Tolen vorerst gerundet (ADR 0017)
+- [x] Belegung „Finale-Ziffernblock“ (ADR 0018): Ziffernblock = Notenwert, Enter = Note wiederholen, Zahlenreihe = Intervall (Umschalt: darunter), Punkt an der letzten Note
 - [ ] MusicXML exportieren; Finale-Dateien (`.musx`) direkt lesen
 - [ ] PDF-Export
 

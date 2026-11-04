@@ -20,11 +20,11 @@ Zwischenstand; offene Punkte stehen unten. Vergleich mit dem Stand von Icastico 
 
 | Wunsch | Stand |
 |---|---|
-| Zifferblock wählt den Notenwert, obere Zahlenreihe etwas anderes | Heute lesen wir Ziffernblock und obere Reihe gleich (Notenwert). Für diesen Wunsch müsste die obere Reihe Intervalle liefern (eigene Belegung). |
-| Enter bestätigt die Note und setzt den Cursor weiter, dort gleiche Tonhöhe und Notenwert | anders: Enter startet/beendet heute die Eingabe |
+| Zifferblock wählt den Notenwert, obere Zahlenreihe etwas anderes | geht in der Belegung „Finale-Ziffernblock“ (ADR 0018, F1 zum Umschalten) |
+| Enter bestätigt die Note und setzt den Cursor weiter, dort gleiche Tonhöhe und Notenwert | geht in „Finale-Ziffernblock“: Enter setzt eine Kopie der letzten Note; ↑/↓ und Zahlen ändern die letzte Note (keine Vorschau-Note) |
 | 0 (Ziffernblock) = Pause | geht (Finale-Belegung: 0) |
 | ↑/↓ ändert die Tonhöhe, ←/→ wählt andere Noten | geht |
-| Obere Zahlenreihe: Ton im Intervall über der Note; Umschalt + Zahl darunter | fehlt (heute: Umschalt + Buchstabe, und der Akkordmodus) |
+| Obere Zahlenreihe: Ton im Intervall über der Note; Umschalt + Zahl darunter | geht in „Finale-Ziffernblock“ (2 = Sekunde … 8 = Oktave) |
 | + / − im Ziffernblock: Halbton höher/tiefer | geht (Vorzeichen) |
 | Punkt im Ziffernblock punktiert | geht |
 | T = Haltebogen | geht |
@@ -46,7 +46,7 @@ nicht billig.
 ## Mögliche Reihenfolge (Empfehlung)
 
 1. ~~MusicXML-Import~~ (gebaut, ADR 0017)
-2. Eigene Tastenbelegung „Gitarre/Finale-Ziffernblock“ (Enter-Weiterschalten, Intervalle über der oberen Reihe)
+2. ~~Eigene Tastenbelegung „Finale-Ziffernblock“~~ (gebaut, ADR 0018)
 3. Akkordsymbole und Liedtext (Leadsheet)
 4. Tabulatur
 5. Seitenlayout, PDF, Einzelstimmen

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { comboOf, type KeyLike } from './keys';
+import { comboOf, numpadComboOf, type KeyLike } from './keys';
 import {
   buildKeymap,
   displayCombo,
@@ -63,8 +63,9 @@ describe('comboOf', () => {
 describe('key-binding library', () => {
   const finale = buildKeymap('finale', KEY_LIBRARY, false);
   const logic = buildKeymap('logic', KEY_LIBRARY, false);
+  const speedy = buildKeymap('speedy', KEY_LIBRARY, false);
 
-  it.each([finale, logic])('$name: only existing commands, no key used twice', (km) => {
+  it.each([finale, logic, speedy])('$name: only existing commands, no key used twice', (km) => {
     const combos = new Set<string>();
     for (const b of km.bindings) {
       expect(b.command in COMMANDS || UI_COMMANDS.has(b.command), b.command).toBe(true);
@@ -75,7 +76,7 @@ describe('key-binding library', () => {
 
   it('every listed command exists, ids are unique, keys have the expected form', () => {
     const ids = new Set<string>();
-    const valid = /^((Mod|Alt|Shift)\+)*([A-Z0-9?]|F1|Plus|Minus|Period|Comma|Space|Backquote|Enter|Escape|Delete|Backspace|Insert|Arrow(Up|Down|Left|Right)|Ziehen|Klick)$/;
+    const valid = /^((Mod|Alt|Shift)\+)*([A-Z0-9?]|Num[0-9]|F1|Plus|Minus|Period|Comma|Space|Backquote|Enter|Escape|Delete|Backspace|Insert|Arrow(Up|Down|Left|Right)|Ziehen|Klick)$/;
     for (const g of KEY_LIBRARY.groups) {
       for (const fn of g.functions) {
         expect(ids.has(fn.id), `doppelte id ${fn.id}`).toBe(false);
@@ -83,7 +84,7 @@ describe('key-binding library', () => {
         if (fn.command) {
           expect(fn.command in COMMANDS || UI_COMMANDS.has(fn.command) || MOUSE_COMMANDS.has(fn.command), fn.command).toBe(true);
         }
-        for (const preset of [fn.finale, fn.logic]) {
+        for (const preset of [fn.finale, fn.logic, fn.speedy]) {
           for (const pair of preset ? keyPairs(preset.keys) : []) {
             for (const k of pair.keys) expect(k, `${fn.id}: ${k}`).toMatch(valid);
             if (pair.arg !== undefined) expect(fn.args?.[pair.arg], `${fn.id} arg ${pair.arg}`).toBeDefined();
@@ -91,6 +92,27 @@ describe('key-binding library', () => {
         }
       }
     }
+  });
+
+  it('Finale numpad layout: numpad = length, number row = interval, Enter = repeat', () => {
+    expect(findBinding(speedy, 'Num5')).toMatchObject({ command: 'input.length', arg: 5 });
+    expect(findBinding(speedy, '5')).toMatchObject({ command: 'input.interval', arg: 5 });
+    expect(findBinding(speedy, 'Shift+3')).toMatchObject({ command: 'input.interval', arg: -3 });
+    expect(findBinding(speedy, 'Enter')).toMatchObject({ command: 'input.repeat' });
+    expect(findBinding(speedy, 'Num0')).toMatchObject({ command: 'input.rest' });
+    expect(findBinding(speedy, 'Period')).toMatchObject({ command: 'edit.dot' });
+    // everything else keeps the Finale keys
+    expect(findBinding(speedy, 'T')).toMatchObject({ command: 'edit.tie' });
+    expect(findBinding(speedy, 'ArrowUp')).toMatchObject({ command: 'edit.step', arg: 1 });
+    expect(findBinding(speedy, 'Plus')).toMatchObject({ command: 'edit.alter', arg: 1 });
+    expect(findBinding(finale, 'Num5')).toBeUndefined();
+  });
+
+  it('numpad digits are told apart from the number row only for the keymaps that ask', () => {
+    expect(numpadComboOf(ev('5', 'Numpad5'))).toBe('Num5');
+    expect(numpadComboOf(ev('5', 'Digit5'))).toBeNull();
+    expect(numpadComboOf(ev('5', 'Numpad5', { shiftKey: true }))).toBeNull();
+    expect(comboOf(ev('@', 'Digit2', { shiftKey: true }))).toBe('Shift+2');
   });
 
   it('chord mode is on the key next to 1 in both layouts', () => {

@@ -56,7 +56,7 @@ import { Thumbnails } from './thumbnails';
 import type { UpdateChecker } from './updates';
 import { loadNewScoreDefaults, loadView, saveKeymapPreset, saveLastOpened, saveNewScoreDefaults, saveView } from './preferences';
 import { scoreDialog } from './scoreDialog';
-import { comboOf } from './keys';
+import { comboOf, numpadComboOf } from './keys';
 import { type Keymap, type PresetId, type UiCommandId, buildKeymap, findBinding, KEY_LIBRARY, PRESETS } from './keymaps/library';
 
 export interface WorkstationElements {
@@ -310,7 +310,8 @@ export class Workstation {
       return;
     }
     if (!combo) return;
-    const binding = findBinding(this.keymap, combo);
+    const numpad = numpadComboOf(e);
+    const binding = (numpad ? findBinding(this.keymap, numpad) : undefined) ?? findBinding(this.keymap, combo);
     if (!binding) return;
     e.preventDefault();
     this.run(binding.command, binding.arg ?? 0);

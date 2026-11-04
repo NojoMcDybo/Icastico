@@ -71,10 +71,11 @@ export function saveLastOpened(path: string): void {
 
 const KEYMAP = 'icastico.keymap';
 
-/** Chosen key layout ("finale" or "logic"); Finale by default. */
+/** Chosen key layout ("finale", "logic" or "speedy"); Finale by default. */
 export function loadKeymapPreset(): PresetId {
   try {
-    return localStorage.getItem(KEYMAP) === 'logic' ? 'logic' : 'finale';
+    const id = localStorage.getItem(KEYMAP);
+    return id === 'logic' || id === 'speedy' ? id : 'finale';
   } catch {
     return 'finale';
   }
