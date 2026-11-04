@@ -158,3 +158,26 @@ describe('links in validation', () => {
     expect(bad([{ id: '1bad', kind: 'slide', from: b, to: c }])[0]).toMatch(/Ungültige Verbindungs-ID/);
   });
 });
+
+describe('review fixes', () => {
+  it('T before the next note replaces a glide that started on the same tone', () => {
+    let s = cmd(select(melody(), 1), 'edit.slide'); // glide from the second C to D
+    s = { ...s, caret: { ...VOICE, time: frac(1, 2) } };
+    s = cmd(cmd(select(s, 1), 'edit.tie'), 'input.note', 0); // caret at the end of C, tie pending
+    expect(validateScore(s.score)).toEqual([]);
+  });
+
+  it('a tone never gets two outgoing links', () => {
+    const s = cmd(select(melody(), 0), 'edit.tie');
+    const [a, b, c] = events(s).map((e) => e.tones[0]!.id) as [string, string, string];
+    const two = { ...s, score: { ...s.score, links: [...s.score.links!, { id: 'x', kind: 'slide' as const, from: a, to: c }] } };
+    expect(cmd(two, 'edit.step', 0).score).toBe(two.score);
+    expect(b).toBeTruthy();
+  });
+
+  it('staff navigation skips detached voices', () => {
+    let s = cmd(cmd(cmd(fresh(), 'input.note', 0), 'input.chordNote', 4), 'edit.escape');
+    s = cmd(select(s, 0, 1), 'edit.detach');
+    expect(cmd(s, 'nav.staff', 1).selection).not.toMatchObject({ voiceId: 'voice-v2' });
+  });
+});

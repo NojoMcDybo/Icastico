@@ -109,7 +109,7 @@ function noteXml(item: NotatedNote, accidentals: AccidentalState, tiedIn: Readon
   const tieAttr = tie ? ` tie="${tie}"` : '';
   // A note tied in from the previous measure does not repeat its accidental.
   const pitchAttrs = (p: Pitch, toneId: string) =>
-    `pname="${p.step.toLowerCase()}" oct="${p.octave}"${accidentals.attrsFor(p, item.tiedFromPrevious || (!item.tiedFromPrevious && tiedIn.has(toneId)))}`;
+    `pname="${p.step.toLowerCase()}" oct="${p.octave}"${accidentals.attrsFor(p, item.tiedFromPrevious || tiedIn.has(toneId))}`;
 
   if (item.tones.length === 1) {
     return `${indent}<note xml:id="${item.id}" ${durAttrs(item.duration)} ${pitchAttrs(item.tones[0]!.pitch, item.tones[0]!.id)}${tieAttr}/>`;

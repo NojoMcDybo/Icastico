@@ -217,4 +217,13 @@ describe('ties and glides in the notation', () => {
     expect(mei).not.toContain('port.');
     expect(count(svg, 'gliss')).toBe(1);
   });
+
+  it('a glide across an empty measure keeps it invisible instead of drawing a whole-measure rest', () => {
+    let s = run(run(fresh(), 'input.duration', 5), 'input.note', 0);
+    s = run(run(s, 'input.duration', 7), 'input.rest'); // a whole-note gap
+    s = run(run(run(s, 'input.duration', 5), 'input.note', 4), 'edit.escape');
+    const { mei, log } = draw(run(select(s, 0), 'edit.slide'));
+    expect(log).toBe('');
+    expect(mei).not.toContain('voice-v1-m2-mr');
+  });
 });

@@ -180,7 +180,9 @@ export function notateVoice(voice: Voice, measures: readonly Measure[], unshown:
     if (lt(cursor, m.end)) pushRests(cursor, m.end);
 
     const hasNotes = items.some((it) => it.kind === 'note');
-    result.push(hasNotes ? items : [{ kind: 'measureRest', id: `${voice.id}-m${m.number}-mr` }]);
+    // A measure inside a glide gap stays invisible time instead of turning into a whole-measure rest.
+    const hidden = items.some((it) => it.kind === 'rest' && it.invisible);
+    result.push(hasNotes || hidden ? items : [{ kind: 'measureRest', id: `${voice.id}-m${m.number}-mr` }]);
   }
   return result;
 }

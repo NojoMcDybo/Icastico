@@ -240,7 +240,9 @@ function enterPitch(s0: EditorState, step: Pitch['step'], alterOverride: number 
   selection = selectEvent(caret, ev);
   // Tie pending (T before the note): a separate note joined to the previous one by an explicit tie.
   if (s.input.pendingTie && prev && prev.tones.length === 1 && samePitch(prev.tones[0]!.pitch, pitch)) {
-    const links = [...linksOf(score), { id: freshLinkId(score), kind: 'tie' as const, from: prev.tones[0]!.id, to: ev.tones[0]!.id }];
+    // A tone has one connection going out: the tie replaces e.g. a glide that started there.
+    const kept = linksOf(score).filter((l) => l.from !== prev.tones[0]!.id);
+    const links = [...kept, { id: freshLinkId(score, kept), kind: 'tie' as const, from: prev.tones[0]!.id, to: ev.tones[0]!.id }];
     score = withLinks(score, links);
   }
   return {
@@ -534,10 +536,13 @@ function navHorizontal(s: EditorState, dir: number): EditorState {
 }
 
 function navStaff(s: EditorState, dir: number): EditorState {
-  const refs = allVoiceRefs(s.score);
+  // One stop per staff (its first voice): detached voices are reached by clicking, not by walking through them.
+  const staffOf = (r: VoiceRef) => `${r.partId}:${getVoice(s.score, r).voice.staff}`;
+  const all = allVoiceRefs(s.score);
+  const refs = all.filter((r, i) => all.findIndex((o) => staffOf(o) === staffOf(r)) === i);
   const current = s.caret ?? s.selection ?? refs[0];
   if (!current) return s;
-  const index = refs.findIndex((r) => sameVoice(r, current));
+  const index = refs.findIndex((r) => staffOf(r) === staffOf(current));
   const next = refs[index + dir];
   if (!next) return s;
   const time = s.caret?.time ?? selectionTime(s.score, s.selection) ?? ZERO;

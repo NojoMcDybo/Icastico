@@ -25,18 +25,21 @@ export function freshLinkId(score: Score, extra: readonly Link[] = []): string {
 }
 
 const KEY: Record<LinkKind, string> = { tie: 'T', slide: 'Strg+Umschalt+G' };
-const NAME: Record<LinkKind, string> = { tie: 'Haltebogen', slide: 'Gleiten' };
 
 /** `after` if its links are fine (dangling ones dropped), else `before` with an explaining message. */
 export function withValidLinks(before: EditorState, after: EditorState): EditorState {
   if (after.score === before.score || !after.score.links?.length) return after;
   const spots = locateTones(after.score);
   const alive = after.score.links.filter((l) => spots.has(l.from) && spots.has(l.to));
+  const out = new Set<string>();
+  const into = new Set<string>();
   for (const l of alive) {
+    if (out.has(l.from) || into.has(l.to)) return { ...before, message: 'Ein Ton kann nur eine Verbindung abgehen und eine ankommen haben. Erst die andere lösen.' };
+    out.add(l.from);
+    into.add(l.to);
     const why = linkBreak(l.kind, spots.get(l.from)!, spots.get(l.to)!);
     if (why) return { ...before, message: `Das würde ${l.kind === 'tie' ? 'einen Haltebogen' : 'eine Gleitverbindung'} zerreißen: ${why} Erst lösen (${KEY[l.kind]}).` };
   }
   return alive.length === after.score.links.length ? after : { ...after, score: withLinks(after.score, alive) };
 }
 
-export { NAME as LINK_NAME };
