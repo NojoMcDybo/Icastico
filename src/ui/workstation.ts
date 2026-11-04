@@ -33,18 +33,18 @@ import {
   type StaffMode,
   type ViewState,
   activate,
-  effectiveSizes,
+  heightOf,
+  isCompact,
   hiddenStaves,
   modeOf,
   nextMode,
   normalize,
-  restoreMaximised,
   rollLane,
   showsNotation,
   staffKey,
   visibleLanes,
   withMode,
-  withSize,
+  withHeight,
 } from './lanes';
 import { Thumbnails } from './thumbnails';
 import type { UpdateChecker } from './updates';
@@ -133,7 +133,7 @@ export class Workstation {
   /** Which views are shown how (per staff and lane); remembered per score. */
   private view: ViewState = DEFAULT_VIEW;
   private readonly rollLanes = new Map<string, RollLane>();
-  private notationBar!: { readonly el: HTMLElement; readonly controls: LaneControls };
+  private notationBar!: { readonly el: HTMLElement };
   /** What the notation was engraved without, and which selection was last scrolled into view. */
   private renderedHidden = '';
   private shownSelection = '';
@@ -258,14 +258,6 @@ export class Workstation {
         this.el.help.hidden = true;
       }
       return;
-    }
-    if (combo === 'Escape') {
-      const restored = restoreMaximised(this.view);
-      if (restored) {
-        e.preventDefault();
-        this.setView(restored);
-        return;
-      }
     }
     if (!combo) return;
     const binding = findBinding(this.keymap, combo);
@@ -786,29 +778,16 @@ export class Workstation {
     if (key) this.setView(withMode(this.view, key, 'both', keys));
   }
 
-  /** Small strips open again when their header is clicked. */
-  private openIfSmall(lane: LaneId): void {
-    if (effectiveSizes(this.view, this.staffKeys())[lane] === 'small') this.setView(withSize(this.view, lane, 'normal'));
-  }
-
   private buildNotationBar(): void {
     const bar = document.createElement('div');
     bar.className = 'lane__bar';
     const title = document.createElement('span');
     title.className = 'lane__title';
     title.textContent = 'Notenschrift';
-    const controls = laneControls({
-      staff: false,
-      onMode: () => undefined,
-      onSize: (size) => this.setView(withSize(this.view, NOTATION, size)),
-    });
-    bar.append(title, controls.el);
-    bar.addEventListener('click', (e) => {
-      this.activateLane(NOTATION);
-      if (!(e.target as Element).closest('button')) this.openIfSmall(NOTATION);
-    });
+    bar.append(title);
+    bar.addEventListener('click', () => this.activateLane(NOTATION));
     this.el.pages.parentElement!.before(bar);
-    this.notationBar = { el: bar, controls };
+    this.notationBar = { el: bar };
   }
 
   private createRollLane(key: string): RollLane {
@@ -818,19 +797,70 @@ export class Workstation {
     const section = document.createElement('section');
     section.className = 'roll';
     section.setAttribute('aria-label', 'Piano-Roll');
-    const keys = () => this.staffKeys();
-    const controls = laneControls({
-      staff: true,
-      onMode: (mode) => this.setView(withMode(this.view, key, mode, keys())),
-      onSize: (size) => this.setView(withSize(this.view, lane, size)),
-    });
+    const controls = laneControls((mode) => this.setView(withMode(this.view, key, mode, this.staffKeys())));
     const roll = new PianoRoll(section, this.rollHost(lane), staff, controls.el);
-    section.querySelector('.roll__head')!.addEventListener('click', (e) => {
-      this.activateLane(lane);
-      if (!(e.target as Element).closest('button')) this.openIfSmall(lane);
-    });
-    section.addEventListener('dblclick', () => this.openIfSmall(lane));
+    section.querySelector('.roll__head')!.addEventListener('click', () => this.activateLane(lane));
+    section.prepend(this.resizeHandle(section, lane, roll));
     return { section, roll, controls };
+  }
+
+  /**
+   * The top edge of a roll lane: drag it to change how much room the roll gets (the notation takes the rest);
+   * ↑/↓ does the same from the keyboard, a double click gives it back its default height.
+   */
+  private resizeHandle(section: HTMLElement, lane: LaneId, roll: PianoRoll): HTMLElement {
+    const handle = document.createElement('div');
+    handle.className = 'roll__resize';
+    handle.setAttribute('role', 'separator');
+    handle.setAttribute('aria-orientation', 'horizontal');
+    handle.setAttribute('aria-label', 'Höhe der Piano-Roll (Ziehen oder Pfeil hoch/runter)');
+    handle.tabIndex = 0;
+    const apply = (px: number, final: boolean) => {
+      const next = withHeight(this.view, lane, px);
+      section.style.flexBasis = `${heightOf(next, lane)}px`;
+      roll.setCompact(isCompact(heightOf(next, lane)));
+      roll.render();
+      this.fitNotation();
+      if (final) this.setView(next);
+    };
+    let drag: { id: number; y: number; height: number } | null = null;
+    handle.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      drag = { id: e.pointerId, y: e.clientY, height: section.getBoundingClientRect().height };
+      handle.setPointerCapture(e.pointerId);
+      this.activateLane(lane);
+      e.preventDefault();
+    });
+    handle.addEventListener('pointermove', (e) => {
+      if (drag && e.pointerId === drag.id) apply(drag.height + (drag.y - e.clientY), false);
+    });
+    const end = (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      apply(drag.height + (drag.y - e.clientY), true);
+      drag = null;
+    };
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', () => (drag = null));
+    handle.addEventListener('dblclick', () => this.setView(withHeight(this.view, lane, 260)));
+    handle.addEventListener('keydown', (e) => {
+      const step = e.key === 'ArrowUp' ? 40 : e.key === 'ArrowDown' ? -40 : 0;
+      if (!step) return;
+      e.preventDefault();
+      e.stopPropagation(); // the arrows must not move the selection
+      apply(heightOf(this.view, lane) + step, true);
+    });
+    return handle;
+  }
+
+  /** The notation becomes a small overview strip when the rolls leave it little room. */
+  private fitNotation(): void {
+    const canvas = this.el.pages.parentElement!;
+    canvas.classList.remove('is-small');
+    canvas.dataset.size = 'normal';
+    if (!canvas.hidden && canvas.clientHeight < 130) {
+      canvas.classList.add('is-small');
+      canvas.dataset.size = 'small';
+    }
   }
 
   /** What one roll lane needs from the workstation. */
@@ -890,14 +920,9 @@ export class Workstation {
       this.persistView();
     }
     const lanes = visibleLanes(this.view, keys);
-    const sizes = effectiveSizes(this.view, keys);
     const notation = lanes.includes(NOTATION);
     canvas.hidden = !notation;
     this.notationBar.el.hidden = !notation;
-    canvas.dataset.size = sizes[NOTATION] ?? 'normal';
-    canvas.classList.toggle('is-small', sizes[NOTATION] === 'small');
-    this.notationBar.el.dataset.size = sizes[NOTATION] ?? 'normal';
-    this.notationBar.controls.sync(null, this.view.sizes[NOTATION] ?? 'normal');
     lanesBox.classList.toggle('no-notation', !notation);
 
     const wanted = keys.filter((k) => modeOf(this.view, k) !== 'notation');
@@ -915,12 +940,13 @@ export class Workstation {
       }
       // Moving a node resets its scroll position, so only touch the order when it is wrong.
       if (dock.children[i] !== ui.section) dock.insertBefore(ui.section, dock.children[i] ?? null);
-      const size = sizes[rollLane(key)] ?? 'normal';
-      ui.section.dataset.size = size;
-      ui.controls.sync(modeOf(this.view, key), this.view.sizes[rollLane(key)] ?? 'normal');
-      ui.roll.setCompact(size === 'small');
+      const height = heightOf(this.view, rollLane(key));
+      ui.section.style.flexBasis = `${height}px`;
+      ui.controls.sync(modeOf(this.view, key));
+      ui.roll.setCompact(isCompact(height));
       ui.roll.render();
     });
+    this.fitNotation();
     dock.hidden = wanted.length === 0;
     this.el.rollButton.setAttribute('aria-pressed', String(wanted.length > 0));
     this.markActive();

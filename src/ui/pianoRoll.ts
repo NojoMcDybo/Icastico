@@ -13,7 +13,7 @@ import { getInstrument } from '../core/instruments';
 import { measuresOf } from '../core/model';
 import { durationName } from '../core/notation/notate';
 import { midiOf, pitchToString } from '../core/pitch';
-import { type Fraction, frac, lt } from '../core/time';
+import { type Fraction, frac, le, lt } from '../core/time';
 import {
   type BarRef,
   type RollChange,
@@ -62,7 +62,11 @@ function svgEl<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<strin
 }
 
 interface Gesture {
-  readonly mode: Zone | 'draw';
+  /** `link`: a glide is being dragged from a dot at the end of a bar to another bar. */
+  readonly mode: Zone | 'draw' | 'link';
+  readonly linkTone?: string;
+  readonly dotX?: number;
+  readonly dotY?: number;
   readonly voice: VoiceRef;
   readonly bar: BarRef | null;
   readonly downX: number;
@@ -77,6 +81,9 @@ export class PianoRoll {
   private readonly info: HTMLElement;
   private readonly scroller: HTMLElement;
   private svg: SVGSVGElement | null = null;
+  private body: SVGGElement | null = null;
+  /** The line drawn while a glide is being dragged. */
+  private rubber: SVGLineElement | null = null;
   private layout: RollLayout | null = null;
   private gesture: Gesture | null = null;
   private pxPerWhole = DEFAULT_PX_PER_WHOLE;
@@ -149,6 +156,11 @@ export class PianoRoll {
     return part && voice ? { partId: part.id, voiceId: voice.id } : null;
   }
 
+  /** The snap grid: the chosen note value, but never coarser than a sixteenth (a quarter is too clumsy to draw with). */
+  private gridOf(s: EditorState): Fraction {
+    return le(s.input.base, frac(1, 16)) ? s.input.base : frac(1, 16);
+  }
+
   /** Every voice written on this staff, first one first. */
   private staffVoices(s: EditorState): VoiceRef[] {
     const part = s.score.parts.find((p) => p.id === this.staff.partId);
@@ -173,6 +185,8 @@ export class PianoRoll {
     this.gesture = null;
     if (g && this.scroller.hasPointerCapture(g.pointerId)) this.scroller.releasePointerCapture(g.pointerId);
     this.scroller.classList.remove('is-dragging');
+    this.rubber?.remove();
+    this.rubber = null;
   }
 
   render(): void {
@@ -192,7 +206,7 @@ export class PianoRoll {
     const several = instrument.staves.length > 1 ? ` · System ${voice.staff + 1}` : '';
     this.title.textContent = `Piano-Roll · ${part.name}${several}`;
     this.info.hidden = this.compact;
-    this.info.textContent = `Raster ${durationName(s.input.base)} (Zahlentaste)${written !== 0 ? ' · klingende Tonhöhe, in der Notenschrift eine Oktave höher notiert' : ''}`;
+    this.info.textContent = `Raster ${durationName(this.gridOf(s))}${written !== 0 ? ' · klingende Tonhöhe, in der Notenschrift eine Oktave höher notiert' : ''}`;
 
     const width = contentWidth(layout);
     const height = contentHeight(layout);
@@ -248,6 +262,7 @@ export class PianoRoll {
       }
     });
     this.drawLinks(body, s, spots);
+    if (!this.compact) this.drawDots(body, spots);
     if (s.caret && s.caret.partId === ref.partId && this.staffVoices(s).some((v) => v.voiceId === s.caret!.voiceId)) {
       const x = xOfTime(layout, s.caret.time);
       body.append(svgEl('line', { x1: x, x2: x, y1: 0, y2: height }, 'roll__caret'));
@@ -255,6 +270,8 @@ export class PianoRoll {
 
     if (!this.compact) this.drawKeys(body, layout); // on top of the bars: they slide under the key column
     this.svg = svg;
+    this.body = body;
+    this.rubber = null;
     this.scroller.replaceChildren(svg);
     this.syncKeys();
     this.keepInView(ref, allMidis, selected, sel ? `${sel.voiceId}/${sel.eventId}/${sel.toneId ?? ''}` : '');
@@ -275,14 +292,31 @@ export class PianoRoll {
         const mid = (a.x1 + b.x0) / 2;
         const path = svgEl('path', { d: `M ${a.x1 - 5} ${a.y - 5} Q ${mid} ${a.y - 15} ${b.x0 + 5} ${b.y - 5}` }, 'roll__link roll__link--tie');
         title.textContent = 'Haltebogen';
+        path.dataset.link = link.id;
         path.append(title);
         body.append(path);
       } else {
         const gap = b.x0 - a.x1 > 0.5;
         const line = svgEl('line', { x1: a.x1, y1: a.y, x2: b.x0, y2: b.y }, `roll__link roll__link--slide${gap ? '' : ' is-direct'}`);
         title.textContent = gap ? 'Gleiten (die Lücke ist die Gleitdauer)' : 'Gleiten gemerkt – ohne Lücke nur direkter Wechsel';
+        line.dataset.link = link.id;
         line.append(title);
         body.append(line);
+      }
+    }
+  }
+
+  /** A dot just outside both ends of every bar: drag one onto another bar to glide between the two. */
+  private drawDots(body: SVGGElement, spots: ReadonlyMap<string, { x0: number; x1: number; y: number }>): void {
+    for (const [toneId, spot] of spots) {
+      for (const [end, x] of [['start', spot.x0 - 7], ['end', spot.x1 + 7]] as const) {
+        const dot = svgEl('circle', { cx: x, cy: spot.y, r: 3.5 }, 'roll__dot');
+        dot.dataset.tone = toneId;
+        dot.dataset.end = end;
+        const tip = svgEl('title', {});
+        tip.textContent = 'Ziehen und auf einen anderen Balken loslassen: Gleiten (die Zeit dazwischen ist die Gleitdauer)';
+        dot.append(tip);
+        body.append(dot);
       }
     }
   }
@@ -290,7 +324,7 @@ export class PianoRoll {
   /** Measure and grid lines with measure numbers on top. */
   private drawGrid(svg: SVGSVGElement, body: SVGGElement, s: EditorState, layout: RollLayout, height: number): void {
     const measures = measuresOf(s.score);
-    const grid = s.input.base;
+    const grid = this.gridOf(s);
     const step = timeWidth(layout, grid);
     if (step >= 5 && !this.compact) {
       for (let i = 1; lt(frac(i * grid.n, grid.d), layout.totalTime); i++) {
@@ -374,6 +408,23 @@ export class PianoRoll {
     const primary = this.currentVoice(s);
     if (!p || !primary) return;
     this.host.activate();
+    const dot = e.target instanceof Element ? e.target.closest<SVGCircleElement>('.roll__dot') : null;
+    if (dot && !this.compact) {
+      this.gesture = {
+        mode: 'link',
+        linkTone: dot.dataset.tone!,
+        dotX: Number(dot.getAttribute('cx')),
+        dotY: Number(dot.getAttribute('cy')),
+        voice: primary,
+        bar: null,
+        downX: p.x,
+        downY: p.y,
+        pointerId: e.pointerId,
+        started: false,
+      };
+      this.scroller.setPointerCapture(e.pointerId);
+      return;
+    }
     const bar = this.barAt(e.target);
     const voice = bar?.voice ?? primary;
     if (this.compact) {
@@ -413,9 +464,18 @@ export class PianoRoll {
       if (Math.hypot(p.x - g.downX, p.y - g.downY) < DRAG_THRESHOLD) return;
       g.started = true;
       this.scroller.classList.add('is-dragging');
-      this.host.beginGesture();
+      if (g.mode !== 'link') this.host.beginGesture();
     }
-    const grid = this.host.state().input.base;
+    if (g.mode === 'link') {
+      if (!this.rubber && this.body) {
+        this.rubber = svgEl('line', { x1: g.dotX!, y1: g.dotY!, x2: p.x, y2: p.y }, 'roll__rubber');
+        this.body.append(this.rubber);
+      }
+      this.rubber?.setAttribute('x2', String(p.x));
+      this.rubber?.setAttribute('y2', String(p.y));
+      return;
+    }
+    const grid = this.gridOf(this.host.state());
     const edit = this.editFor(g, p.x, p.y, grid);
     if (edit) this.host.preview(edit);
   }
@@ -426,6 +486,7 @@ export class PianoRoll {
       const c = drawChange(layout, g.downX, g.downY, x, grid);
       return { kind: 'create', voice: g.voice, onset: c.onset, duration: c.duration, midi: c.midi };
     }
+    if (g.mode === 'link') return null;
     const bar = g.bar!;
     const c: RollChange = dragChange(layout, g.mode, bar, x - g.downX, y - g.downY, grid);
     return {
@@ -442,6 +503,12 @@ export class PianoRoll {
     const g = this.gesture;
     if (!g || e.pointerId !== g.pointerId) return;
     this.cancel();
+    if (g.mode === 'link') {
+      const hit = document.elementFromPoint(e.clientX, e.clientY);
+      const target = hit?.closest<SVGElement>('.roll__bar, .roll__dot')?.dataset.tone;
+      if (g.started && commit && target && target !== g.linkTone) this.host.edit({ kind: 'connect', a: g.linkTone!, b: target });
+      return;
+    }
     if (g.started) {
       this.host.endGesture(commit);
     } else if (g.mode === 'draw') {
@@ -450,12 +517,14 @@ export class PianoRoll {
   }
 
   private onDouble(e: MouseEvent): void {
+    const link = e.target instanceof Element ? e.target.closest<SVGElement>('.roll__link') : null;
+    if (link?.dataset.link) return this.host.edit({ kind: 'disconnect', id: link.dataset.link });
     const p = this.point(e);
     const layout = this.layout;
     const s = this.host.state();
     const voice = this.currentVoice(s);
     if (this.compact || !p || !layout || !voice || p.x < layout.labelWidth || this.onKeyColumn(e) || this.barAt(e.target)) return;
-    const c = drawChange(layout, p.x, p.y, p.x, s.input.base);
+    const c = drawChange(layout, p.x, p.y, p.x, this.gridOf(s));
     const onset = c.onset;
     this.host.edit({ kind: 'create', voice, onset, duration: inputLength(s.input), midi: c.midi });
   }

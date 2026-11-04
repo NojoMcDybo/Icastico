@@ -384,7 +384,6 @@ button {
 
 /* Small notation strip: the same pages, scaled down; the lane scrolls to the selection. */
 .canvas[data-size='small'] {
-  flex: 0 0 84px;
   overflow: hidden;
   padding: 6px 10px;
 }
@@ -1129,25 +1128,46 @@ body.is-dragging-note * {
   box-shadow: 0 -1px 0 var(--line);
 }
 
-.roll[data-size='normal'] {
-  flex: 0 0 clamp(170px, 30vh, 300px);
+.roll {
+  position: relative;
+  flex: 0 1 260px;
+  min-height: 64px;
 }
 
-.roll[data-size='small'] {
-  flex: 0 0 auto;
-}
-
-.roll[data-size='max'] {
-  flex: 1 1 0;
-}
-
-.no-notation .roll[data-size='normal'] {
+.no-notation .roll {
   flex: 1 1 0;
 }
 
 .roll.is-compact .roll__scroll {
-  height: 36px;
   overflow: hidden;
+}
+
+/* The top edge of a roll lane: dragging it gives the roll more or less room. */
+.roll__resize {
+  position: absolute;
+  inset: -4px 0 auto;
+  z-index: 3;
+  height: 9px;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.roll__resize::after {
+  content: '';
+  position: absolute;
+  inset: 3px 0 auto;
+  height: 3px;
+  margin-inline: auto;
+  width: 48px;
+  border-radius: 2px;
+  background: var(--line-strong);
+  transition: background 0.2s var(--ease), width 0.3s var(--spring);
+}
+
+.roll__resize:hover::after,
+.roll__resize:focus-visible::after {
+  width: 96px;
+  background: var(--accent);
 }
 
 .roll.is-active .roll__title {
@@ -1272,4 +1292,30 @@ body.is-dragging-note * {
 
 .roll__link--slide.is-direct {
   stroke-dasharray: 2 3;
+}
+
+.roll__dot {
+  fill: var(--dim);
+  fill-opacity: 0.45;
+  stroke: transparent;
+  stroke-width: 8px; /* hit area; stays clear of the bar's own resize zone */
+  cursor: crosshair;
+  transition: fill-opacity 0.2s var(--ease), r 0.2s var(--ease);
+}
+
+.roll__dot:hover {
+  fill: var(--accent);
+  fill-opacity: 1;
+  r: 5px;
+}
+
+.roll__rubber {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}
+
+.roll__link {
+  pointer-events: stroke;
 }

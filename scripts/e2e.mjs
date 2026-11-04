@@ -332,6 +332,13 @@ try {
   await page.mouse.up();
   check(/schon eine Note/.test(refused) && (await barTitle(0)) === firstTitle, 'Ziehen auf eine andere Note wird abgelehnt, nichts wird überschrieben');
 
+  const endBox = await bars.nth(1).boundingBox();
+  await page.mouse.move(endBox.x + endBox.width - 3, endBox.y + endBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(endBox.x + endBox.width + 57, endBox.y + endBox.height / 2, { steps: 8 });
+  await page.mouse.up();
+  check((await bars.nth(1).boundingBox()).width > endBox.width + 40, 'Am Balkenende ziehen verlängert die Note (Raster Sechzehntel)');
+  await type('Control+z');
   // Empty cell in the free third beat, three rows above the first bar (which is in view).
   const emptyY = barBox.y - 14 * 3 + 7;
   const emptyX = barBox.x + barBox.width * 2.3;
@@ -356,23 +363,31 @@ try {
   await page.locator('.page g.note').first().locator('use').first().click();
   check((await page.locator('.roll__bar.is-selected').count()) === 1, 'Klick in der Notenschrift markiert denselben Ton in der Roll');
 
-  const sizeBtn = (lane, label) => page.locator(`${lane} .lane__group[aria-label="Größe"] button:text-is("${label}")`);
-  await sizeBtn('.roll', 'Voll').click();
-  check((await page.locator('.roll').getAttribute('data-size')) === 'max' && (await page.locator('.canvas').getAttribute('data-size')) === 'small', 'Voll: die Roll füllt die Fläche, die Notenschrift wird zur schmalen Leiste');
-  await page.screenshot({ path: join(outDir, 'roll-voll.png') });
-  await type('Escape');
-  check((await page.locator('.roll').getAttribute('data-size')) === 'normal' && (await page.locator('.canvas').getAttribute('data-size')) === 'normal', 'Esc bringt die maximierte Roll zurück');
-
-  await sizeBtn('.roll', 'Klein').click();
-  check((await page.locator('.roll').getAttribute('data-size')) === 'small' && (await page.locator('.roll__scroll').evaluate((e) => e.clientHeight)) <= 40, 'Klein: die Roll ist eine schmale Leiste');
+  const handle = page.locator('.roll__resize');
+  const rollHeight = () => page.locator('.roll').evaluate((e) => Math.round(e.getBoundingClientRect().height));
+  const dragHandle = async (dy) => {
+    const b = await handle.boundingBox();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2 + dy, { steps: 8 });
+    await page.mouse.up();
+  };
+  const h0 = await rollHeight();
+  await dragHandle(-150);
+  check((await rollHeight()) > h0 + 100 && !(await page.locator('.roll').evaluate((e) => e.classList.contains('is-compact'))), 'Oberkante nach oben gezogen: die Roll bekommt mehr Platz');
+  await dragHandle(-400);
+  check((await page.locator('.canvas').getAttribute('data-size')) === 'small' && (await page.locator('.page g.note').count()) > 0, 'Sehr groß gezogen: die Notenschrift wird zur schmalen Übersicht und bleibt sichtbar');
+  await page.screenshot({ path: join(outDir, 'roll-gross.png') });
+  await handle.dblclick();
+  check((await rollHeight()) === h0 && (await page.locator('.canvas').getAttribute('data-size')) === 'normal', 'Doppelklick auf die Kante gibt die Standardhöhe zurück');
+  await dragHandle(400);
+  check((await page.locator('.roll').evaluate((e) => e.classList.contains('is-compact'))) && (await rollHeight()) < 120, 'Nach unten gezogen: die Roll ist eine schmale Leiste');
   await page.locator('.roll__bar').first().click();
-  check((await page.locator('.roll__bar.is-selected').count()) === 1 && (await page.locator('.roll').getAttribute('data-size')) === 'small', 'In der kleinen Leiste lässt sich ein Ton anklicken, ohne sie zu öffnen');
-  await page.locator('.roll .roll__head').click({ position: { x: 20, y: 8 } });
-  check((await page.locator('.roll').getAttribute('data-size')) === 'normal', 'Klick auf die Kopfzeile öffnet die kleine Leiste wieder');
-
-  await sizeBtn('.lane__bar', 'Klein').click();
-  check((await page.locator('.canvas').getAttribute('data-size')) === 'small' && (await page.locator('.page g.note').count()) > 0, 'Auch die Notenschrift lässt sich zur Leiste verkleinern und bleibt sichtbar');
-  await sizeBtn('.lane__bar', 'Normal').click();
+  check((await page.locator('.roll__bar.is-selected').count()) === 1, 'In der schmalen Leiste lässt sich ein Ton anklicken');
+  await handle.focus();
+  await type('ArrowUp', 'ArrowUp', 'ArrowUp');
+  check(!(await page.locator('.roll').evaluate((e) => e.classList.contains('is-compact'))), 'Pfeil hoch an der Kante macht die Roll auch per Tastatur größer');
+  await handle.dblclick();
 
   await page.locator('.roll .lane__group[aria-label="Zeilenart"] button:text-is("Roll")').click();
   check((await page.locator('.canvas').isHidden()) && (await page.locator('.staff-mode').count()) === 0 && (await page.locator('.roll').isVisible()), 'Zeilenart „Roll“: die Zeile verschwindet aus der Notenschrift');
@@ -428,6 +443,23 @@ try {
   await page.screenshot({ path: join(outDir, 'verbindungen.png') });
   await type('Alt+ArrowLeft');
   check((await page.locator('.roll__link--slide.is-direct').count()) === 1, 'T9: Wieder zusammengeschoben bleibt die Gleitverbindung erhalten');
+  // Gleiten per Ziehen: vom Punkt am Balkenende auf einen beliebigen anderen Balken (nicht nur den nächsten)
+  await bars.nth(3).click();
+  await type('Control+Shift+G'); // takes the glide away again
+  check((await page.locator('.roll__link--slide').count()) === 0, 'Gleiten per Tastatur wieder gelöst');
+  const sourceTone = await bars.nth(2).getAttribute('data-tone');
+  const dot = page.locator(`.roll__dot[data-tone="${sourceTone}"][data-end="end"]`);
+  const db = await dot.boundingBox();
+  const targetBox = await bars.nth(4).boundingBox(); // skips the neighbour
+  await page.mouse.move(db.x + db.width / 2, db.y + db.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 8 });
+  check((await page.locator('.roll__rubber').count()) === 1, 'Beim Ziehen vom Punkt erscheint eine Gummilinie');
+  await page.mouse.up();
+  check((await page.locator('.roll__link--slide').count()) === 1 && (await page.locator('.page g.gliss').count()) === 1, 'Punkt per Ziehen mit einem entfernteren Balken verbunden: Gleiten in Roll und Notenschrift');
+  await type('Control+z');
+  check((await page.locator('.roll__link--slide').count()) === 0, 'Die Verbindung per Ziehen ist ein einziger Rückgängig-Schritt');
+  await type('Control+Shift+Z');
   await saved();
   const linked = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Bogen-Test.icastico'))[1].contents;
   check(/"links": \[\s*\{ "id": "link-1", "kind": "slide"/.test(linked), 'T9: Die Gleitverbindung steht in der gespeicherten Datei');

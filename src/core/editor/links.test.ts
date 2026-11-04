@@ -154,7 +154,7 @@ describe('links in validation', () => {
     expect(bad([{ id: 'x1', kind: 'tie', from: a, to: 'nirgends' }])[0]).toMatch(/Ton, den es nicht gibt/);
     expect(bad([{ id: 'x1', kind: 'tie', from: b, to: c }])[0]).toMatch(/gleich hohe|unmittelbar/);
     expect(bad([{ id: 'x1', kind: 'slide', from: b, to: c }, { id: 'x2', kind: 'slide', from: b, to: c }]).join()).toMatch(/mehr als eine Verbindung/);
-    expect(bad([{ id: 'x1', kind: 'slide', from: c, to: b }])[0]).toMatch(/nach dem Ausgangston|unmittelbar/);
+    expect(bad([{ id: 'x1', kind: 'slide', from: c, to: b }])[0]).toMatch(/Ausgangstons|unmittelbar/);
     expect(bad([{ id: '1bad', kind: 'slide', from: b, to: c }])[0]).toMatch(/Ungültige Verbindungs-ID/);
   });
 });
@@ -179,5 +179,62 @@ describe('review fixes', () => {
     let s = cmd(cmd(cmd(fresh(), 'input.note', 0), 'input.chordNote', 4), 'edit.escape');
     s = cmd(select(s, 0, 1), 'edit.detach');
     expect(cmd(s, 'nav.staff', 1).selection).not.toMatchObject({ voiceId: 'voice-v2' });
+  });
+});
+
+describe('connecting two bars by dragging', () => {
+  const tone = (s: EditorState, i: number) => events(s)[i]!.tones[0]!.id;
+  const connect = (s: EditorState, a: string, b: string) => applyRollEdit(s, { kind: 'connect', a, b });
+
+  it('glides between any two notes – not only neighbours – with the time between them as glide time', () => {
+    const s = melody(); // C [0,1/4], C [1/4,1/2], D [3/4,1]
+    const r = connect(s, tone(s, 0), tone(s, 2));
+    expect(r.score.links).toEqual([{ id: 'link-1', kind: 'slide', from: tone(s, 0), to: tone(s, 2) }]);
+    expect(validateScore(r.score)).toEqual([]);
+  });
+
+  it('does not matter which end the drag started at', () => {
+    const s = melody();
+    expect(connect(s, tone(s, 2), tone(s, 0)).score.links).toEqual(connect(s, tone(s, 0), tone(s, 2)).score.links);
+  });
+
+  it('the same pair again takes the glide away; one undo step each way', () => {
+    const h = new History(melody());
+    h.apply(connect(h.state, tone(h.state, 0), tone(h.state, 2)));
+    expect(h.state.score.links).toHaveLength(1);
+    h.apply(connect(h.state, tone(h.state, 0), tone(h.state, 2)));
+    expect(h.state.score.links).toBeUndefined();
+    h.undo();
+    expect(h.state.score.links).toHaveLength(1);
+  });
+
+  it('a new glide from a tone replaces its old one; a second one into the same tone is refused', () => {
+    const s = melody();
+    const first = connect(s, tone(s, 0), tone(s, 1));
+    const moved = connect(first, tone(s, 0), tone(s, 2));
+    expect(moved.score.links).toHaveLength(1);
+    expect(moved.score.links![0]!.to).toBe(tone(s, 2));
+    const blocked = connect(moved, tone(s, 1), tone(s, 2)); // the D already receives a glide
+    expect(blocked.score).toBe(moved.score);
+    expect(blocked.message).toMatch(/schon eine Verbindung/);
+  });
+
+  it('glides between two voices of the same staff, but not between overlapping notes', () => {
+    let s = cmd(cmd(cmd(fresh(), 'input.note', 0), 'input.chordNote', 4), 'input.rest'); // C+G, then a gap
+    s = cmd(cmd(s, 'input.note', 1), 'edit.escape'); // D after the quarter rest
+    const chord = events(s)[0]!;
+    const lone = cmd(select(s, 0, 1), 'edit.detach');
+    const voice2 = lone.score.parts.find((p) => p.id === 'voice')!.voices[1]!;
+    const d = lone.score.parts.find((p) => p.id === 'voice')!.voices[0]!.events.find((e) => e.id !== chord.id)!;
+    const across = connect(lone, voice2.events[0]!.tones[0]!.id, d.tones[0]!.id);
+    expect(across.score.links).toHaveLength(1);
+    const overlapping = connect(lone, chord.tones[0]!.id, voice2.events[0]!.tones[0]!.id);
+    expect(overlapping.score).toBe(lone.score);
+  });
+
+  it('disconnect removes a link by id', () => {
+    const s = connect(melody(), tone(melody(), 0), tone(melody(), 2));
+    expect(applyRollEdit(s, { kind: 'disconnect', id: 'link-1' }).score.links).toBeUndefined();
+    expect(applyRollEdit(s, { kind: 'disconnect', id: 'nope' }).message).toMatch(/nicht mehr/);
   });
 });

@@ -27,7 +27,7 @@ export const DEFAULT_PX_PER_WHOLE = 360;
 export const ROW_HEIGHT = 14;
 export const LABEL_WIDTH = 44;
 /** Width in pixels of the zone at either end of a bar that resizes instead of moving. */
-export const EDGE_PX = 6;
+export const EDGE_PX = 8;
 
 /** Height in pixels the pitch rows of a small strip share. */
 export const COMPACT_HEIGHT = 28;

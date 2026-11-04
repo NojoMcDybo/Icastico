@@ -11,7 +11,7 @@
  *   (Detaching a single tone is a separate step.)
  */
 import { type Fraction, ZERO, add, eq, frac, isDyadic, le, lt } from '../time';
-import { type NoteEvent, type Tone, eventEnd, freshToneId, keyAt } from '../model';
+import { type NoteEvent, type Tone, eventEnd, freshToneId, keyAt, locateTones } from '../model';
 import { midiOf, spellMidi } from '../pitch';
 import {
   type EditorState,
@@ -21,7 +21,7 @@ import {
   getVoice,
   updateEvents,
 } from './state';
-import { withValidLinks } from './linkOps';
+import { freshLinkId, linksOf, withLinks, withValidLinks } from './linkOps';
 import { insertSorted } from './voiceOps';
 
 /** Finest supported note value: 1/64. */
@@ -39,6 +39,10 @@ export type RollEdit =
       readonly duration?: Fraction;
       readonly tone?: { readonly id: string; readonly midi: number };
     }
+  /** Glides between two tones (any two on the staff; the earlier one is the start). The same pair again takes the glide away. */
+  | { readonly kind: 'connect'; readonly a: string; readonly b: string }
+  /** Takes a connection away. */
+  | { readonly kind: 'disconnect'; readonly id: string }
   /** Removes one tone (the whole event if it is the last one). */
   | { readonly kind: 'delete'; readonly voice: VoiceRef; readonly eventId: string; readonly toneId?: string };
 
@@ -131,6 +135,28 @@ function remove(s: EditorState, edit: Extract<RollEdit, { kind: 'delete' }>): Ed
   return { ...s, score, selection, message: null };
 }
 
+function connect(s: EditorState, edit: Extract<RollEdit, { kind: 'connect' }>): EditorState {
+  const spots = locateTones(s.score);
+  const x = spots.get(edit.a);
+  const y = spots.get(edit.b);
+  if (!x || !y || edit.a === edit.b) return refuse(s, 'Diese zwei Balken lassen sich nicht verbinden.');
+  const [from, to] = lt(x.event.onset, y.event.onset) ? [x, y] : [y, x];
+  if (eq(from.event.onset, to.event.onset)) return refuse(s, 'Gleichzeitige Töne lassen sich nicht durch Gleiten verbinden.');
+  const links = linksOf(s.score);
+  const same = links.find((l) => l.from === from.tone.id && l.to === to.tone.id);
+  if (same) return { ...s, score: withLinks(s.score, links.filter((l) => l !== same)), message: 'Verbindung gelöst.' };
+  if (links.some((l) => l.to === to.tone.id)) return refuse(s, 'In diesen Ton kommt schon eine Verbindung an. Erst die andere lösen.');
+  const kept = links.filter((l) => l.from !== from.tone.id); // one connection leaves a tone; the new glide replaces it
+  const link = { id: freshLinkId(s.score, kept), kind: 'slide' as const, from: from.tone.id, to: to.tone.id };
+  return { ...s, score: withLinks(s.score, [...kept, link]), message: 'Gleiten gesetzt – die Zeit dazwischen ist die Gleitdauer.' };
+}
+
+function disconnect(s: EditorState, edit: Extract<RollEdit, { kind: 'disconnect' }>): EditorState {
+  const links = linksOf(s.score);
+  if (!links.some((l) => l.id === edit.id)) return refuse(s, 'Die Verbindung gibt es nicht mehr.');
+  return { ...s, score: withLinks(s.score, links.filter((l) => l.id !== edit.id)), message: 'Verbindung gelöst.' };
+}
+
 /** Applies one roll edit. A refused edit returns the state unchanged except for the message. */
 export function applyRollEdit(s: EditorState, edit: RollEdit): EditorState {
   const next = ((): EditorState => {
@@ -141,6 +167,10 @@ export function applyRollEdit(s: EditorState, edit: RollEdit): EditorState {
         return change(s, edit);
       case 'delete':
         return remove(s, edit);
+      case 'connect':
+        return connect(s, edit);
+      case 'disconnect':
+        return disconnect(s, edit);
     }
   })();
   return withValidLinks(s, next); // tied or glided notes may not be pulled apart; deleted tones take their links along

@@ -1,21 +1,22 @@
 /**
- * Which views of the score are shown and how big: pure window state.
+ * Which views of the score are shown and how tall: pure window state.
  *
- * Every staff ("Notenzeile") has a mode – notation, piano roll or both – and
- * every view is a lane that is small (a strip), normal or maximised. This is
- * not part of the score file: it is remembered per score by the app.
+ * Every staff ("Notenzeile") has a mode – notation, piano roll or both. A piano
+ * roll lane has a height the user sets by dragging its top edge; the notation takes
+ * what is left. Dragging a lane down to a strip makes it a small overview, dragging
+ * it up makes it big – there are no size buttons. This is not part of the score
+ * file: it is remembered per score by the app.
  */
 
 export type StaffMode = 'notation' | 'both' | 'roll';
-export type LaneSize = 'small' | 'normal' | 'max';
 /** `notation` (all staves that are shown as notes) or `roll:<staffKey>`. */
 export type LaneId = string;
 
 export interface ViewState {
   /** staffKey → mode; missing = notation. */
   readonly modes: Readonly<Record<string, StaffMode>>;
-  /** lane → size; missing = normal. */
-  readonly sizes: Readonly<Record<string, LaneSize>>;
+  /** roll lane → height in pixels; missing = default. */
+  readonly heights: Readonly<Record<string, number>>;
   /** The lane the user worked in last (focus ring). */
   readonly active: LaneId;
 }
@@ -23,12 +24,19 @@ export interface ViewState {
 export const NOTATION: LaneId = 'notation';
 export const rollLane = (staffKey: string): LaneId => `roll:${staffKey}`;
 export const staffKey = (partId: string, staffIndex: number): string => `${partId}:${staffIndex}`;
-export const staffOfLane = (lane: LaneId): string | null => (lane.startsWith('roll:') ? lane.slice(5) : null);
 
-export const DEFAULT_VIEW: ViewState = { modes: {}, sizes: {}, active: NOTATION };
+export const DEFAULT_VIEW: ViewState = { modes: {}, heights: {}, active: NOTATION };
+
+/** Heights of a roll lane: the default, the smallest (just the header + a thin strip), the largest. */
+export const DEFAULT_ROLL_HEIGHT = 260;
+export const MIN_ROLL_HEIGHT = 64;
+export const MAX_ROLL_HEIGHT = 1200;
+/** Below this a roll shows only the contour of the notes (a strip); above it it can be edited. */
+export const COMPACT_BELOW = 120;
 
 export const modeOf = (v: ViewState, key: string): StaffMode => v.modes[key] ?? 'notation';
-export const sizeOf = (v: ViewState, lane: LaneId): LaneSize => v.sizes[lane] ?? 'normal';
+export const heightOf = (v: ViewState, lane: LaneId): number => v.heights[lane] ?? DEFAULT_ROLL_HEIGHT;
+export const isCompact = (height: number): boolean => height < COMPACT_BELOW;
 
 /** notation → both → roll → notation: the order of the little switch next to each staff. */
 export const nextMode = (m: StaffMode): StaffMode => (m === 'notation' ? 'both' : m === 'both' ? 'roll' : 'notation');
@@ -62,56 +70,48 @@ export function withMode(v: ViewState, key: string, mode: StaffMode, keys: reado
   return { ...next, active: validActive({ ...next, active }, keys) };
 }
 
-export function withSize(v: ViewState, lane: LaneId, size: LaneSize): ViewState {
-  const sizes = { ...v.sizes };
-  if (size === 'normal') delete sizes[lane];
-  else sizes[lane] = size;
-  return { ...v, sizes, active: lane };
+/** Sets a roll lane's height (clamped); the default height is stored as "missing". */
+export function withHeight(v: ViewState, lane: LaneId, height: number): ViewState {
+  const px = Math.round(Math.max(MIN_ROLL_HEIGHT, Math.min(MAX_ROLL_HEIGHT, height)));
+  const heights = { ...v.heights };
+  if (px === DEFAULT_ROLL_HEIGHT) delete heights[lane];
+  else heights[lane] = px;
+  return { ...v, heights, active: lane };
 }
 
 export const activate = (v: ViewState, lane: LaneId): ViewState => (v.active === lane ? v : { ...v, active: lane });
-
-/** Sizes as drawn: while one lane is maximised, all others are strips. */
-export function effectiveSizes(v: ViewState, keys: readonly string[]): Record<LaneId, LaneSize> {
-  const lanes = visibleLanes(v, keys);
-  const max = lanes.find((l) => sizeOf(v, l) === 'max');
-  return Object.fromEntries(lanes.map((l) => [l, max ? (l === max ? 'max' : 'small') : sizeOf(v, l)]));
-}
-
-/** Esc: brings a maximised lane back to normal. Returns null when nothing is maximised. */
-export function restoreMaximised(v: ViewState): ViewState | null {
-  const max = Object.entries(v.sizes).find(([, s]) => s === 'max');
-  return max ? withSize(v, max[0], 'normal') : null;
-}
 
 /** Drops what no longer exists (staves removed from the score) and repairs `active`. */
 export function normalize(v: ViewState, keys: readonly string[]): ViewState {
   const known = new Set(keys);
   const modes = Object.fromEntries(Object.entries(v.modes).filter(([k, m]) => known.has(k) && m !== 'notation'));
-  const base = { ...v, modes };
-  const lanes = new Set(visibleLanes(base, keys));
-  const sizes = Object.fromEntries(Object.entries(v.sizes).filter(([l, s]) => lanes.has(l) && s !== 'normal'));
-  return { modes, sizes, active: validActive({ ...base, sizes }, keys) };
+  const lanes = new Set(visibleLanes({ ...v, modes }, keys));
+  const heights = Object.fromEntries(Object.entries(v.heights).filter(([l]) => lanes.has(l)));
+  return { modes, heights, active: validActive({ modes, heights, active: v.active }, keys) };
 }
 
 // ── Remembering per score ──────────────────────────────────────────────────
 
 const MODES: readonly string[] = ['notation', 'both', 'roll'];
-const SIZES: readonly string[] = ['small', 'normal', 'max'];
 
 export const serializeView = (v: ViewState): string => JSON.stringify(v);
 
-/** Reads remembered state; anything unexpected gives the default view. */
+/** Reads remembered state; anything unexpected gives the default view (older "sizes" are ignored). */
 export function parseView(text: string | null): ViewState {
   try {
     const raw: unknown = JSON.parse(text ?? 'null');
     if (typeof raw !== 'object' || raw === null) return DEFAULT_VIEW;
-    const { modes, sizes, active } = raw as Record<string, unknown>;
-    const pick = <T extends string>(obj: unknown, allowed: readonly string[]): Record<string, T> =>
-      typeof obj === 'object' && obj !== null
-        ? (Object.fromEntries(Object.entries(obj).filter(([, x]) => typeof x === 'string' && allowed.includes(x))) as Record<string, T>)
-        : {};
-    return { modes: pick<StaffMode>(modes, MODES), sizes: pick<LaneSize>(sizes, SIZES), active: typeof active === 'string' ? active : NOTATION };
+    const { modes, heights, active } = raw as Record<string, unknown>;
+    const entries = (obj: unknown): [string, unknown][] => (typeof obj === 'object' && obj !== null ? Object.entries(obj) : []);
+    return {
+      modes: Object.fromEntries(entries(modes).filter(([, m]) => typeof m === 'string' && MODES.includes(m))) as Record<string, StaffMode>,
+      heights: Object.fromEntries(
+        entries(heights)
+          .filter(([, h]) => typeof h === 'number' && Number.isFinite(h))
+          .map(([l, h]) => [l, Math.max(MIN_ROLL_HEIGHT, Math.min(MAX_ROLL_HEIGHT, h as number))]),
+      ),
+      active: typeof active === 'string' ? active : NOTATION,
+    };
   } catch {
     return DEFAULT_VIEW;
   }

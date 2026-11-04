@@ -86,8 +86,8 @@ export interface Score {
 /**
  * A deliberate connection between two tones (ADR 0014):
  * - `tie`: the same pitch held over from one note into the next (adjacent, same voice);
- * - `slide`: the pitch glides from one tone to the next. The glide takes exactly the gap
- *   between the two notes; without a gap it is a direct change, but the link is kept.
+ * - `slide`: the pitch glides from one tone to a later one on the same staff – not necessarily
+ *   the next. The glide takes exactly the time between the two notes; without a gap it is a direct change, but the link is kept.
  * Links name tones, not events, so they survive moving, resizing and re-sorting.
  */
 export type LinkKind = 'tie' | 'slide';
@@ -207,12 +207,13 @@ export function locateTones(score: Score): Map<string, ToneSpot> {
 
 /** Why a link between these two tones cannot stand (German); null = it is fine. */
 export function linkBreak(kind: LinkKind, a: ToneSpot, b: ToneSpot): string | null {
-  if (a.part.id !== b.part.id || a.voice.id !== b.voice.id) return 'Die beiden Töne müssen in derselben Stimme liegen.';
+  if (a.part.id !== b.part.id || a.voice.staff !== b.voice.staff) return 'Die beiden Töne müssen auf derselben Zeile liegen.';
   if (kind === 'tie') {
+    if (a.voice.id !== b.voice.id) return 'Die beiden Töne müssen in derselben Stimme liegen.';
     if (midiOf(a.tone.pitch) !== midiOf(b.tone.pitch)) return 'Ein Haltebogen braucht zwei gleich hohe Töne.';
     if (!eq(eventEnd(a.event), b.event.onset)) return 'Ein Haltebogen verbindet nur Noten, die unmittelbar aufeinander folgen.';
   } else if (gt(eventEnd(a.event), b.event.onset)) {
-    return 'Beim Gleiten muss der Zielton nach dem Ausgangston beginnen.';
+    return 'Beim Gleiten muss der Zielton erst nach dem Ende des Ausgangstons beginnen.';
   }
   return null;
 }
