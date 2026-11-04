@@ -36,11 +36,42 @@ describe('roll edits: create', () => {
     expect(dump(applyRollEdit(g, { kind: 'create', voice: VOICE, onset: frac(0), duration: frac(1, 4), midi: 66 }))).toBe('F#4@0:1/4');
   });
 
-  it('refuses to run into another note and changes nothing', () => {
+  it('a note drawn over another one with the same onset and length joins it as a chord', () => {
+    const a = create(fresh(), [0, 1], [1, 4], 72);
+    const b = create(a, [0, 1], [1, 4], 76);
+    expect(dump(b)).toBe('C5+E5@0:1/4');
+    expect(b.score.parts[0]!.voices).toHaveLength(1);
+    expect(b.selection).toMatchObject({ kind: 'event', eventId: firstEvent(b).id });
+    expect(validateScore(b.score)).toEqual([]);
+  });
+
+  it('a note drawn over another one with a different length goes into a second voice', () => {
     const a = create(fresh(), [0, 1], [1, 4], 72);
     const b = create(a, [1, 8], [1, 4], 74);
-    expect(b.score).toBe(a.score);
-    expect(b.message).toMatch(/schon eine Note/);
+    expect(dump(b)).toBe('C5@0:1/4'); // the first voice is untouched
+    const voices = b.score.parts[0]!.voices;
+    expect(voices.map((v) => v.id)).toEqual(['voice-v1', 'voice-v2']);
+    expect(voices[1]!.events[0]).toMatchObject({ onset: frac(1, 8), duration: frac(1, 4) });
+    expect(b.selection).toMatchObject({ voiceId: 'voice-v2' });
+    expect(validateScore(b.score)).toEqual([]);
+    // A third overlapping note joins the second voice if it matches it exactly, else needs a third voice.
+    const c = create(b, [1, 8], [1, 4], 79);
+    expect(c.score.parts[0]!.voices).toHaveLength(2);
+    expect(c.score.parts[0]!.voices[1]!.events[0]!.tones).toHaveLength(2);
+    const d = create(b, [1, 16], [1, 4], 79);
+    expect(d.score.parts[0]!.voices).toHaveLength(3);
+    expect(validateScore(d.score)).toEqual([]);
+  });
+
+  it('refuses a fifth voice and a pitch that is already in the chord', () => {
+    let s = create(fresh(), [0, 1], [1, 4], 72);
+    for (const onset of [1, 2, 3]) s = create(s, [onset, 16], [1, 4], 72);
+    expect(s.score.parts[0]!.voices).toHaveLength(4);
+    const fifth = create(s, [5, 32], [1, 4], 72);
+    expect(fifth.score).toBe(s.score);
+    expect(fifth.message).toMatch(/Mehr als 4 Stimmen/);
+    const twice = create(create(fresh(), [0, 1], [1, 4], 72), [0, 1], [1, 4], 72);
+    expect(twice.message).toMatch(/schon im Akkord/);
   });
 
   it('allows a note right behind another one', () => {
@@ -108,11 +139,38 @@ describe('roll edits: change', () => {
     expect(dump(startLater)).toBe('C5@1/8:1/8 D5@1/2:1/4');
   });
 
-  it('refuses overlaps, too short notes and moves before the start', () => {
+  it('dropping a note onto another one of the same length makes a chord; the empty voice goes away', () => {
+    const s = start(); // C5 at 0, D5 at 1/2, both a quarter
+    const second = create(s, [1, 8], [1, 4], 79); // G5 in a second voice
+    const g = second.score.parts[0]!.voices[1]!.events[0]!;
+    const home = { partId: 'voice', voiceId: 'voice-v2' };
+    // G5 (voice 2) moved to the onset of C5, same length: joins C5 as a chord, voice 2 is empty and removed
+    const chord = applyRollEdit(second, { kind: 'change', voice: home, eventId: g.id, onset: frac(0) });
+    expect(dump(chord)).toBe('C5+G5@0:1/4 D5@1/2:1/4');
+    expect(chord.score.parts[0]!.voices).toHaveLength(1);
+    expect(chord.selection).toMatchObject({ voiceId: 'voice-v1', toneId: g.tones[0]!.id });
+    expect(validateScore(chord.score)).toEqual([]);
+    // D5 dragged onto C5's time slot: chord of C5 and D5; its own tone id lives on
+    const d = getVoice(s.score, VOICE).voice.events[1]!;
+    const merged = applyRollEdit(s, { kind: 'change', voice: VOICE, eventId: d.id, onset: frac(0) });
+    expect(dump(merged)).toBe('C5+D5@0:1/4');
+    expect(getVoice(merged.score, VOICE).voice.events[0]!.tones.map((t) => t.id)).toContain(d.tones[0]!.id);
+  });
+
+  it('a drop onto a note of another voice joins that voice (and takes its slot)', () => {
+    const s = create(create(fresh(), [0, 1], [1, 4], 72), [1, 8], [1, 4], 74); // C5 in voice 1, D5 in voice 2 (shifted)
+    const c = firstEvent(s);
+    const into = { partId: 'voice', voiceId: 'voice-v2' };
+    const target = s.score.parts[0]!.voices[1]!.events[0]!;
+    const r = applyRollEdit(s, { kind: 'change', voice: VOICE, eventId: c.id, onset: target.onset, duration: target.duration, into });
+    expect(r.score.parts[0]!.voices.map((v) => v.events.length)).toEqual([0, 1]);
+    expect(r.score.parts[0]!.voices[1]!.events[0]!.tones).toHaveLength(2);
+    expect(validateScore(r.score)).toEqual([]);
+  });
+
+  it('refuses too short notes and moves before the start', () => {
     const s = start();
     for (const edit of [
-      { onset: frac(3, 8) },
-      { duration: frac(5, 8) },
       { duration: frac(0) },
       { duration: frac(1, 128) },
       { onset: frac(-1, 4) },
@@ -201,7 +259,7 @@ describe('roll gestures with the history', () => {
     const base = create(create(fresh(), [0, 1], [1, 4], 72), [1, 2], [1, 4], 74);
     const id = firstEvent(base).id;
     let preview = applyRollEdit(base, { kind: 'change', voice: VOICE, eventId: id, onset: frac(1, 8) });
-    const bad = applyRollEdit(base, { kind: 'change', voice: VOICE, eventId: id, onset: frac(7, 16) });
+    const bad = applyRollEdit(base, { kind: 'change', voice: VOICE, eventId: id, onset: frac(-1, 4) });
     expect(bad.score).toBe(base.score);
     preview = bad.score === base.score ? preview : bad;
     expect(dump(preview)).toBe('C5@1/8:1/4 D5@1/2:1/4');
@@ -216,6 +274,63 @@ describe('roll edits are valid for every grid position', () => {
         expect(validateScore(s.score), `${n}/64 ${midi}`).toEqual([]);
       }
     }
+  });
+});
+
+describe('roll edits: loudness and curves', () => {
+  const two = () => create(create(fresh(), [0, 1], [1, 4], 72), [1, 2], [1, 4], 74);
+  const tone = (st: EditorState, i: number) => getVoice(st.score, VOICE).voice.events[i]!.tones[0]!;
+  const fade = [{ x: 0, y: 0 }, { x: 0.4, y: 0.9 }, { x: 1, y: 1 }];
+
+  it('sets loudness and a curve on one tone; the default loudness is not stored', () => {
+    const s = two();
+    const id = tone(s, 0).id;
+    const loud = applyRollEdit(s, { kind: 'shape', tone: id, volume: 64, curve: fade });
+    expect(tone(loud, 0)).toMatchObject({ volume: 64, curve: fade });
+    expect(tone(loud, 1).volume).toBeUndefined();
+    const back = applyRollEdit(loud, { kind: 'shape', tone: id, volume: 100, curve: null });
+    expect(tone(back, 0).volume).toBeUndefined();
+    expect(tone(back, 0).curve).toBeUndefined();
+    expect(validateScore(loud.score)).toEqual([]);
+  });
+
+  it('clamps loudness, rounds the curve, and changes nothing when nothing differs', () => {
+    const s = two();
+    const id = tone(s, 0).id;
+    expect(tone(applyRollEdit(s, { kind: 'shape', tone: id, volume: 400 }), 0).volume).toBe(127);
+    expect(tone(applyRollEdit(s, { kind: 'shape', tone: id, volume: -3 }), 0).volume).toBe(1);
+    const odd = applyRollEdit(s, { kind: 'shape', tone: id, curve: [{ x: 0, y: 0.12345 }, { x: 1, y: 1 }] });
+    expect(tone(odd, 0).curve![0]!.y).toBe(0.123);
+    expect(applyRollEdit(s, { kind: 'shape', tone: id, volume: 100 }).score).toBe(s.score);
+    expect(applyRollEdit(s, { kind: 'shape', tone: id, curve: [{ x: 0, y: 1 }, { x: 1, y: 1 }] }).score).toBe(s.score);
+    expect(applyRollEdit(s, { kind: 'shape', tone: 'nirgends', volume: 50 }).message).toMatch(/gibt es nicht mehr/);
+  });
+
+  it('loudness and curve travel with the tone when it moves, changes pitch or joins a chord', () => {
+    const s = applyRollEdit(two(), { kind: 'shape', tone: tone(two(), 0).id, volume: 50, curve: fade });
+    const ev = getVoice(s.score, VOICE).voice.events[0]!;
+    const up = applyRollEdit(s, { kind: 'change', voice: VOICE, eventId: ev.id, tone: { id: ev.tones[0]!.id, midi: 77 } });
+    expect(tone(up, 0)).toMatchObject({ volume: 50, curve: fade });
+    const joined = applyRollEdit(s, { kind: 'change', voice: VOICE, eventId: getVoice(s.score, VOICE).voice.events[1]!.id, onset: frac(0) });
+    expect(getVoice(joined.score, VOICE).voice.events[0]!.tones.find((t) => t.volume === 50)?.curve).toEqual(fade);
+  });
+
+  it('shapes the course of a glide, only for a glide', () => {
+    const s = two();
+    const a = tone(s, 0).id;
+    const b = tone(s, 1).id;
+    const linked = applyRollEdit(s, { kind: 'connect', a, b });
+    const link = linked.score.links![0]!;
+    const curve = [{ x: 0, y: 0 }, { x: 0.5, y: 0.1 }, { x: 1, y: 1 }];
+    const shaped = applyRollEdit(linked, { kind: 'blend', id: link.id, curve });
+    expect(shaped.score.links![0]!.curve).toEqual(curve);
+    expect(validateScore(shaped.score)).toEqual([]);
+    const straight = applyRollEdit(shaped, { kind: 'blend', id: link.id, curve: null });
+    expect(straight.score.links![0]!.curve).toBeUndefined();
+    expect(applyRollEdit(linked, { kind: 'blend', id: link.id, curve: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }).score).toBe(linked.score);
+    expect(applyRollEdit(linked, { kind: 'blend', id: 'link-9', curve }).message).toMatch(/gibt es nicht mehr/);
+    const tie = { ...linked, score: { ...linked.score, links: [{ ...link, kind: 'tie' as const }] } };
+    expect(applyRollEdit(tie, { kind: 'blend', id: link.id, curve }).message).toMatch(/Nur ein Gleiten/);
   });
 });
 

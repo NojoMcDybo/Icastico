@@ -40,6 +40,7 @@ function baseKey(e: KeyLike): { base: string; symbol: boolean } | null {
   if (e.code === 'NumpadSubtract' || e.key === '-') return { base: 'Minus', symbol: true };
   if (e.code === 'NumpadDecimal' || e.key === '.') return { base: 'Period', symbol: true };
   if (e.key === '?') return { base: '?', symbol: true };
+  if (e.code === 'Backquote') return { base: 'Backquote', symbol: true }; // the key left of 1 (` on US, ^ on German keyboards)
   if (e.key === ',') return { base: 'Comma', symbol: true };
   if (e.key === ' ' || e.code === 'Space') return { base: 'Space', symbol: false };
   if (e.code === 'NumpadEnter') return { base: 'Enter', symbol: false };

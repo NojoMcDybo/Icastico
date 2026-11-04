@@ -37,6 +37,12 @@ describe('comboOf', () => {
     expect(comboOf(ev('z', 'KeyZ', { metaKey: true }))).toBe('Mod+Z'); // Mac Cmd
   });
 
+  it('the key left of 1 is Backquote on every layout (chord mode)', () => {
+    expect(comboOf(ev('^', 'Backquote'))).toBe('Backquote'); // German
+    expect(comboOf(ev('`', 'Backquote'))).toBe('Backquote'); // US
+    expect(comboOf(ev('~', 'Backquote', { shiftKey: true }))).toBe('Backquote');
+  });
+
   it('treats + - . the same on German and US keyboards', () => {
     expect(comboOf(ev('+', 'BracketRight'))).toBe('Plus'); // German
     expect(comboOf(ev('+', 'Equal', { shiftKey: true }))).toBe('Plus'); // US
@@ -69,7 +75,7 @@ describe('key-binding library', () => {
 
   it('every listed command exists, ids are unique, keys have the expected form', () => {
     const ids = new Set<string>();
-    const valid = /^((Mod|Alt|Shift)\+)*([A-Z0-9?]|F1|Plus|Minus|Period|Comma|Space|Backquote|Enter|Escape|Delete|Backspace|Insert|Arrow(Up|Down|Left|Right)|Ziehen)$/;
+    const valid = /^((Mod|Alt|Shift)\+)*([A-Z0-9?]|F1|Plus|Minus|Period|Comma|Space|Backquote|Enter|Escape|Delete|Backspace|Insert|Arrow(Up|Down|Left|Right)|Ziehen|Klick)$/;
     for (const g of KEY_LIBRARY.groups) {
       for (const fn of g.functions) {
         expect(ids.has(fn.id), `doppelte id ${fn.id}`).toBe(false);
@@ -85,6 +91,11 @@ describe('key-binding library', () => {
         }
       }
     }
+  });
+
+  it('chord mode is on the key next to 1 in both layouts', () => {
+    expect(findBinding(finale, 'Backquote')).toMatchObject({ command: 'input.chordMode' });
+    expect(findBinding(logic, 'Backquote')).toMatchObject({ command: 'input.chordMode' });
   });
 
   it('Finale essentials', () => {

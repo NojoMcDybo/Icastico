@@ -54,6 +54,7 @@ function play(s: EditorState, script: string): EditorState {
                 right: ['nav.horizontal', 1],
                 staffdown: ['nav.staff', 1],
                 ins: ['input.insertMode', 0],
+                chord: ['input.chordMode', 0],
               }) as Record<string, [CommandId, number]>)[token] ?? fail(token);
     s = runCommand(s, id, arg);
     expect(validateScore(s.score), `nach "${token}"`).toEqual([]);
@@ -338,5 +339,40 @@ describe('detaching a chord tone into its own voice', () => {
     const longer = applyRollEdit(r, { kind: 'change', voice: { partId: 'voice', voiceId: 'voice-v2' }, eventId: lone.id, duration: frac(1, 2) });
     expect(voices(longer)[1]!.events[0]!.duration).toEqual(frac(1, 2));
     expect(voices(longer)[0]!.events[0]!.duration).toEqual(frac(1, 4));
+  });
+});
+
+describe('chord mode (Logic: the key next to 1)', () => {
+  it('stacks the next notes into one chord and moves on when it is switched off', () => {
+    const s = play(fresh(), '5 chord C E G chord D');
+    expect(dump(s.score)).toBe('[C5,E5,G5]:1/4 D5:1/4');
+    expect(s.input.chord).toBe(false);
+  });
+
+  it('shows the mode, keeps the caret in place and selects the chord', () => {
+    const s = play(fresh(), '5 chord C E');
+    expect(s.input.chord).toBe(true);
+    expect(s.caret!.time).toEqual(ZERO);
+    expect(s.selection).toMatchObject({ kind: 'event' });
+  });
+
+  it('works with the piano keys of the Logic layout, too (pitch classes, stacked upwards)', () => {
+    let s = play(fresh(), '5 chord');
+    for (const pc of [0, 4, 7, 11]) s = runCommand(s, 'input.pitchClass', pc);
+    expect(dump(s.score)).toBe('[C5,E5,G5,B5]:1/4');
+    s = runCommand(s, 'input.pitchClass', 2); // D goes above B5, not back down
+    expect(dump(s.score)).toBe('[C5,E5,G5,B5,D6]:1/4');
+  });
+
+  it('a rest ends the chord; Escape and arrow keys leave the mode', () => {
+    expect(dump(play(fresh(), '5 chord C E 0 D').score)).toBe('[C5,E5]:1/4 r:1/4 D5:1/4');
+    expect(play(fresh(), '5 chord C E esc').input.chord).toBe(false);
+    expect(play(fresh(), '5 chord C E left').input.chord).toBe(false);
+  });
+
+  it('overwrites music at the caret with its first note, like a single note does', () => {
+    const base = play(fresh(), '5 C D E');
+    const at = { ...base, caret: { ...VOICE, time: frac(1, 4) } };
+    expect(dump(play(at, 'chord G B').score)).toBe('C5:1/4 [G4,B4]:1/4 E5:1/4');
   });
 });

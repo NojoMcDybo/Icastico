@@ -7,7 +7,7 @@
 import { type CommandId, newScoreState, runCommand } from '../core/editor/commands';
 import { demoScore } from '../core/demo';
 import { History } from '../core/editor/history';
-import { type EditorState, createEditorState, getVoice, inputLength } from '../core/editor/state';
+import { type EditorState, type VoiceRef, createEditorState, getVoice, inputLength } from '../core/editor/state';
 import { applyRollEdit } from '../core/editor/rollEdits';
 import { FileFormatError, parseScoreFile, serializeScore } from '../core/file/format';
 import { getInstrument } from '../core/instruments';
@@ -25,6 +25,7 @@ import type { Platform } from '../platform/files';
 import { APP_VERSION } from '../version';
 import { ask, inform, isDialogOpen } from './dialog';
 import { LibraryHome } from './libraryHome';
+import { CurvePopup, type ShapeHost } from './curvePopup';
 import { PianoRoll, type RollHost } from './pianoRoll';
 import { Player } from './player';
 import { Transport } from './transport';
@@ -107,6 +108,24 @@ const EMPTY_HINT = 'Strg+N: neue Partitur · Strg+O: Bibliothek · F1: alle Tast
 
 const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
+/** A note being dragged in the notation: pitch by moving up/down, a chord by dropping it on another note. */
+interface NoteDrag {
+  readonly pointerId: number;
+  readonly startY: number;
+  readonly startX: number;
+  /** Pixels per staff step (half the distance between two staff lines). */
+  readonly stepPx: number;
+  /** State before the drag, with the dragged note selected. */
+  readonly base: EditorState;
+  readonly source: { readonly voice: VoiceRef; readonly eventId: string; readonly toneId?: string };
+  /** The other notes of the staff with their places from before the drag changed the layout. */
+  readonly targets: readonly { readonly ref: ElementRef; readonly rect: DOMRect }[];
+  steps: number;
+  /** The note the pointer is over (a drop there makes a chord) as "voice/event", else ''. */
+  over: string;
+  moved: boolean;
+  preview: EditorState | null;
+}
 
 export class Workstation {
   private history: History;
@@ -120,18 +139,8 @@ export class Workstation {
   /** The score as last saved or opened – unsaved changes = anything else. */
   private savedScore: Score;
   private saving: Promise<boolean> = Promise.resolve(true);
-  /** A note being dragged up/down with the mouse. */
-  private drag: {
-    readonly pointerId: number;
-    readonly startY: number;
-    /** Pixels per staff step (half the distance between two staff lines). */
-    readonly stepPx: number;
-    /** State before the drag, with the dragged note selected. */
-    readonly base: EditorState;
-    steps: number;
-    moved: boolean;
-    preview: EditorState | null;
-  } | null = null;
+  /** A note being dragged with the mouse: up/down changes the pitch, onto another note makes a chord. */
+  private drag: NoteDrag | null = null;
   /** The click that ends a drag must not select something else. */
   private swallowClick = false;
   private autosaveTimer = 0;
@@ -150,6 +159,8 @@ export class Workstation {
   /** State at the start of a piano-roll drag; every preview is computed from it. */
   private rollBase: EditorState | null = null;
   private readonly library: LibraryHome | null;
+  /** The loudness / glide-course menu of the piano roll (ADR 0016). */
+  private readonly shape: CurvePopup;
   /** A file dialog is open; ignore shortcuts meanwhile. */
   private busy = false;
   private windowTitle = '';
@@ -184,6 +195,7 @@ export class Workstation {
           ...(updates ? { checkForUpdates: () => updates.checkNow() } : {}),
         })
       : null;
+    this.shape = new CurvePopup(this.gestureHost());
     this.buildNotationBar();
     this.player = new Player({
       frame: (seconds) => {
@@ -662,31 +674,66 @@ export class Workstation {
     if (!ref?.eventId) return;
     const s = this.history.state;
     const voice = { partId: ref.partId, voiceId: ref.voiceId };
+    const targets: { ref: ElementRef; rect: DOMRect }[] = [];
+    for (const [id, other] of this.result?.elements ?? []) {
+      if (!other.eventId || other.eventId === ref.eventId || other.partId !== ref.partId || other.staffN !== ref.staffN) continue;
+      if (other.kind === 'rest' || other.kind === 'measureRest') continue;
+      const rect = document.getElementById(id)?.getBoundingClientRect();
+      if (rect) targets.push({ ref: other, rect });
+    }
     this.drag = {
       pointerId: e.pointerId,
       startY: e.clientY,
+      startX: e.clientX,
       stepPx: this.stepPixels(ref),
-      base: { ...s, selection: { kind: 'event', ...voice, eventId: ref.eventId }, message: null },
+      base: { ...s, selection: { kind: 'event', ...voice, eventId: ref.eventId, ...(ref.toneId ? { toneId: ref.toneId } : {}) }, message: null },
+      source: { voice, eventId: ref.eventId, ...(ref.toneId ? { toneId: ref.toneId } : {}) },
+      targets,
       steps: 0,
+      over: '',
       moved: false,
       preview: null,
     };
     this.el.pages.setPointerCapture(e.pointerId);
   }
 
+  /** The note of the same staff under the pointer (with a little tolerance), if any. */
+  private noteUnder(d: NoteDrag, e: PointerEvent): ElementRef | null {
+    const near = (r: DOMRect) => e.clientX >= r.left - 6 && e.clientX <= r.right + 6 && e.clientY >= r.top - 6 && e.clientY <= r.bottom + 6;
+    return d.targets.find((t) => near(t.rect))?.ref ?? null;
+  }
+
   private onPointerMove(e: PointerEvent): void {
     const d = this.drag;
     if (!d || e.pointerId !== d.pointerId) return;
     const dy = d.startY - e.clientY;
-    if (!d.moved && Math.abs(dy) < 4) return;
+    if (!d.moved && Math.abs(dy) < 4 && Math.abs(d.startX - e.clientX) < 10) return;
     d.moved = true;
     document.body.classList.add('is-dragging-note');
     const steps = Math.round(dy / d.stepPx);
-    if (steps === d.steps && d.preview) return;
+    const over = this.noteUnder(d, e);
+    const overKey = over ? `${over.voiceId}/${over.eventId}` : '';
+    if (steps === d.steps && overKey === d.over && d.preview) return;
     d.steps = steps;
+    d.over = overKey;
     // Alt = semitones (like Logic), otherwise staff steps in the key (like Finale).
     const command = e.altKey ? 'edit.semitone' : 'edit.step';
-    d.preview = steps === 0 ? d.base : runCommand(d.base, command, steps);
+    // Over another note the pitch stays as it is (a drop there makes a chord); elsewhere the height sets the pitch.
+    let next = steps === 0 || over ? d.base : runCommand(d.base, command, steps);
+    const target = over && getVoice(next.score, { partId: over.partId, voiceId: over.voiceId }).voice.events.find((x) => x.id === over.eventId);
+    if (over && target) {
+      // Dropped on another note: the dragged one joins it as a chord (same time, same length).
+      next = applyRollEdit(next, {
+        kind: 'change',
+        voice: d.source.voice,
+        eventId: d.source.eventId,
+        onset: target.onset,
+        duration: target.duration,
+        into: { partId: over.partId, voiceId: over.voiceId },
+        ...(d.source.toneId ? { only: d.source.toneId } : {}),
+      });
+    }
+    d.preview = next;
     this.update();
   }
 
@@ -771,6 +818,7 @@ export class Workstation {
     this.renderTransport();
     this.renderStatus();
     this.scheduleAutosave();
+    this.shape.refresh();
   }
 
   // ── Lanes: notation and piano rolls, one roll per staff ────────────────────
@@ -904,18 +952,10 @@ export class Workstation {
     }
   }
 
-  /** What one roll lane needs from the workstation. */
-  private rollHost(lane: LaneId): RollHost {
+  /** Gesture editing for a roll or the loudness menu: previews while dragging, one undo step at the end. */
+  private gestureHost(): ShapeHost {
     return {
       state: () => this.state,
-      select: (selection, caretTime) => {
-        const s = this.state;
-        const caret = s.caret && selection && caretTime ? { partId: selection.partId, voiceId: selection.voiceId, time: caretTime } : s.caret;
-        if (!selection && s.caret) return;
-        this.history.apply({ ...s, selection, caret, message: null });
-        this.update();
-      },
-      activate: () => this.activateLane(lane),
       beginGesture: () => {
         this.rollBase = this.state;
         this.history.beginGesture();
@@ -938,6 +978,22 @@ export class Workstation {
         this.history.apply(applyRollEdit(this.state, edit));
         this.update();
       },
+    };
+  }
+
+  /** What one roll lane needs from the workstation. */
+  private rollHost(lane: LaneId): RollHost {
+    return {
+      ...this.gestureHost(),
+      openShape: (target, anchor) => this.shape.open(target, anchor),
+      select: (selection, caretTime) => {
+        const s = this.state;
+        const caret = s.caret && selection && caretTime ? { partId: selection.partId, voiceId: selection.voiceId, time: caretTime } : s.caret;
+        if (!selection && s.caret) return;
+        this.history.apply({ ...s, selection, caret, message: null });
+        this.update();
+      },
+      activate: () => this.activateLane(lane),
     };
   }
 
@@ -1243,6 +1299,7 @@ export class Workstation {
     if (s.caret) {
       const parts = [`Eingabe · ${durationName(inputLength(s.input))}`];
       if (s.input.insert) parts.push('Einfügen');
+      if (s.input.chord) parts.push('Akkord');
       if (s.input.pendingTie) parts.push('Haltebogen ⌒');
       this.el.mode.textContent = parts.join(' · ');
       this.el.mode.classList.add('mode--input');

@@ -13,6 +13,7 @@
  */
 import { type Fraction, ZERO, add, compare, div, eq, frac, gt, isZero, le, lt, sub } from './time';
 import { type Pitch, midiOf } from './pitch';
+import { type Curve, MAX_VOLUME, MIN_VOLUME, curveProblem } from './curve';
 import { getInstrument, type InstrumentId } from './instruments';
 
 export interface TimeSignature {
@@ -41,6 +42,10 @@ export interface KeyChange {
 export interface Tone {
   readonly id: string;
   readonly pitch: Pitch;
+  /** Loudness 1–127 (MIDI velocity); absent = DEFAULT_VOLUME. */
+  readonly volume?: number;
+  /** Loudness over the length of the note (ADR 0016); absent = even. */
+  readonly curve?: Curve;
 }
 
 /** A note or chord. All tones share onset and duration; sorted by sounding pitch. */
@@ -101,6 +106,8 @@ export interface Link {
   readonly from: string;
   /** Tone id the connection ends at (the later note). */
   readonly to: string;
+  /** Course of the glide through its gap – pitch and loudness change along it (ADR 0016); absent = even. */
+  readonly curve?: Curve;
 }
 
 export const DEFAULT_TEMPO = 100;
@@ -250,6 +257,8 @@ export function linkProblems(score: Score): string[] {
       problems.push(`Verbindung ${link.id} verweist auf einen Ton, den es nicht gibt.`);
       continue;
     }
+    const badCurve = link.curve ? (link.kind === 'slide' ? curveProblem('glide', link.curve) : 'Ein Haltebogen hat keine Kurve.') : null;
+    if (badCurve) problems.push(`Verbindung ${link.id}: ${badCurve}`);
     const why = linkBreak(link.kind, a, b);
     if (why) problems.push(`Verbindung ${link.id}: ${why}`);
     if (outgoing.has(link.from)) problems.push(`Von Ton ${link.from} geht mehr als eine Verbindung aus.`);
@@ -331,6 +340,11 @@ export function validateScore(score: Score): string[] {
           if (toneIds.has(tone.id)) problems.push(`Doppelte Ton-ID ${tone.id}.`);
           if (!ID_PATTERN.test(tone.id)) problems.push(`Ungültige Ton-ID "${tone.id}" (erlaubt: Buchstabe, dann Buchstaben/Ziffern/_/-).`);
           toneIds.add(tone.id);
+          if (tone.volume !== undefined && !(Number.isInteger(tone.volume) && tone.volume >= MIN_VOLUME && tone.volume <= MAX_VOLUME)) {
+            problems.push(`Ton ${tone.id}: Lautstärke ${tone.volume} ist ungültig (erlaubt: ${MIN_VOLUME}–${MAX_VOLUME}).`);
+          }
+          const bad = tone.curve ? curveProblem('level', tone.curve) : null;
+          if (bad) problems.push(`Ton ${tone.id}: ${bad}`);
         }
         cursor = eventEnd(ev);
       }

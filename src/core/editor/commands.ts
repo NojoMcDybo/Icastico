@@ -219,11 +219,52 @@ function enterPitchClass(s0: EditorState, pc: number): EditorState {
   return enterPitch(s, step, alter);
 }
 
+/** The lowest pitch of a letter (with accidental) above a sounding pitch: how chord notes are stacked. */
+function pitchAbove(step: Pitch['step'], alter: number, topMidi: number): Pitch {
+  let pitch: Pitch = { step, alter, octave: -1 };
+  while (midiOf(pitch) <= topMidi) pitch = { ...pitch, octave: pitch.octave + 1 };
+  return pitch;
+}
+
+/** Chord mode: a note joins the chord under construction at the caret (which stays put), or starts it. */
+function enterChordPitch(s: EditorState, caret: Caret, step: Pitch['step'], alterOverride: number | null): EditorState {
+  const alter = alterOverride ?? keyAlteration(keyAt(s.score, caret.time), step);
+  const building = s.input.chordEvent ? getVoice(s.score, caret).voice.events.find((e) => e.id === s.input.chordEvent && eq(e.onset, caret.time)) : undefined;
+  if (building) {
+    const pitch = pitchAbove(step, alter, Math.max(...building.tones.map((t) => midiOf(t.pitch))));
+    const score = updateEvents(s.score, caret, (events) =>
+      events.map((e) => (e.id === building.id ? { ...e, tones: sortTones([...e.tones, { id: freshToneId(s.score, e.id), pitch }]) } : e)),
+    );
+    return { ...s, score, selection: selectEvent(caret, building), message: null };
+  }
+  const pitch = nearestOctave(step, alter, referencePitch(s, caret));
+  const [id, nextId] = freshEventId(s.score, caret, s.nextId);
+  const ev: NoteEvent = { id, onset: caret.time, duration: inputLength(s.input), tones: [{ id: freshToneId(s.score, id), pitch }] };
+  const score = updateEvents(s.score, caret, (events) => insertSorted(makeRoom(events, caret.time, ev.duration, s.input.insert), ev));
+  return { ...s, score, nextId, selection: selectEvent(caret, ev), input: { ...s.input, chordEvent: id, pendingTie: false }, message: null };
+}
+
+/** Leaves chord mode: the caret moves behind the finished chord. */
+function endChord(s: EditorState): EditorState {
+  const input = { ...s.input, chord: false, chordEvent: null };
+  const chord = s.caret && s.input.chordEvent ? getVoice(s.score, s.caret).voice.events.find((e) => e.id === s.input.chordEvent) : undefined;
+  return { ...s, input, caret: s.caret && chord ? { ...s.caret, time: eventEnd(chord) } : s.caret };
+}
+
+/** Logic's chord mode key: the next notes you enter stack up into one chord; press again to move on. */
+function toggleChordMode(s0: EditorState): EditorState {
+  if (s0.input.chord) return { ...endChord(s0), message: 'Akkordmodus aus' };
+  const s = ensureCaret(s0);
+  if (!s.caret) return say(s, 'Die Partitur hat keine Stimme.');
+  return { ...s, input: { ...s.input, chord: true, chordEvent: null }, message: 'Akkordmodus: Die nächsten Töne klingen zusammen (Taste noch einmal: weiter).' };
+}
+
 /** Enters a note at the caret; `alter` null = as the key signature says. */
 function enterPitch(s0: EditorState, step: Pitch['step'], alterOverride: number | null): EditorState {
   const s = ensureCaret(s0);
   const caret = s.caret;
   if (!caret) return say(s, 'Die Partitur hat keine Stimme.');
+  if (s.input.chord) return enterChordPitch(s, caret, step, alterOverride);
   const alter = alterOverride ?? keyAlteration(keyAt(s.score, caret.time), step);
   const pitch = nearestOctave(step, alter, referencePitch(s, caret));
   const length = inputLength(s.input);
@@ -262,9 +303,7 @@ function addChordNote(s: EditorState, stepIndex: number): EditorState {
   if (!step) return s;
   if (!t) return say(s, NO_NOTE);
   const top = Math.max(...t.event.tones.map((tone) => midiOf(tone.pitch)));
-  const alter = keyAlteration(keyAt(s.score, t.event.onset), step);
-  let pitch: Pitch = { step, alter, octave: -1 };
-  while (midiOf(pitch) <= top) pitch = { ...pitch, octave: pitch.octave + 1 };
+  const pitch = pitchAbove(step, keyAlteration(keyAt(s.score, t.event.onset), step), top);
   const score = updateEvents(s.score, t.ref, (events) =>
     events.map((e) =>
       e.id === t.event.id ? { ...e, tones: sortTones([...e.tones, { id: freshToneId(s.score, e.id), pitch }]) } : e,
@@ -273,7 +312,8 @@ function addChordNote(s: EditorState, stepIndex: number): EditorState {
   return { ...s, score, selection: selectEvent(t.ref, t.event), message: null };
 }
 
-function enterRest(s0: EditorState): EditorState {
+function enterRest(s00: EditorState): EditorState {
+  const s0 = s00.input.chord ? endChord(s00) : s00; // a rest ends a chord
   const s = ensureCaret(s0);
   const caret = s.caret;
   if (!caret) return say(s, 'Die Partitur hat keine Stimme.');
@@ -290,13 +330,13 @@ function enterRest(s0: EditorState): EditorState {
 }
 
 function toggleInput(s: EditorState): EditorState {
-  if (s.caret) return { ...s, caret: null, input: { ...s.input, pendingTie: false }, message: null };
+  if (s.caret) return { ...s, caret: null, input: { ...s.input, pendingTie: false, chord: false, chordEvent: null }, message: null };
   const next = ensureCaret(s);
   return next.caret ? { ...next, message: null } : say(s, 'Die Partitur hat keine Stimme.');
 }
 
 function escape(s: EditorState): EditorState {
-  if (s.caret) return { ...s, caret: null, input: { ...s.input, pendingTie: false }, message: null };
+  if (s.caret) return { ...s, caret: null, input: { ...s.input, pendingTie: false, chord: false, chordEvent: null }, message: null };
   return { ...s, selection: null, message: null };
 }
 
@@ -512,7 +552,8 @@ function caretStops(score: Score, ref: VoiceRef): Fraction[] {
   return stops.filter((t) => le(t, limit));
 }
 
-function navHorizontal(s: EditorState, dir: number): EditorState {
+function navHorizontal(s0: EditorState, dir: number): EditorState {
+  const s = s0.input.chord ? { ...s0, input: { ...s0.input, chord: false, chordEvent: null } } : s0; // moving on ends chord mode
   const caret = s.caret;
   if (caret) {
     const stops = caretStops(s.score, caret);
@@ -584,6 +625,7 @@ export const COMMANDS = {
   'input.note': { title: 'Note eingeben', run: enterNote },
   'input.pitchClass': { title: 'Note nach Klaviertaste eingeben', run: enterPitchClass },
   'input.chordNote': { title: 'Ton zum Akkord hinzufügen', run: addChordNote },
+  'input.chordMode': { title: 'Akkordmodus an/aus', run: toggleChordMode },
   'input.rest': { title: 'Pause eingeben', run: enterRest },
   'input.insertMode': { title: 'Einfügen / Überschreiben', run: toggleInsert },
   'edit.escape': { title: 'Eingabe beenden / Auswahl aufheben', run: escape },

@@ -3,7 +3,8 @@
  * Used when the instrument sounds cannot be loaded. A glide is a pitch ramp inside one sound.
  */
 import type { InstrumentId } from '../core/instruments';
-import { type PlaybackPlan, type SoundNote } from '../core/playback';
+import { DEFAULT_VOLUME } from '../core/curve';
+import { type PlaybackPlan, type SoundNote, levelAt } from '../core/playback';
 import type { Engine, Playing } from './engine';
 
 interface Timbre {
@@ -82,10 +83,17 @@ export class SimpleSynth implements Engine {
     const end = Math.max(origin + note.end, start + timbre.attack);
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0, start);
-    gain.gain.linearRampToValueAtTime(0.5, start + timbre.attack);
-    gain.gain.setTargetAtTime(0.5 * timbre.sustain, start + timbre.attack, timbre.decay);
+    const peak = 0.5 * ((note.volume ?? DEFAULT_VOLUME) / DEFAULT_VOLUME);
+    gain.gain.linearRampToValueAtTime(peak, start + timbre.attack);
+    gain.gain.setTargetAtTime(peak * timbre.sustain, start + timbre.attack, timbre.decay);
     gain.gain.setTargetAtTime(0, end, timbre.release / 3);
-    osc.connect(gain).connect(out);
+    // The loudness curve of the sound (fades, crossfade through a glide) runs on a gain of its own.
+    const levels = ctx.createGain();
+    if (note.gain) {
+      levels.gain.setValueAtTime(levelAt(note.gain, note.start), start);
+      for (const p of note.gain) if (p.t > note.start) levels.gain.linearRampToValueAtTime(p.level, origin + p.t);
+    }
+    osc.connect(gain).connect(levels).connect(out);
     osc.start(start);
     osc.stop(end + timbre.release + 0.2);
     return osc;

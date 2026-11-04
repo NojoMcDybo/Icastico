@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { FileFormatError, FORMAT_VERSION, fileVersion, parseScoreFile, serializeScore } from './format';
 import { pitchToString } from '../pitch';
-import { validateScore, withTempo } from '../model';
+import { type Score, validateScore, withTempo } from '../model';
 import { frac } from '../time';
 import { applyScoreChanges } from '../templates';
 import version1File from './fixtures/version1.icastico?raw';
 import version2File from './fixtures/version2.icastico?raw';
 import version3File from './fixtures/version3.icastico?raw';
 import version4File from './fixtures/version4.icastico?raw';
+import version5File from './fixtures/version5.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -196,5 +197,61 @@ describe('.icastico rejects broken files with a clear message', () => {
   it('overlapping notes', () => {
     const score = (d: Record<string, unknown>) => d.score as { parts: { voices: { events: { at: string }[] }[] }[] };
     expectError(broken((d) => (score(d).parts[0]!.voices[0]!.events[1]!.at = '1/8')), /überlappt/);
+  });
+});
+
+describe('format version 6: loudness and curves (ADR 0016)', () => {
+  it('opens files saved by Icastico 0.9.0 (format version 5): tempo kept, no curves', () => {
+    const score = parseScoreFile(version5File);
+    expect(fileVersion(version5File)).toBe(5);
+    expect(score.tempo).toBe(132);
+    expect(score.parts[0]!.voices[0]!.events[0]!.tones[0]!.volume).toBeUndefined();
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  it('writes loudness only when it is not the default and keeps curves exactly', () => {
+    const base = parseScoreFile(version5File);
+    const fade = [{ x: 0, y: 0 }, { x: 0.3, y: 1 }, { x: 1, y: 1 }];
+    const glide = [{ x: 0, y: 0 }, { x: 0.5, y: 0.2 }, { x: 1, y: 1 }];
+    const score: Score = {
+      ...base,
+      links: base.links!.map((l) => ({ ...l, curve: glide })),
+      parts: base.parts.map((p) => ({
+        ...p,
+        voices: p.voices.map((v, vi) => ({
+          ...v,
+          events: v.events.map((e, ei) => ({
+            ...e,
+            tones: e.tones.map((t, ti) => (vi === 0 && ei === 0 ? { ...t, volume: 64, curve: fade } : ti === 0 ? { ...t, volume: 100 } : t)),
+          })),
+        })),
+      })),
+    };
+    const text = serializeScore(score, '0.0.0');
+    expect(text.match(/"vol"/g)).toHaveLength(1); // 100 is the default and stays out of the file
+    expect(text).toContain('"curve": [[0, 0], [0.3, 1], [1, 1]]');
+    const back = parseScoreFile(text);
+    expect(back.links![0]!.curve).toEqual(glide);
+    expect(back.parts[0]!.voices[0]!.events[0]!.tones[0]).toMatchObject({ volume: 64, curve: fade });
+  });
+
+  it('rejects broken loudness values and curves with a clear message', () => {
+    const doc = JSON.parse(serializeScore(parseScoreFile(version5File), '0')) as { score: { parts: { voices: { events: { tones: Record<string, unknown>[] }[] }[] }[]; links: Record<string, unknown>[] } };
+    const attempt = (mutate: (d: typeof doc) => void) => () => {
+      const copy = JSON.parse(JSON.stringify(doc)) as typeof doc;
+      mutate(copy);
+      return parseScoreFile(JSON.stringify(copy));
+    };
+    const tone = (d: typeof doc) => d.score.parts[0]!.voices[0]!.events[0]!.tones[0]!;
+    expect(attempt((d) => (tone(d).vol = 0))).toThrow(/Lautstärke 0 ist ungültig/);
+    expect(attempt((d) => (tone(d).vol = 64.5))).toThrow(/ganze Zahl/);
+    expect(attempt((d) => (tone(d).curve = [[0, 1]]))).toThrow(/2 bis 16 Punkte/);
+    expect(attempt((d) => (tone(d).curve = [[0, 1], [0.5, 2], [1, 1]]))).toThrow(/zwischen 0 und 1/);
+    expect(attempt((d) => (tone(d).curve = [[0.1, 1], [1, 1]]))).toThrow(/beginnt bei 0/);
+    expect(attempt((d) => (tone(d).curve = [[0, 1], [0.6, 1], [0.4, 1], [1, 1]]))).toThrow(/von links nach rechts/);
+    expect(attempt((d) => (d.score.links[0]!.curve = [[0, 0.5], [1, 1]]))).toThrow(/beginnt beim ersten Ton/);
+    expect(attempt((d) => (tone(d).curve = 'sanft'))).toThrow(/Liste erwartet/);
   });
 });

@@ -62,7 +62,9 @@
         {
           "id": "input.chordMode",
           "title": "Akkordmodus an/aus (nächste Töne übereinander)",
-          "logic": { "keys": ["Backquote"], "source": "doku" }
+          "command": "input.chordMode",
+          "finale": { "keys": ["Backquote"], "source": "icastico", "note": "Finale hat das nicht als Taste; wir nehmen dieselbe wie Logic. Alternativ: Umschalt + Buchstabe fügt einen Ton zum Akkord." },
+          "logic": { "keys": ["Backquote"], "source": "doku", "note": "Gemeint ist die Taste links neben der 1 – auf deutschen Tastaturen ist das ^." }
         },
         {
           "id": "input.triplets",
@@ -199,6 +201,41 @@
           "command": "mouse.drag",
           "finale": { "keys": ["Ziehen"], "source": "icastico", "note": "Stufenweise in der Tonart." },
           "logic": { "keys": ["Ziehen"], "source": "icastico", "note": "Stufenweise in der Tonart; mit Alt in Halbtönen." }
+        },
+        {
+          "id": "edit.dropChord",
+          "title": "Note auf eine andere Note ziehen (Akkord)",
+          "command": "mouse.dropChord",
+          "finale": { "keys": ["Ziehen"], "source": "icastico", "note": "Die gezogene Note übernimmt Anfang und Länge der anderen und klingt mit ihr zusammen." },
+          "logic": { "keys": ["Ziehen"], "source": "icastico", "note": "Die gezogene Note übernimmt Anfang und Länge der anderen und klingt mit ihr zusammen." }
+        },
+        {
+          "id": "roll.overdraw",
+          "title": "Piano-Roll: neue Note über eine bestehende zeichnen",
+          "command": "mouse.rollOverdraw",
+          "finale": { "keys": ["Alt+Ziehen"], "source": "icastico", "note": "Gleicher Anfang und gleiche Länge = Akkord, sonst eine zweite Stimme." },
+          "logic": { "keys": ["Alt+Ziehen"], "source": "icastico", "note": "Gleicher Anfang und gleiche Länge = Akkord, sonst eine zweite Stimme." }
+        },
+        {
+          "id": "roll.shapeMenu",
+          "title": "Piano-Roll: Balken anklicken – Lautstärke und Ein-/Ausblenden",
+          "command": "mouse.shapeMenu",
+          "finale": { "keys": ["Klick"], "source": "icastico", "note": "Menü mit Lautstärke und einer Linie über die Länge der Note." },
+          "logic": { "keys": ["Klick"], "source": "icastico", "note": "Menü mit Lautstärke und einer Linie über die Länge der Note." }
+        },
+        {
+          "id": "roll.glideMenu",
+          "title": "Piano-Roll: Gleit-Linie anklicken – Verlauf des Übergangs",
+          "command": "mouse.glideMenu",
+          "finale": { "keys": ["Klick"], "source": "icastico", "note": "Die Linie bestimmt, wie Tonhöhe und Lautstärke durch die Lücke wandern." },
+          "logic": { "keys": ["Klick"], "source": "icastico", "note": "Die Linie bestimmt, wie Tonhöhe und Lautstärke durch die Lücke wandern." }
+        },
+        {
+          "id": "roll.curvePoint",
+          "title": "Im Lautstärke-/Verlaufsmenü: Punkt auf die Linie setzen",
+          "command": "mouse.curvePoint",
+          "finale": { "keys": ["P"], "source": "icastico", "note": "An der Stelle des Mauszeigers. Punkt ziehen formt die ganze Linie, Doppelklick oder Entf entfernt ihn." },
+          "logic": { "keys": ["P"], "source": "icastico", "note": "An der Stelle des Mauszeigers. Punkt ziehen formt die ganze Linie, Doppelklick oder Entf entfernt ihn." }
         },
         {
           "id": "history.undo",

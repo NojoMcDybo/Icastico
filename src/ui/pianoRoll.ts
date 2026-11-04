@@ -9,6 +9,8 @@
  */
 import { type EditorState, type Selection, type VoiceRef, getVoice, inputLength } from '../core/editor/state';
 import { type RollEdit } from '../core/editor/rollEdits';
+import { curveAt, volumeMark, DEFAULT_VOLUME } from '../core/curve';
+import type { ShapeTarget } from './curvePopup';
 import { getInstrument } from '../core/instruments';
 import { measuresOf } from '../core/model';
 import { durationName } from '../core/notation/notate';
@@ -46,6 +48,8 @@ export interface RollHost {
   endGesture(commit: boolean): void;
   /** A single finished edit (double-click creates a note). */
   edit(edit: RollEdit): void;
+  /** A click on a bar or a glide line opens the menu for its loudness / course (ADR 0016). */
+  openShape(target: ShapeTarget, anchor: DOMRect): void;
 }
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -269,9 +273,18 @@ export class PianoRoll {
           bar.dataset.tone = tone.id;
           bar.dataset.midi = String(midi);
           const tip = svgEl('title', {});
-          tip.textContent = `${pitchToString(tone.pitch)} · ${measureNo(ev.onset) === 0 ? 'Auftakt' : `Takt ${measureNo(ev.onset)}`} · ${durationName(ev.duration)}${voiceIndex > 0 ? ' · Stimme ' + (voiceIndex + 1) : ''}`;
+          const volume = tone.volume ?? DEFAULT_VOLUME;
+          tip.textContent = `${pitchToString(tone.pitch)} · ${measureNo(ev.onset) === 0 ? 'Auftakt' : `Takt ${measureNo(ev.onset)}`} · ${durationName(ev.duration)}${voiceIndex > 0 ? ' · Stimme ' + (voiceIndex + 1) : ''}${volume !== DEFAULT_VOLUME || tone.curve ? ` · ${volumeMark(volume)}${tone.curve ? ', mit Lautstärkelinie' : ''}` : ''} · Klick: Lautstärke`;
           bar.append(tip);
           body.append(bar);
+          if (tone.curve && w > 10) {
+            // The loudness line inside the bar: full height = full loudness.
+            const top = yOfMidi(layout, midi) + 2;
+            const high = layout.rowHeight - 4;
+            const steps = Math.max(8, Math.min(60, Math.round(w / 4)));
+            const d = Array.from({ length: steps + 1 }, (_, k) => `${k === 0 ? 'M' : 'L'} ${(x + (w * k) / steps).toFixed(1)} ${(top + high * (1 - curveAt(tone.curve!, k / steps))).toFixed(1)}`).join(' ');
+            body.append(svgEl('path', { d }, 'roll__env'));
+          }
           if (inEvent && (sel?.toneId === tone.id || !sel?.toneId)) selected = bar;
         }
       }
@@ -316,11 +329,23 @@ export class PianoRoll {
         body.append(path);
       } else {
         const gap = b.x0 - a.x1 > 0.5;
-        const line = svgEl('line', { x1: a.x1, y1: a.y, x2: b.x0, y2: b.y }, `roll__link roll__link--slide${gap ? '' : ' is-direct'}`);
-        title.textContent = gap ? 'Gleiten (die Lücke ist die Gleitdauer)' : 'Gleiten gemerkt – ohne Lücke nur direkter Wechsel';
+        // A shaped glide is drawn along its curve, an even one as a straight line.
+        const d = link.curve
+          ? Array.from({ length: 25 }, (_, k) => {
+              const f = k / 24;
+              return `${k === 0 ? 'M' : 'L'} ${(a.x1 + (b.x0 - a.x1) * f).toFixed(1)} ${(a.y + (b.y - a.y) * curveAt(link.curve!, f)).toFixed(1)}`;
+            }).join(' ')
+          : `M ${a.x1} ${a.y} L ${b.x0} ${b.y}`;
+        const line = svgEl('path', { d }, `roll__link roll__link--slide${gap ? '' : ' is-direct'}${link.curve ? ' is-shaped' : ''}`);
+        title.textContent = gap ? 'Gleiten (die Lücke ist die Gleitdauer) · Klick: Verlauf einstellen' : 'Gleiten gemerkt – ohne Lücke nur direkter Wechsel';
         line.dataset.link = link.id;
         line.append(title);
         body.append(line);
+        if (gap) {
+          const hit = svgEl('path', { d }, 'roll__linkhit');
+          hit.dataset.link = link.id;
+          body.append(hit);
+        }
       }
     }
   }
@@ -427,6 +452,12 @@ export class PianoRoll {
     const primary = this.currentVoice(s);
     if (!p || !primary) return;
     this.host.activate();
+    const line = e.target instanceof Element ? e.target.closest<SVGElement>('.roll__linkhit, .roll__link') : null;
+    if (line?.dataset.link && !this.compact) {
+      // A glide line: its course menu (no drag to start here).
+      this.host.openShape({ kind: 'link', id: line.dataset.link }, line.getBoundingClientRect());
+      return;
+    }
     const dot = e.target instanceof Element ? e.target.closest<SVGCircleElement>('.roll__dot') : null;
     if (dot && !this.compact) {
       this.gesture = {
@@ -451,7 +482,8 @@ export class PianoRoll {
       if (bar) this.host.select({ kind: 'event', ...voice, eventId: bar.eventId, toneId: bar.toneId }, bar.onset);
       return;
     }
-    if (bar) {
+    // Alt held: draw a new note even where a bar is (same time and length = chord, otherwise a second voice).
+    if (bar && !e.altKey) {
       const x0 = xOfTime(this.layout, bar.onset);
       const mode = zoneOf(x0, x0 + timeWidth(this.layout, bar.duration), p.x);
       this.host.select({ kind: 'event', ...voice, eventId: bar.eventId, toneId: bar.toneId }, bar.onset);
@@ -472,7 +504,7 @@ export class PianoRoll {
     const g = this.gesture;
     if (!p || !this.layout) return;
     if (!g) {
-      const bar = this.barAt(e.target);
+      const bar = e.altKey ? null : this.barAt(e.target);
       const x0 = bar ? xOfTime(this.layout, bar.onset) : 0;
       const zone = bar ? zoneOf(x0, x0 + timeWidth(this.layout, bar.duration), p.x) : null;
       this.scroller.style.cursor = zone === 'body' ? 'grab' : zone ? 'ew-resize' : 'crosshair';
@@ -532,17 +564,22 @@ export class PianoRoll {
       this.host.endGesture(commit);
     } else if (g.mode === 'draw') {
       this.host.select(null, null); // a plain click on empty space deselects
+    } else if (g.bar && commit) {
+      // A plain click on a bar: its loudness menu (after the selection has redrawn the bar).
+      const el = this.svg?.querySelector(`[id="bar-${g.bar.toneId}"]`);
+      if (el) this.host.openShape({ kind: 'tone', id: g.bar.toneId }, el.getBoundingClientRect());
     }
   }
 
+
   private onDouble(e: MouseEvent): void {
-    const link = e.target instanceof Element ? e.target.closest<SVGElement>('.roll__link') : null;
+    const link = e.target instanceof Element ? e.target.closest<SVGElement>('.roll__link, .roll__linkhit') : null;
     if (link?.dataset.link) return this.host.edit({ kind: 'disconnect', id: link.dataset.link });
     const p = this.point(e);
     const layout = this.layout;
     const s = this.host.state();
     const voice = this.currentVoice(s);
-    if (this.compact || !p || !layout || !voice || p.x < layout.labelWidth || this.onKeyColumn(e) || this.barAt(e.target)) return;
+    if (this.compact || !p || !layout || !voice || p.x < layout.labelWidth || this.onKeyColumn(e) || (this.barAt(e.target) && !e.altKey)) return;
     const c = drawChange(layout, p.x, p.y, p.x, this.gridOf(s));
     const onset = c.onset;
     this.host.edit({ kind: 'create', voice, onset, duration: inputLength(s.input), midi: c.midi });

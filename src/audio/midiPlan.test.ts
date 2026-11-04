@@ -19,6 +19,13 @@ const glide = (start = 0): SoundNote => ({
 const plan = (...notes: SoundNote[]): PlaybackPlan => ({ notes, length: Math.max(0, ...notes.map((n) => n.end)) });
 const of = (actions: MidiAction[], type: MidiAction['type'], channel?: number) => actions.filter((a) => a.type === type && (channel === undefined || a.channel === channel));
 
+/** A held note that fades in over a second and out over the last second of three. */
+const fading = (start = 0): SoundNote => ({
+  ...fixed(start, start + 3, 60),
+  volume: 64,
+  gain: [{ t: start, level: 0 }, { t: start + 1, level: 1 }, { t: start + 2, level: 1 }, { t: start + 3, level: 0 }],
+});
+
 describe('MIDI actions for a playback plan', () => {
   it('ordinary notes share their instrument channel: on at the start, off at the end, program first', () => {
     const a = midiActions(plan(fixed(0, 1, 60), fixed(0, 1, 64, 'guitar')), PROGRAMS);
@@ -79,6 +86,46 @@ describe('MIDI actions for a playback plan', () => {
     for (const b of of(a, 'bend') as { value: number }[]) expect(b.value >= 0 && b.value <= BEND_MAX).toBe(true);
     expect(bendValue(100, 60, 2)).toBe(BEND_MAX);
     expect(bendValue(20, 60, 2)).toBe(0);
+  });
+
+  it('the volume of a note is its velocity', () => {
+    const a = midiActions(plan({ ...fixed(0, 1, 60), volume: 40 }), PROGRAMS);
+    expect(of(a, 'on')[0]).toMatchObject({ velocity: 40, channel: BASE_CHANNEL.piano });
+  });
+
+  it('a fading note gets a channel of its own and follows its level through expression', () => {
+    const a = midiActions(plan(fading(), fixed(0, 3, 64)), PROGRAMS);
+    const ons = of(a, 'on') as { channel: number; key: number; velocity: number }[];
+    const own = ons.find((x) => x.key === 60)!;
+    expect(GLIDE_CHANNELS).toContain(own.channel);
+    expect(own.velocity).toBe(64);
+    expect(ons.find((x) => x.key === 64)!.channel).toBe(BASE_CHANNEL.piano); // an even note stays on the shared channel
+    const e = of(a, 'expression', own.channel) as { t: number; value: number }[];
+    expect(e[0]).toMatchObject({ value: 0 });
+    expect(e[0]!.t).toBeLessThan(0); // set before the note is struck
+    expect(Math.max(...e.map((x) => x.value))).toBe(127);
+    const rising = e.filter((x) => x.t >= 0 && x.t <= 1);
+    expect(rising.every((x, i) => i === 0 || x.value >= rising[i - 1]!.value)).toBe(true);
+    expect(e.filter((x) => x.t > 1.05 && x.t < 1.95)).toEqual([]); // held at full: nothing to send
+    expect(e.at(-1)).toMatchObject({ value: 127 }); // reset after the tail
+    expect(e.at(-1)!.t).toBeGreaterThan(3);
+    expect(of(a, 'expression', BASE_CHANNEL.piano)).toEqual([]);
+  });
+
+  it('a level jump (a tie between loud and soft) is one message at that moment', () => {
+    const jumping: SoundNote = {
+      ...fixed(0, 2, 60),
+      gain: [{ t: 0, level: 1 }, { t: 1, level: 1 }, { t: 1, level: 0.5 }, { t: 2, level: 0.5 }],
+    };
+    const e = of(midiActions(plan(jumping), PROGRAMS), 'expression') as { t: number; value: number }[];
+    expect(e.filter((x) => x.t === 1)).toEqual([expect.objectContaining({ value: 64 })]);
+  });
+
+  it('more shaped sounds at once than channels: the extra ones play evenly on the instrument channel', () => {
+    const many = Array.from({ length: GLIDE_CHANNELS.length + 1 }, () => fading());
+    const ons = of(midiActions(plan(...many), PROGRAMS), 'on');
+    expect(ons.filter((x) => GLIDE_CHANNELS.includes(x.channel))).toHaveLength(GLIDE_CHANNELS.length);
+    expect(ons.filter((x) => x.channel === BASE_CHANNEL.piano)).toHaveLength(1);
   });
 
   it('an empty plan makes no messages', () => {

@@ -17,6 +17,8 @@ const SOUNDBANK_URL = `${import.meta.env.BASE_URL}sounds/MuseScore_General.sf3`;
 /** How far ahead (seconds) messages are handed to the synthesizer. */
 const LOOKAHEAD = 1.2;
 const PUMP_INTERVAL = 100;
+/** MIDI controller 11: the loudness of a channel. */
+const EXPRESSION = 11 as Parameters<WorkletSynthesizer['controllerChange']>[1];
 /** The music starts this much after "play" so the first messages arrive in time. */
 const LEAD_IN = 0.15;
 
@@ -75,6 +77,8 @@ export class Sampler implements Engine {
           return synth.pitchWheelRange(a.channel, a.value, at);
         case 'bend':
           return synth.pitchWheel(a.channel, a.value, at);
+        case 'expression':
+          return synth.controllerChange(a.channel, EXPRESSION, a.value, at);
         case 'on':
           return synth.noteOn(a.channel, a.key, a.velocity, at);
         case 'off':
@@ -94,7 +98,10 @@ export class Sampler implements Engine {
       stop: () => {
         window.clearInterval(timer);
         synth.stopAll(true);
-        for (let channel = 0; channel < 16; channel++) synth.pitchWheel(channel, BEND_CENTER);
+        for (let channel = 0; channel < 16; channel++) {
+          synth.pitchWheel(channel, BEND_CENTER);
+          synth.controllerChange(channel, EXPRESSION, 127);
+        }
       },
     };
   }

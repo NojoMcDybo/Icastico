@@ -32,6 +32,10 @@ export interface InputSettings {
   readonly insert: boolean;
   /** Tie the next entered note to the previous one (Finale: T). */
   readonly pendingTie: boolean;
+  /** Chord mode (Logic: `): the next notes are stacked on one place instead of following each other. */
+  readonly chord: boolean;
+  /** The chord being built in chord mode (its first note), if any. */
+  readonly chordEvent: string | null;
 }
 
 export interface EditorState {
@@ -50,7 +54,7 @@ export function createEditorState(score: Score): EditorState {
     score,
     caret: null,
     selection: null,
-    input: { base: frac(1, 4), dots: 0, insert: false, pendingTie: false },
+    input: { base: frac(1, 4), dots: 0, insert: false, pendingTie: false, chord: false, chordEvent: null },
     message: null,
     nextId: 1,
   };

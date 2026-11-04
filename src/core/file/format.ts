@@ -13,6 +13,7 @@
 import { type Fraction, compare, fracToString, parseFrac } from '../time';
 import { parsePitch, pitchToString } from '../pitch';
 import { type InstrumentId, INSTRUMENTS } from '../instruments';
+import { type Curve, type CurveKind, DEFAULT_VOLUME, curveProblem } from '../curve';
 import { type Link, type NoteEvent, type Part, type Score, type Tone, type Voice, validateScore } from '../model';
 
 export const FILE_EXTENSION = 'icastico';
@@ -20,9 +21,10 @@ export const FILE_EXTENSION = 'icastico';
  * History: 1 = first format (v0.2.0), 2 = optional upbeat "pickup" (v0.3.0),
  * 3 = tones with permanent ids instead of plain pitch names (ADR 0012),
  * 4 = optional `links` (ties and slides between tones, ADR 0014),
- * 5 = optional `tempo` (quarter notes per minute, ADR 0015).
+ * 5 = optional `tempo` (quarter notes per minute, ADR 0015),
+ * 6 = optional loudness `vol` and `curve` per tone, optional `curve` per link (ADR 0016).
  */
-export const FORMAT_VERSION = 5;
+export const FORMAT_VERSION = 6;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -30,6 +32,9 @@ export class FileFormatError extends Error {
 }
 
 // ── Writing ────────────────────────────────────────────────────────────────
+
+/** A curve as a list of [x, y] pairs. */
+const curveToJson = (curve: Curve): number[][] => curve.map((p) => [p.x, p.y]);
 
 function scoreToJson(score: Score): unknown {
   return {
@@ -39,7 +44,7 @@ function scoreToJson(score: Score): unknown {
     keys: score.keys.map((k) => ({ at: fracToString(k.at), fifths: k.fifths })),
     ...(score.pickup ? { pickup: fracToString(score.pickup) } : {}),
     ...(score.tempo !== undefined ? { tempo: score.tempo } : {}),
-    ...(score.links?.length ? { links: score.links.map((l) => ({ id: l.id, kind: l.kind, from: l.from, to: l.to })) } : {}),
+    ...(score.links?.length ? { links: score.links.map((l) => ({ id: l.id, kind: l.kind, from: l.from, to: l.to, ...(l.curve ? { curve: curveToJson(l.curve) } : {}) })) } : {}),
     parts: score.parts.map((p) => ({
       id: p.id,
       name: p.name,
@@ -51,7 +56,12 @@ function scoreToJson(score: Score): unknown {
           id: e.id,
           at: fracToString(e.onset),
           dur: fracToString(e.duration),
-          tones: e.tones.map((t) => ({ id: t.id, pitch: pitchToString(t.pitch) })),
+          tones: e.tones.map((t) => ({
+            id: t.id,
+            pitch: pitchToString(t.pitch),
+            ...(t.volume !== undefined && t.volume !== DEFAULT_VOLUME ? { vol: t.volume } : {}),
+            ...(t.curve ? { curve: curveToJson(t.curve) } : {}),
+          })),
         })),
       })),
     })),
@@ -125,6 +135,20 @@ function time(v: unknown, where: string): Fraction {
   }
 }
 
+function num(v: unknown, where: string): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : fail(`${where}: Zahl erwartet.`);
+}
+
+function readCurve(v: unknown, kind: CurveKind, where: string): Curve {
+  const curve = arr(v, where).map((p, i) => {
+    const pair = arr(p, `${where}[${i}]`);
+    if (pair.length !== 2) fail(`${where}[${i}]: ein Punkt hat x und y.`);
+    return { x: num(pair[0], `${where}[${i}].x`), y: num(pair[1], `${where}[${i}].y`) };
+  });
+  const bad = curveProblem(kind, curve);
+  return bad ? fail(`${where}: ${bad}`) : curve;
+}
+
 function readEvent(v: unknown, where: string): NoteEvent {
   const o = obj(v, where);
   const id = str(o.id, `${where}.id`);
@@ -132,7 +156,13 @@ function readEvent(v: unknown, where: string): NoteEvent {
     const tone = obj(t, `${where} (${id}).tones[${i}]`);
     const name = str(tone.pitch, `${where} (${id}).tones[${i}].pitch`);
     try {
-      return { id: str(tone.id, `${where} (${id}).tones[${i}].id`), pitch: parsePitch(name) };
+      const at = `${where} (${id}).tones[${i}]`;
+      return {
+        id: str(tone.id, `${at}.id`),
+        pitch: parsePitch(name),
+        ...(tone.vol !== undefined ? { volume: int(tone.vol, `${at}.vol`) } : {}),
+        ...(tone.curve !== undefined ? { curve: readCurve(tone.curve, 'level', `${at}.curve`) } : {}),
+      };
     } catch (e) {
       if (e instanceof FileFormatError) throw e;
       return fail(`${where} (${id}): unbekannte Tonhöhe „${name}“.`);
@@ -148,7 +178,13 @@ function readLink(v: unknown, i: number): Link {
   const o = obj(v, where);
   const kind = str(o.kind, `${where}.kind`);
   if (!LINK_KINDS.includes(kind)) fail(`${where}: unbekannte Art „${kind}“.`);
-  return { id: str(o.id, `${where}.id`), kind: kind as Link['kind'], from: str(o.from, `${where}.from`), to: str(o.to, `${where}.to`) };
+  return {
+    id: str(o.id, `${where}.id`),
+    kind: kind as Link['kind'],
+    from: str(o.from, `${where}.from`),
+    to: str(o.to, `${where}.to`),
+    ...(o.curve !== undefined ? { curve: readCurve(o.curve, 'glide', `${where}.curve`) } : {}),
+  };
 }
 
 function readVoice(v: unknown, where: string): Voice {
@@ -209,6 +245,8 @@ const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
   3: (doc) => ({ ...doc, version: 4 }),
   // 4 → 5: adds the optional "tempo". Version-4 files have none (the default applies).
   4: (doc) => ({ ...doc, version: 5 }),
+  // 5 → 6: adds the optional "vol" and "curve" of tones and "curve" of links. Version-5 files have none.
+  5: (doc) => ({ ...doc, version: 6 }),
 };
 
 /** Applies `fn` to every event object of a (still unvalidated) score; anything unexpected is left for the reader to reject. */

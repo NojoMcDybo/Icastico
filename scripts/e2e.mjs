@@ -328,9 +328,11 @@ try {
   await page.mouse.move(bx, by);
   await page.mouse.down();
   await page.mouse.move(bx + (nextBox.x - barBox.x), by, { steps: 6 });
-  const refused = await status();
   await page.mouse.up();
-  check(/schon eine Note/.test(refused) && (await barTitle(0)) === firstTitle, 'Ziehen auf eine andere Note wird abgelehnt, nichts wird überschrieben');
+  const dropped = await Promise.all([bars.nth(0).boundingBox(), bars.nth(1).boundingBox()]);
+  check((await bars.count()) === barsBefore && Math.abs(dropped[0].x - dropped[1].x) < 1.5 && !/schon eine Note/.test(await status()), 'Ziehen auf eine andere Note überschreibt nichts: beide Töne stehen jetzt übereinander (Akkord oder zweite Stimme)');
+  await type('Control+z');
+  check((await barTitle(0)) === firstTitle && (await bars.count()) === barsBefore, 'Strg+Z nimmt das Aufeinanderziehen zurück');
 
   const endBox = await bars.nth(1).boundingBox();
   await page.mouse.move(endBox.x + endBox.width - 3, endBox.y + endBox.height / 2);
@@ -496,6 +498,114 @@ try {
   check(true, 'Strg+Eingabe startet und stoppt die Wiedergabe');
   check((await page.locator('.transport__record').isDisabled()), 'Der Aufnahmeknopf ist noch gesperrt (kommt später)');
   await page.screenshot({ path: join(outDir, 'transport.png') });
+
+  // ── Akkorde: Akkordmodus, Aufeinanderziehen, Überzeichnen ──
+  const newScore = async (name) => {
+    await type('Control+n');
+    await page.waitForSelector('.modal h2:text("Neue Partitur")');
+    await page.fill('#f-title', name);
+    await page.selectOption('#f-key', '0');
+    await page.click('.modal button[type="submit"]');
+    await page.waitForFunction((n) => document.querySelector('#doc-title')?.textContent === n, name);
+  };
+  await newScore('Akkord-Test');
+  await type('5', 'Backquote', 'c', 'e', 'g');
+  check(/Akkord/.test(await page.textContent('#mode')) && (await page.locator('.page g.chord').count()) === 1, 'Akkordmodus (Taste links neben der 1): C, E, G stehen als ein Akkord, die Anzeige sagt „Akkord“');
+  await type('Backquote', 'd', 'Escape');
+  check((await page.locator('.page g.chord').count()) === 1 && (await notes()) === 4, 'Akkordmodus aus: das nächste D folgt hinter dem Akkord');
+  await type('Control+Shift+P');
+  const chordBars = await Promise.all([0, 1, 2, 3].map((i) => bars.nth(i).boundingBox()));
+  check((await bars.count()) === 4 && Math.abs(chordBars[0].x - chordBars[2].x) < 1 && chordBars[3].x > chordBars[0].x + 20, 'Roll: drei Balken übereinander (Akkord), das D dahinter');
+  await type('Control+Shift+P');
+
+  // Notenschrift: eine Note auf eine andere ziehen
+  await newScore('Zieh-Test');
+  await type('5', 'c', 'e', 'g', 'Escape');
+  const noteCount = await notes();
+  const heads = page.locator('.page g.note');
+  const h1 = await heads.nth(0).boundingBox();
+  const h3 = await heads.nth(2).boundingBox();
+  await page.mouse.move(h1.x + h1.width / 2, h1.y + h1.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(h3.x + h3.width / 2, h3.y + h3.height / 2, { steps: 12 });
+  await page.mouse.up();
+  check((await page.locator('.page g.chord').count()) === 1 && (await notes()) === noteCount, 'Notenschrift: Note auf eine andere gezogen – beide klingen jetzt zusammen (ein Akkord)');
+  await type('Control+z');
+  check((await page.locator('.page g.chord').count()) === 0, 'Strg+Z nimmt das Aufeinanderziehen zurück');
+
+  // Piano-Roll: mit Alt über eine bestehende Note zeichnen
+  await type('Control+Shift+P');
+  const rollBars = await bars.count();
+  const target = await bars.nth(1).boundingBox();
+  await page.keyboard.down('Alt');
+  await page.mouse.move(target.x + 4, target.y + target.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(target.x + 4 + 70, target.y + target.height / 2, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.up('Alt');
+  check((await bars.count()) === rollBars + 1 && (await page.locator('.roll__bar.is-secondary').count()) === 1, 'Roll: Alt + Ziehen über einer Note zeichnet eine neue – anderer Anfang/Länge = zweite Stimme (gestrichelt)');
+  await type('Escape');
+  await page.screenshot({ path: join(outDir, 'akkorde.png') });
+  await type('Control+z');
+  check((await bars.count()) === rollBars, 'Strg+Z nimmt die überzeichnete Note zurück');
+  // gleicher Anfang und gleiche Länge = Akkord
+  const same = await bars.nth(1).boundingBox();
+  await page.keyboard.down('Alt');
+  await page.mouse.move(same.x + 3, same.y - 14 * 2 + 7);
+  await page.mouse.down();
+  await page.mouse.move(same.x + same.width - 2, same.y - 14 * 2 + 7, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.up('Alt');
+  const stacked = (await Promise.all([0, 1, 2, 3].map((i) => bars.nth(i).boundingBox()))).filter((b) => Math.abs(b.x - same.x) < 1).length;
+  check((await bars.count()) === rollBars + 1 && (await page.locator('.roll__bar.is-secondary').count()) === 0 && stacked === 2, 'Roll: gleicher Anfang und gleiche Länge – die neue Note wird Teil des Akkords (keine zweite Stimme)');
+  await type('Control+Shift+P');
+
+  // ── Lautstärke, Ein-/Ausblenden und Gleitverlauf (Menü an Balken und Gleit-Linie) ──
+  await newScore('Verlauf-Test');
+  await type('5', 'c', '0', 'd', 'Escape');
+  await type('Control+Shift+P');
+  await bars.nth(0).click();
+  const shape = page.locator('.shape');
+  check((await shape.isVisible()) && /Lautstärke · C5/.test(await shape.locator('.shape__title').textContent()), 'Klick auf einen Balken öffnet das Lautstärke-Menü');
+  await shape.locator('input[type="range"]').fill('50');
+  check(/mp · 50/.test(await shape.locator('output').textContent()) && /mp/.test(await barTitle(0)), 'Lautstärke-Regler: 50 = mp, auch im Hinweis des Balkens');
+  const curveBox = await shape.locator('.shape__curve').boundingBox();
+  const lineY = curveBox.y + 14; // full loudness = the top line
+  await page.mouse.move(curveBox.x + 14 + 118, lineY);
+  await page.mouse.down();
+  await page.mouse.move(curveBox.x + 14 + 118, lineY + 80, { steps: 8 });
+  await page.mouse.up();
+  check((await shape.locator('.shape__point').count()) === 3 && (await page.locator('.roll__env').count()) === 1, 'Auf die Linie klicken setzt einen Punkt, Ziehen formt die Linie – in der Roll erscheint die Lautstärkelinie im Balken');
+  await page.mouse.move(curveBox.x + 14 + 40, curveBox.y + 60);
+  await type('p');
+  check((await shape.locator('.shape__point').count()) === 4, 'Taste P setzt einen weiteren Punkt an der Mausstelle');
+  await page.screenshot({ path: join(outDir, 'lautstaerke-menue.png') });
+  await shape.locator('.shape__preset', { hasText: 'Einblenden' }).click();
+  check((await shape.locator('.shape__point').count()) === 3, 'Voreinstellung „Einblenden“ ersetzt die Linie');
+  await type('Escape');
+  check(await shape.isHidden(), 'Esc schließt das Menü');
+  await type('Control+z', 'Control+z', 'Control+z', 'Control+z');
+  check(!/mp/.test(await barTitle(0)) && (await page.locator('.roll__env').count()) === 0, 'Rückgängig nimmt Lautstärke und Linie Schritt für Schritt zurück');
+
+  await bars.nth(0).click();
+  await type('Escape');
+  await type('Control+Shift+G');
+  check((await page.locator('.roll__link--slide:not(.is-direct)').count()) === 1, 'Gleiten mit Lücke gesetzt');
+  await page.locator('.roll__linkhit').click();
+  check((await shape.isVisible()) && /Übergang · C5 → D5/.test(await shape.locator('.shape__title').textContent()) && (await shape.locator('input[type="range"]').isHidden()), 'Klick auf die Gleit-Linie öffnet das Verlaufsmenü');
+  await shape.locator('.shape__preset', { hasText: 'Erst langsam' }).click();
+  check((await page.locator('.roll__link--slide.is-shaped').count()) === 1, 'Voreinstellung „Erst langsam“: die Gleit-Linie wird gekrümmt gezeichnet');
+  await page.screenshot({ path: join(outDir, 'gleitverlauf.png') });
+  await type('Escape');
+  await saved();
+  const shaped = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Verlauf-Test.icastico'))[1].contents;
+  check(/"version": 6/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 6)');
+  await type('Control+Enter');
+  await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true', null, { timeout: 30000 });
+  await page.waitForTimeout(1500);
+  await type('Control+Enter');
+  check(!/nicht verfügbar|Fehler/.test(await status()), 'Wiedergabe mit Gleitverlauf läuft ohne Fehler');
+  await type('Control+Shift+P');
 
   check(errors.length === 0, `Keine Fehler in der Konsole${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   console.log(`\nAlle ${step} Prüfungen bestanden. Screenshots: ${outDir}`);

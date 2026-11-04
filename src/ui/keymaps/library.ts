@@ -21,7 +21,14 @@ export type UiCommandId =
   | 'play.toggle';
 
 /** Functions handled by the mouse, listed for the help only. */
-export const MOUSE_COMMANDS = new Set(['mouse.drag']);
+export const MOUSE_COMMANDS = new Set([
+  'mouse.drag',
+  'mouse.dropChord',
+  'mouse.rollOverdraw',
+  'mouse.shapeMenu',
+  'mouse.glideMenu',
+  'mouse.curvePoint',
+]);
 
 export const UI_COMMANDS: ReadonlySet<string> = new Set<UiCommandId>([
   'history.undo',

@@ -14,7 +14,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Verovio-Rendering, Klick auf Note → Modell-Event (mit Toleranz)
 - [x] Demo-Partitur „Erste Skizze“
 
-## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.9.0)
+## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.10.0)
 
 - [x] Command-System (reine Funktionen) mit Undo/Redo
 - [x] Eingabe-Cursor (blinkend; gestrichelt im Einfügemodus), springt hinter Schlüssel/Taktart
@@ -60,6 +60,10 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Piano-Roll: Höhe der Roll durch Ziehen ihrer Oberkante (keine Größenknöpfe mehr), feineres Raster zum Zeichnen und Verlängern, Gleiten durch Ziehen von einem Punkt am Balkenende auf einen beliebigen anderen Balken
 - [x] Transportleiste mit Anzeige (Takt, Schlag, Tempo, Taktart, Tonart), Wiedergabe mit eingebautem Klang (Haltebögen ohne neuen Anschlag, Gleiten als Tonhöhenverlauf), Tempo in der Partitur (Dateiformat 5, ADR 0015)
 - [x] Echte Instrumentenklänge (SpessaSynth + MuseScore General, MIT) mit Gleiten per Pitch-Bend; Rückfall auf den einfachen Klang
+- [x] Akkorde: Note auf eine andere ziehen (Notenschrift) bzw. genau darauf zeichnen (Roll, Alt + Ziehen) = Akkord, sonst automatisch zweite Stimme derselben Zeile; Akkordmodus (Taste links neben der 1) (ADR 0016)
+- [x] Lautstärke je Ton und Lautstärke-Linie über die Note (Ein-/Ausblenden), Gleitverlauf als Kurve für Tonhöhe und Lautstärke; Menü per Klick auf Balken bzw. Gleit-Linie, Punkt mit Taste P setzen und ziehen; Dateiformat 6, Wiedergabe mit Expression (ADR 0016)
+- [ ] Akkordnamen tippen („Cm7“) und Akkord-Menü (Umkehrungen, Septakkorde …)
+- [ ] Lautstärke mehrerer Töne zugleich ändern; beim Einstellen anhören
 - [ ] Bessere Einzelinstrumente (z. B. ein Konzertflügel als zweite Klangdatei) und Auswahl der Klänge je Instrument
 - [ ] Aufnahmeknopf: Noten diktieren oder einspielen
 - [ ] Legato/Phrasierungsbögen

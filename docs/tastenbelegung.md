@@ -20,7 +20,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Pause eingeben | `0` | `Leertaste` | ✓ |
 | Punktierung | `.` – In der Eingabe gilt der Punkt für die nächste Note (Annahme), sonst für die ausgewählte. | `0` – Logic: „nächste zwei Noten punktiert“; Icastico punktiert die nächste Note. | ✓ |
 | Ton zum Akkord hinzufügen (darüber) | `Umschalt+C` C, `Umschalt+D` D, `Umschalt+E` E, `Umschalt+F` F, `Umschalt+G` G, `Umschalt+A` A, `Umschalt+B` / `Umschalt+H` H *(Annahme)* | – | ✓ |
-| Akkordmodus an/aus (nächste Töne übereinander) | – | `` ` `` | geplant |
+| Akkordmodus an/aus (nächste Töne übereinander) | `` ` `` *(Icastico)* – Finale hat das nicht als Taste; wir nehmen dieselbe wie Logic. Alternativ: Umschalt + Buchstabe fügt einen Ton zum Akkord. | `` ` `` – Gemeint ist die Taste links neben der 1 – auf deutschen Tastaturen ist das ^. | ✓ |
 | Triolen für die nächsten Noten | *Taste in Finale Simple Entry unbekannt – bitte ergänzen.* | `9` | geplant |
 | Kreuz für die nächste Note | – | `Umschalt+3` – Auf US-Tastaturen ist Umschalt+3 das #. | geplant |
 | B für die nächste Note | – | `Umschalt+B` | geplant |
@@ -45,6 +45,11 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Note in der Zeit verschieben (um den gewählten Notenwert) | `Alt+→` später, `Alt+←` früher *(Icastico)* | `Alt+→` später, `Alt+←` früher *(Icastico)* | ✓ |
 | Note verlängern / verkürzen (um den gewählten Notenwert) | `Umschalt+→` länger, `Umschalt+←` kürzer *(Icastico)* | `Umschalt+→` länger, `Umschalt+←` kürzer *(Icastico)* | ✓ |
 | Note mit der Maus nach oben / unten ziehen | `Ziehen` *(Icastico)* – Stufenweise in der Tonart. | `Ziehen` *(Icastico)* – Stufenweise in der Tonart; mit Alt in Halbtönen. | ✓ |
+| Note auf eine andere Note ziehen (Akkord) | `Ziehen` *(Icastico)* – Die gezogene Note übernimmt Anfang und Länge der anderen und klingt mit ihr zusammen. | `Ziehen` *(Icastico)* – Die gezogene Note übernimmt Anfang und Länge der anderen und klingt mit ihr zusammen. | ✓ |
+| Piano-Roll: neue Note über eine bestehende zeichnen | `Alt+Ziehen` *(Icastico)* – Gleicher Anfang und gleiche Länge = Akkord, sonst eine zweite Stimme. | `Alt+Ziehen` *(Icastico)* – Gleicher Anfang und gleiche Länge = Akkord, sonst eine zweite Stimme. | ✓ |
+| Piano-Roll: Balken anklicken – Lautstärke und Ein-/Ausblenden | `Klick` *(Icastico)* – Menü mit Lautstärke und einer Linie über die Länge der Note. | `Klick` *(Icastico)* – Menü mit Lautstärke und einer Linie über die Länge der Note. | ✓ |
+| Piano-Roll: Gleit-Linie anklicken – Verlauf des Übergangs | `Klick` *(Icastico)* – Die Linie bestimmt, wie Tonhöhe und Lautstärke durch die Lücke wandern. | `Klick` *(Icastico)* – Die Linie bestimmt, wie Tonhöhe und Lautstärke durch die Lücke wandern. | ✓ |
+| Im Lautstärke-/Verlaufsmenü: Punkt auf die Linie setzen | `P` *(Icastico)* – An der Stelle des Mauszeigers. Punkt ziehen formt die ganze Linie, Doppelklick oder Entf entfernt ihn. | `P` *(Icastico)* – An der Stelle des Mauszeigers. Punkt ziehen formt die ganze Linie, Doppelklick oder Entf entfernt ihn. | ✓ |
 | Rückgängig | `Strg+Z` | `Strg+Z` | ✓ |
 | Wiederholen | `Strg+Y` / `Strg+Umschalt+Z` | `Strg+Umschalt+Z` | ✓ |
 | Kopieren | `Strg+C` | `Strg+C` | geplant |

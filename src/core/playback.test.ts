@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { frac } from './time';
 import { withTempo, type Score } from './model';
 import { emptyScore } from './templates';
-import { keyName, barBeat, pitchAt, planFrom, planPlayback, secondsOf, timeAt } from './playback';
+import { keyName, barBeat, levelAt, pitchAt, planFrom, planPlayback, secondsOf, timeAt } from './playback';
 import { runCommand } from './editor/commands';
 import { applyRollEdit } from './editor/rollEdits';
 import { createEditorState, getVoice, type EditorState, type VoiceRef } from './editor/state';
@@ -83,6 +83,58 @@ describe('playback plan', () => {
   it('seconds and times convert back (display only)', () => {
     const s = melody();
     expect(timeAt(s.score, 0.5)).toEqual(frac(240, 960));
+  });
+});
+
+describe('loudness and curves in the plan (ADR 0016)', () => {
+  const toneId = (s: EditorState, i: number) => events(s)[i]!.tones[0]!.id;
+  const shape = (s: EditorState, i: number, e: { volume?: number; curve?: { x: number; y: number }[] }) => applyRollEdit(s, { kind: 'shape', tone: toneId(s, i), ...e });
+
+  it('the default loudness and an even note add nothing to the plan', () => {
+    const plan = planPlayback(melody().score);
+    expect(plan.notes.every((n) => n.volume === undefined && n.gain === undefined)).toBe(true);
+  });
+
+  it('a note carries its loudness, and a fade-in becomes a rising level', () => {
+    const s = shape(melody(), 0, { volume: 64, curve: [{ x: 0, y: 0 }, { x: 0.5, y: 1 }, { x: 1, y: 1 }] });
+    const note = planPlayback(s.score).notes[0]!;
+    expect(note.volume).toBe(64);
+    expect(levelAt(note.gain!, 0)).toBeCloseTo(0, 10);
+    expect(levelAt(note.gain!, 0.25)).toBeCloseTo(1, 1); // 0.5 s note at tempo 120: the fade is over at x = 0.5
+    expect(levelAt(note.gain!, 0.5)).toBeCloseTo(1, 10);
+    expect(planPlayback(s.score).notes[1]!.volume).toBeUndefined(); // the other notes stay as they were
+  });
+
+  it('a tied sound is struck as hard as its loudest note; the softer part is relative to that', () => {
+    const tied = cmd(at(melody(), 0), 'edit.tie');
+    const s = shape(shape(tied, 0, { volume: 100 }), 1, { volume: 50 });
+    const note = planPlayback(s.score).notes[0]!;
+    expect(note.volume).toBeUndefined(); // 100 = default
+    expect(levelAt(note.gain!, 0.25)).toBeCloseTo(1, 10);
+    expect(levelAt(note.gain!, 0.75)).toBeCloseTo(0.5, 10);
+  });
+
+  it('a shaped glide moves pitch and loudness along its curve, an even one in a straight line', () => {
+    const glided = cmd(at(melody(), 1), 'edit.slide'); // C5 (at 0.5 s) → D5 (at 1.5 s), gap 1.0–1.5
+    const id = glided.score.links![0]!.id;
+    const slow = applyRollEdit(glided, { kind: 'blend', id, curve: [{ x: 0, y: 0 }, { x: 0.5, y: 0.1 }, { x: 1, y: 1 }] });
+    const quiet = shape(shape(slow, 1, { volume: 100 }), 2, { volume: 50 });
+    const note = planPlayback(quiet.score).notes[1]!;
+    expect(pitchAt(note.path, 1.25)).toBeCloseTo(72.2, 6); // half way through the gap but only 10 % of the way in pitch
+    expect(pitchAt(note.path, 1.5)).toBe(74);
+    expect(levelAt(note.gain!, 1.0)).toBeCloseTo(1, 10);
+    expect(levelAt(note.gain!, 1.25)).toBeCloseTo(0.95, 6); // the same 10 %: from 1.0 towards 0.5
+    expect(levelAt(note.gain!, 1.5)).toBeCloseTo(0.5, 10);
+    const even = planPlayback(shape(glided, 2, { volume: 50 }).score).notes[1]!;
+    expect(pitchAt(even.path, 1.25)).toBe(73);
+    expect(levelAt(even.gain!, 1.25)).toBeCloseTo(0.75, 10);
+  });
+
+  it('starting in the middle keeps the level the sound has there', () => {
+    const s = shape(melody(), 0, { curve: [{ x: 0, y: 0 }, { x: 1, y: 1 }] });
+    const note = planFrom(planPlayback(s.score), 0.25).notes[0]!;
+    expect(note.gain![0]!.t).toBe(0.25);
+    expect(note.gain![0]!.level).toBeCloseTo(0.5, 1);
   });
 });
 
