@@ -18,10 +18,12 @@
         <span class="mode" id="mode">Auswahl</span>
         <button class="help-button" type="button" onclick="document.getElementById('help').hidden = false" title="Tastenbelegung (F1)">?</button>
       </header>
-      <main class="canvas" id="canvas">
-        <div class="pages" id="pages" aria-label="Partitur"></div>
-      </main>
-      <section class="roll" id="roll" aria-label="Piano-Roll" hidden></section>
+      <div class="lanes" id="lanes">
+        <main class="canvas" id="canvas">
+          <div class="pages" id="pages" aria-label="Partitur"></div>
+        </main>
+        <div class="roll-dock" id="roll" hidden></div>
+      </div>
       <footer class="statusbar">
         <span id="status">Lädt …</span>
         <span class="meta" id="meta"></span>

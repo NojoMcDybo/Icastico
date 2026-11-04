@@ -6,6 +6,7 @@ import { type InstrumentId, INSTRUMENTS } from '../core/instruments';
 import { type ScoreSetup, DEFAULT_SETUP } from '../core/templates';
 import { ZERO } from '../core/time';
 import type { PresetId } from './keymaps/library';
+import { DEFAULT_VIEW, type ViewState, parseView } from './lanes';
 
 const KEY = 'icastico.newScore';
 
@@ -84,5 +85,31 @@ export function saveKeymapPreset(id: PresetId): void {
     localStorage.setItem(KEYMAP, id);
   } catch {
     // not remembered – Finale next time
+  }
+}
+
+const VIEWS_KEY = 'icastico.views';
+const MAX_VIEWS = 60;
+
+/** Which views (notation / piano roll per staff) a score was last shown with; keyed by file path. */
+export function loadView(path: string): ViewState {
+  try {
+    const all = JSON.parse(localStorage.getItem(VIEWS_KEY) ?? '{}') as Record<string, unknown>;
+    return parseView(JSON.stringify(all[path] ?? null));
+  } catch {
+    return DEFAULT_VIEW;
+  }
+}
+
+export function saveView(path: string, view: ViewState): void {
+  try {
+    const all = JSON.parse(localStorage.getItem(VIEWS_KEY) ?? '{}') as Record<string, unknown>;
+    delete all[path]; // re-insert last, so the oldest entries are the ones that get pruned
+    all[path] = view;
+    const keys = Object.keys(all);
+    for (const old of keys.slice(0, Math.max(0, keys.length - MAX_VIEWS))) delete all[old];
+    localStorage.setItem(VIEWS_KEY, JSON.stringify(all));
+  } catch {
+    // Storage unavailable – the next start shows the default view.
   }
 }

@@ -71,6 +71,7 @@ ausführlich getestet.
   (Finale, Logic Pro), daraus Belegungen, Tastenhilfe und Doku (ADR 0012).
 - `pianoRoll.ts` / `pianoRollGeometry.ts` – Piano-Roll als zweite Ansicht (eigenes SVG);
   Geometrie rein und getestet, Bearbeitungen über `core/editor/rollEdits.ts` (ADR 0013).
+- `lanes.ts` / `laneControls.ts` – welche Ansichten in welcher Größe gezeigt werden (reiner Zustand, getestet).
 - `workstation.ts` – rendert nur bei Partitur-Änderungen neu, zeichnet Cursor
   und Auswahl über das SVG, Statuszeile, Tastenhilfe. Fehler in einem
   Command werden abgefangen und rückgängig gemacht.

@@ -318,7 +318,7 @@
         },
         {
           "id": "view.roll",
-          "title": "Piano-Roll ein / aus",
+          "title": "Piano-Roll für die gewählte Zeile ein / aus",
           "command": "view.roll",
           "finale": { "keys": ["Mod+Shift+P"], "source": "icastico" },
           "logic": { "keys": ["Mod+Shift+P"], "source": "icastico", "note": "In Logic öffnet P den Piano-Roll-Editor; hier ist P ein Ton." }

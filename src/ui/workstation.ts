@@ -24,10 +24,31 @@ import type { Platform } from '../platform/files';
 import { APP_VERSION } from '../version';
 import { ask, inform, isDialogOpen } from './dialog';
 import { LibraryHome } from './libraryHome';
-import { PianoRoll } from './pianoRoll';
+import { PianoRoll, type RollHost } from './pianoRoll';
+import { laneControls, type LaneControls } from './laneControls';
+import {
+  DEFAULT_VIEW,
+  NOTATION,
+  type LaneId,
+  type StaffMode,
+  type ViewState,
+  activate,
+  effectiveSizes,
+  hiddenStaves,
+  modeOf,
+  nextMode,
+  normalize,
+  restoreMaximised,
+  rollLane,
+  showsNotation,
+  staffKey,
+  visibleLanes,
+  withMode,
+  withSize,
+} from './lanes';
 import { Thumbnails } from './thumbnails';
 import type { UpdateChecker } from './updates';
-import { loadNewScoreDefaults, saveKeymapPreset, saveLastOpened, saveNewScoreDefaults } from './preferences';
+import { loadNewScoreDefaults, loadView, saveKeymapPreset, saveLastOpened, saveNewScoreDefaults, saveView } from './preferences';
 import { scoreDialog } from './scoreDialog';
 import { comboOf } from './keys';
 import { type Keymap, type PresetId, type UiCommandId, buildKeymap, findBinding, KEY_LIBRARY, PRESETS } from './keymaps/library';
@@ -46,6 +67,13 @@ export interface WorkstationElements {
   readonly rollButton: HTMLElement;
   /** "Update" button in the top bar, shown when a new version is known. */
   readonly updateButton: HTMLElement;
+}
+
+/** One piano-roll lane on screen. */
+interface RollLane {
+  readonly section: HTMLElement;
+  readonly roll: PianoRoll;
+  readonly controls: LaneControls;
 }
 
 interface DocumentLocation {
@@ -102,8 +130,13 @@ export class Workstation {
   /** The click that ends a drag must not select something else. */
   private swallowClick = false;
   private autosaveTimer = 0;
-  private readonly roll: PianoRoll;
-  private rollOpen = false;
+  /** Which views are shown how (per staff and lane); remembered per score. */
+  private view: ViewState = DEFAULT_VIEW;
+  private readonly rollLanes = new Map<string, RollLane>();
+  private notationBar!: { readonly el: HTMLElement; readonly controls: LaneControls };
+  /** What the notation was engraved without, and which selection was last scrolled into view. */
+  private renderedHidden = '';
+  private shownSelection = '';
   /** State at the start of a piano-roll drag; every preview is computed from it. */
   private rollBase: EditorState | null = null;
   private readonly library: LibraryHome | null;
@@ -141,38 +174,7 @@ export class Workstation {
           ...(updates ? { checkForUpdates: () => updates.checkNow() } : {}),
         })
       : null;
-    this.roll = new PianoRoll(el.roll, {
-      state: () => this.state,
-      select: (selection, caretTime) => {
-        const s = this.state;
-        const caret = s.caret && selection && caretTime ? { partId: selection.partId, voiceId: selection.voiceId, time: caretTime } : s.caret;
-        if (!selection && s.caret) return;
-        this.history.apply({ ...s, selection, caret, message: null });
-        this.update();
-      },
-      beginGesture: () => {
-        this.rollBase = this.state;
-        this.history.beginGesture();
-      },
-      preview: (edit) => {
-        const base = this.rollBase;
-        if (!base) return;
-        const next = applyRollEdit(base, edit);
-        // A refused edit keeps the last valid preview; only the message changes.
-        this.history.apply(next.message && next.score === base.score ? { ...this.state, message: next.message } : next);
-        this.update();
-      },
-      endGesture: (commit) => {
-        if (commit) this.history.commitGesture();
-        else this.history.cancelGesture();
-        this.rollBase = null;
-        this.update();
-      },
-      edit: (edit) => {
-        this.history.apply(applyRollEdit(this.state, edit));
-        this.update();
-      },
-    });
+    this.buildNotationBar();
     el.rollButton.addEventListener('click', () => this.run('view.roll'));
     el.libraryButton.hidden = !this.library;
     el.updateButton.hidden = true;
@@ -226,7 +228,7 @@ export class Workstation {
       // A piano-roll drag is running: Escape throws it away completely, nothing else works meanwhile.
       if (comboOf(e) === 'Escape') {
         e.preventDefault();
-        this.roll.cancel();
+        for (const l of this.rollLanes.values()) l.roll.cancel();
         this.history.cancelGesture();
         this.rollBase = null;
         this.update();
@@ -257,6 +259,14 @@ export class Workstation {
       }
       return;
     }
+    if (combo === 'Escape') {
+      const restored = restoreMaximised(this.view);
+      if (restored) {
+        e.preventDefault();
+        this.setView(restored);
+        return;
+      }
+    }
     if (!combo) return;
     const binding = findBinding(this.keymap, combo);
     if (!binding) return;
@@ -280,8 +290,8 @@ export class Workstation {
         this.el.help.hidden = false;
         return;
       case 'view.roll':
-        this.rollOpen = !this.rollOpen;
-        break;
+        this.toggleRoll();
+        return;
       case 'file.new':
         void this.fileNew();
         return;
@@ -400,7 +410,10 @@ export class Workstation {
       }
       try {
         const path = await this.store.saveScore(location.path, score);
-        if (this.location === location) this.location = { path, inLibrary: true };
+        if (this.location === location) {
+          this.location = { path, inLibrary: true };
+          this.persistView(); // the file may have been renamed with the title
+        }
         this.savedScore = score;
         saveLastOpened(path);
         if (explicit) this.history.apply({ ...this.state, message: 'Gespeichert' });
@@ -510,6 +523,11 @@ export class Workstation {
     this.savedScore = state.score;
     this.location = location;
     this.empty = false;
+    this.view = location?.path ? loadView(location.path) : DEFAULT_VIEW;
+    for (const ui of this.rollLanes.values()) ui.section.remove();
+    this.rollLanes.clear();
+    this.renderedHidden = '';
+    this.shownSelection = '';
     if (location?.inLibrary) this.externalName = null;
     this.renderedScore = null;
     this.update();
@@ -534,6 +552,7 @@ export class Workstation {
     const next = path === from ? to : path.startsWith(from + sep) ? to + path.slice(from.length) : null;
     if (next && this.location) {
       this.location = { ...this.location, path: next };
+      this.persistView();
       saveLastOpened(next);
       this.renderStatus();
     }
@@ -655,6 +674,7 @@ export class Workstation {
   }
 
   private onClick(e: MouseEvent): void {
+    this.activateLane(NOTATION);
     if (this.swallowClick) {
       this.swallowClick = false;
       return;
@@ -702,6 +722,7 @@ export class Workstation {
   // ── Output ───────────────────────────────────────────────────────────────
 
   private update(): void {
+    this.renderLanes(); // first: a lane that just appeared needs its size before the notation is engraved
     try {
       if (!this.history.inGesture) this.renderIfNeeded();
     } catch (err) {
@@ -715,17 +736,228 @@ export class Workstation {
       this.renderIfNeeded();
     }
     this.decorate();
-    this.renderRoll();
     this.renderStatus();
     this.scheduleAutosave();
   }
 
-  /** The piano roll under the notation: same state, drawn from the model. */
-  private renderRoll(): void {
-    const open = this.rollOpen && !this.empty;
-    this.el.roll.hidden = !open;
-    this.el.rollButton.setAttribute('aria-pressed', String(open));
-    if (open) this.roll.render();
+  // ── Lanes: notation and piano rolls, one roll per staff ────────────────────
+
+  /** All staves of the score in order, as `<partId>:<staffIndex>`. */
+  private staffKeys(): string[] {
+    return this.state.score.parts.flatMap((p) => getInstrument(p.instrument).staves.map((_, i) => staffKey(p.id, i)));
+  }
+
+  private setView(next: ViewState): void {
+    this.view = next;
+    this.persistView();
+    this.update();
+  }
+
+  private persistView(): void {
+    if (this.location?.path) saveView(this.location.path, this.view);
+  }
+
+  /** The user worked in this lane: it gets the focus ring (no redraw needed). */
+  private activateLane(lane: LaneId): void {
+    if (this.view.active === lane) return;
+    this.view = activate(this.view, lane);
+    this.markActive();
+  }
+
+  private markActive(): void {
+    this.notationBar.el.classList.toggle('is-active', this.view.active === NOTATION);
+    for (const [key, ui] of this.rollLanes) ui.section.classList.toggle('is-active', this.view.active === rollLane(key));
+  }
+
+  /** Strg+Umschalt+P: closes all rolls, or opens one for the staff of the selection. */
+  private toggleRoll(): void {
+    const keys = this.staffKeys();
+    if (keys.some((k) => modeOf(this.view, k) !== 'notation')) {
+      this.setView(keys.reduce((v, k) => withMode(v, k, 'notation', keys), this.view));
+      return;
+    }
+    const s = this.state;
+    const at = s.selection ?? s.caret;
+    let key = keys[0];
+    if (at) {
+      const { part, voice } = getVoice(s.score, at);
+      key = staffKey(part.id, voice.staff);
+    }
+    if (key) this.setView(withMode(this.view, key, 'both', keys));
+  }
+
+  /** Small strips open again when their header is clicked. */
+  private openIfSmall(lane: LaneId): void {
+    if (effectiveSizes(this.view, this.staffKeys())[lane] === 'small') this.setView(withSize(this.view, lane, 'normal'));
+  }
+
+  private buildNotationBar(): void {
+    const bar = document.createElement('div');
+    bar.className = 'lane__bar';
+    const title = document.createElement('span');
+    title.className = 'lane__title';
+    title.textContent = 'Notenschrift';
+    const controls = laneControls({
+      staff: false,
+      onMode: () => undefined,
+      onSize: (size) => this.setView(withSize(this.view, NOTATION, size)),
+    });
+    bar.append(title, controls.el);
+    bar.addEventListener('click', (e) => {
+      this.activateLane(NOTATION);
+      if (!(e.target as Element).closest('button')) this.openIfSmall(NOTATION);
+    });
+    this.el.pages.parentElement!.before(bar);
+    this.notationBar = { el: bar, controls };
+  }
+
+  private createRollLane(key: string): RollLane {
+    const cut = key.lastIndexOf(':');
+    const staff = { partId: key.slice(0, cut), staffIndex: Number(key.slice(cut + 1)) };
+    const lane = rollLane(key);
+    const section = document.createElement('section');
+    section.className = 'roll';
+    section.setAttribute('aria-label', 'Piano-Roll');
+    const keys = () => this.staffKeys();
+    const controls = laneControls({
+      staff: true,
+      onMode: (mode) => this.setView(withMode(this.view, key, mode, keys())),
+      onSize: (size) => this.setView(withSize(this.view, lane, size)),
+    });
+    const roll = new PianoRoll(section, this.rollHost(lane), staff, controls.el);
+    section.querySelector('.roll__head')!.addEventListener('click', (e) => {
+      this.activateLane(lane);
+      if (!(e.target as Element).closest('button')) this.openIfSmall(lane);
+    });
+    section.addEventListener('dblclick', () => this.openIfSmall(lane));
+    return { section, roll, controls };
+  }
+
+  /** What one roll lane needs from the workstation. */
+  private rollHost(lane: LaneId): RollHost {
+    return {
+      state: () => this.state,
+      select: (selection, caretTime) => {
+        const s = this.state;
+        const caret = s.caret && selection && caretTime ? { partId: selection.partId, voiceId: selection.voiceId, time: caretTime } : s.caret;
+        if (!selection && s.caret) return;
+        this.history.apply({ ...s, selection, caret, message: null });
+        this.update();
+      },
+      activate: () => this.activateLane(lane),
+      beginGesture: () => {
+        this.rollBase = this.state;
+        this.history.beginGesture();
+      },
+      preview: (edit) => {
+        const base = this.rollBase;
+        if (!base) return;
+        const next = applyRollEdit(base, edit);
+        // A refused edit keeps the last valid preview; only the message changes.
+        this.history.apply(next.message && next.score === base.score ? { ...this.state, message: next.message } : next);
+        this.update();
+      },
+      endGesture: (commit) => {
+        if (commit) this.history.commitGesture();
+        else this.history.cancelGesture();
+        this.rollBase = null;
+        this.update();
+      },
+      edit: (edit) => {
+        this.history.apply(applyRollEdit(this.state, edit));
+        this.update();
+      },
+    };
+  }
+
+  /** Brings the lanes in line with the view state: creates, removes, sizes and redraws them. */
+  private renderLanes(): void {
+    const canvas = this.el.pages.parentElement!;
+    const dock = this.el.roll;
+    const lanesBox = dock.parentElement!;
+    if (this.empty) {
+      this.notationBar.el.hidden = true;
+      canvas.hidden = false;
+      canvas.dataset.size = 'normal';
+      canvas.classList.remove('is-small');
+      dock.hidden = true;
+      return;
+    }
+    const keys = this.staffKeys();
+    const normalized = normalize(this.view, keys);
+    if (JSON.stringify(normalized) !== JSON.stringify(this.view)) {
+      this.view = normalized;
+      this.persistView();
+    }
+    const lanes = visibleLanes(this.view, keys);
+    const sizes = effectiveSizes(this.view, keys);
+    const notation = lanes.includes(NOTATION);
+    canvas.hidden = !notation;
+    this.notationBar.el.hidden = !notation;
+    canvas.dataset.size = sizes[NOTATION] ?? 'normal';
+    canvas.classList.toggle('is-small', sizes[NOTATION] === 'small');
+    this.notationBar.el.dataset.size = sizes[NOTATION] ?? 'normal';
+    this.notationBar.controls.sync(null, this.view.sizes[NOTATION] ?? 'normal');
+    lanesBox.classList.toggle('no-notation', !notation);
+
+    const wanted = keys.filter((k) => modeOf(this.view, k) !== 'notation');
+    for (const [key, ui] of this.rollLanes) {
+      if (!wanted.includes(key)) {
+        ui.section.remove();
+        this.rollLanes.delete(key);
+      }
+    }
+    wanted.forEach((key, i) => {
+      let ui = this.rollLanes.get(key);
+      if (!ui) {
+        ui = this.createRollLane(key);
+        this.rollLanes.set(key, ui);
+      }
+      // Moving a node resets its scroll position, so only touch the order when it is wrong.
+      if (dock.children[i] !== ui.section) dock.insertBefore(ui.section, dock.children[i] ?? null);
+      const size = sizes[rollLane(key)] ?? 'normal';
+      ui.section.dataset.size = size;
+      ui.controls.sync(modeOf(this.view, key), this.view.sizes[rollLane(key)] ?? 'normal');
+      ui.roll.setCompact(size === 'small');
+      ui.roll.render();
+    });
+    dock.hidden = wanted.length === 0;
+    this.el.rollButton.setAttribute('aria-pressed', String(wanted.length > 0));
+    this.markActive();
+  }
+
+  /** Small round switch left of each staff: notation → both → roll. */
+  private drawStaffSwitches(): void {
+    this.el.pages.querySelectorAll('.staff-mode').forEach((n) => n.remove());
+    const result = this.result;
+    if (!result || this.el.pages.parentElement!.classList.contains('is-small')) return;
+    const keys = this.staffKeys();
+    const first = measuresOf(this.state.score)[0]!.number;
+    for (const staff of result.staffs) {
+      const staffEl = document.getElementById(staffElementId(first, staff.n));
+      const page = staffEl?.closest('.page');
+      if (!staffEl || !(page instanceof HTMLElement)) continue;
+      const key = staffKey(staff.partId, staff.staffIndex);
+      const mode: StaffMode = modeOf(this.view, key);
+      const box = staffEl.getBoundingClientRect();
+      const pageBox = page.getBoundingClientRect();
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'staff-mode';
+      b.setAttribute('aria-pressed', String(mode === 'both'));
+      b.title = mode === 'notation' ? 'Diese Zeile auch als Piano-Roll zeigen' : 'Zeilenart weiterschalten: Noten → Beides → Roll';
+      b.setAttribute('aria-label', b.title);
+      b.innerHTML =
+        '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="9" width="6" height="2.4" rx="1.2"/><rect x="6" y="5" width="8" height="2.4" rx="1.2"/></svg>';
+      b.style.left = '10px';
+      b.style.top = `${box.top - pageBox.top + box.height / 2 - 11}px`;
+      b.addEventListener('pointerdown', (e) => e.stopPropagation());
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.setView(withMode(this.view, key, nextMode(mode), keys));
+      });
+      page.append(b);
+    }
   }
 
   /** Shown in the canvas when no score is open. */
@@ -760,12 +992,23 @@ export class Workstation {
   private renderIfNeeded(): void {
     if (this.empty) return this.renderEmpty();
     const s = this.state;
+    const keys = this.staffKeys();
+    const view = normalize(this.view, keys);
+    if (!showsNotation(view, keys)) {
+      // Every staff is a piano roll: nothing to engrave.
+      this.el.pages.replaceChildren();
+      this.result = null;
+      this.renderedScore = null;
+      return;
+    }
+    const hidden = hiddenStaves(view, keys);
+    const hiddenKey = [...hidden].join();
     const coverTime = s.caret?.time;
     const measures = measuresOf(s.score, 1, coverTime).length;
     const width = Math.min(this.el.pages.clientWidth, 1100);
-    if (s.score === this.renderedScore && measures === this.renderedMeasures && width === this.renderedWidth) return;
+    if (s.score === this.renderedScore && measures === this.renderedMeasures && width === this.renderedWidth && hiddenKey === this.renderedHidden) return;
 
-    const result = scoreToMei(s.score, coverTime ? { coverTime } : {});
+    const result = scoreToMei(s.score, { ...(coverTime ? { coverTime } : {}), hiddenStaves: hidden });
     const { pages, log } = this.engraver.engrave(result.mei, {
       pageWidth: Math.round((width * 100) / SCALE),
       scale: SCALE,
@@ -783,6 +1026,7 @@ export class Workstation {
     this.renderedScore = s.score;
     this.renderedMeasures = measures;
     this.renderedWidth = width;
+    this.renderedHidden = hiddenKey;
   }
 
   private decorate(): void {
@@ -790,7 +1034,10 @@ export class Workstation {
     const elements = this.result?.elements;
     this.el.pages.querySelectorAll('.is-selected').forEach((n) => n.classList.remove('is-selected'));
     this.el.pages.querySelectorAll('.caret').forEach((n) => n.remove());
-    if (!elements) return;
+    if (!elements) {
+      this.el.pages.querySelectorAll('.staff-mode').forEach((n) => n.remove());
+      return;
+    }
 
     const sel = s.selection;
     if (sel) {
@@ -803,6 +1050,17 @@ export class Workstation {
       }
     }
     if (s.caret) this.drawCaret(elements);
+    this.drawStaffSwitches();
+    this.followSelection();
+  }
+
+  /** A selection made in another view scrolls into sight here – only when the selection changed. */
+  private followSelection(): void {
+    const sel = this.state.selection;
+    const key = sel ? (sel.kind === 'event' ? `${sel.voiceId}/${sel.eventId}` : `${sel.voiceId}@${sel.time.n}/${sel.time.d}`) : '';
+    if (key === this.shownSelection) return;
+    this.shownSelection = key;
+    this.el.pages.querySelector('.is-selected')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
   private drawCaret(elements: ReadonlyMap<string, ElementRef>): void {

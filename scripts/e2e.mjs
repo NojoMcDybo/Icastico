@@ -332,14 +332,12 @@ try {
   await page.mouse.up();
   check(/schon eine Note/.test(refused) && (await barTitle(0)) === firstTitle, 'Ziehen auf eine andere Note wird abgelehnt, nichts wird überschrieben');
 
-  const emptyY = await page.evaluate(() => {
-    const svg = document.querySelector('.roll__svg').getBoundingClientRect();
-    return svg.top + 22 + 14 * 2 + 4;
-  });
-  const emptyX = barBox.x + barBox.width * 6;
+  // Empty cell in the free third beat, three rows above the first bar (which is in view).
+  const emptyY = barBox.y - 14 * 3 + 7;
+  const emptyX = barBox.x + barBox.width * 2.3;
   await page.mouse.move(emptyX, emptyY);
   await page.mouse.down();
-  await page.mouse.move(emptyX + 100, emptyY, { steps: 6 });
+  await page.mouse.move(emptyX + 40, emptyY, { steps: 6 });
   await page.mouse.up();
   check((await bars.count()) === barsBefore + 1, 'Auf leerer Fläche ziehen zeichnet einen neuen Balken');
   await type('Control+z');
@@ -347,6 +345,44 @@ try {
   await page.screenshot({ path: join(outDir, 'piano-roll.png') });
   await type('Control+Shift+P');
   check(await page.locator('#roll').isHidden(), 'Strg+Umschalt+P schließt die Piano-Roll wieder');
+
+  // ── Zeilenart und Ansichtsgrößen (T15) ──
+  const switchBtn = page.locator('.staff-mode').first();
+  check((await switchBtn.count()) === 1 && (await page.locator('#roll').isHidden()), 'Neben der Notenzeile sitzt ein Schalter; ohne Roll ist die Dock leer');
+  await switchBtn.click();
+  check((await page.locator('.roll').count()) === 1 && (await page.locator('.roll').isVisible()) && (await page.locator('.canvas').isVisible()), 'Schalter 1: „Beides“ – Notenschrift und Piano-Roll stehen untereinander');
+  await bars.first().click();
+  check((await page.locator('.page .is-selected').count()) >= 1, 'Klick in der Roll markiert denselben Ton in der Notenschrift');
+  await page.locator('.page g.note').first().locator('use').first().click();
+  check((await page.locator('.roll__bar.is-selected').count()) === 1, 'Klick in der Notenschrift markiert denselben Ton in der Roll');
+
+  const sizeBtn = (lane, label) => page.locator(`${lane} .lane__group[aria-label="Größe"] button:text-is("${label}")`);
+  await sizeBtn('.roll', 'Voll').click();
+  check((await page.locator('.roll').getAttribute('data-size')) === 'max' && (await page.locator('.canvas').getAttribute('data-size')) === 'small', 'Voll: die Roll füllt die Fläche, die Notenschrift wird zur schmalen Leiste');
+  await page.screenshot({ path: join(outDir, 'roll-voll.png') });
+  await type('Escape');
+  check((await page.locator('.roll').getAttribute('data-size')) === 'normal' && (await page.locator('.canvas').getAttribute('data-size')) === 'normal', 'Esc bringt die maximierte Roll zurück');
+
+  await sizeBtn('.roll', 'Klein').click();
+  check((await page.locator('.roll').getAttribute('data-size')) === 'small' && (await page.locator('.roll__scroll').evaluate((e) => e.clientHeight)) <= 40, 'Klein: die Roll ist eine schmale Leiste');
+  await page.locator('.roll__bar').first().click();
+  check((await page.locator('.roll__bar.is-selected').count()) === 1 && (await page.locator('.roll').getAttribute('data-size')) === 'small', 'In der kleinen Leiste lässt sich ein Ton anklicken, ohne sie zu öffnen');
+  await page.locator('.roll .roll__head').click({ position: { x: 20, y: 8 } });
+  check((await page.locator('.roll').getAttribute('data-size')) === 'normal', 'Klick auf die Kopfzeile öffnet die kleine Leiste wieder');
+
+  await sizeBtn('.lane__bar', 'Klein').click();
+  check((await page.locator('.canvas').getAttribute('data-size')) === 'small' && (await page.locator('.page g.note').count()) > 0, 'Auch die Notenschrift lässt sich zur Leiste verkleinern und bleibt sichtbar');
+  await sizeBtn('.lane__bar', 'Normal').click();
+
+  await page.locator('.roll .lane__group[aria-label="Zeilenart"] button:text-is("Roll")').click();
+  check((await page.locator('.canvas').isHidden()) && (await page.locator('.staff-mode').count()) === 0 && (await page.locator('.roll').isVisible()), 'Zeilenart „Roll“: die Zeile verschwindet aus der Notenschrift');
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector('#doc-title')?.textContent === 'Logic-Test');
+  check((await page.locator('.roll').isVisible()) && (await page.locator('.canvas').isHidden()), 'Nach Neustart ist die Zeilenart der Partitur wieder da');
+  await type('Escape'); // the library opens first after a start
+  await page.locator('.roll .lane__group[aria-label="Zeilenart"] button:text-is("Noten")').click();
+  check((await page.locator('.canvas').isVisible()) && (await page.locator('#roll').isHidden()) && (await page.locator('.page g.note').count()) >= 2, 'Zeilenart „Noten“: die Zeile ist zurück, die Roll weg');
+  await page.screenshot({ path: join(outDir, 'zeilenart.png') });
 
   check(errors.length === 0, `Keine Fehler in der Konsole${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   console.log(`\nAlle ${step} Prüfungen bestanden. Screenshots: ${outDir}`);

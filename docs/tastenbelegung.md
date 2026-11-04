@@ -71,7 +71,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Kopie speichern unter … | `Strg+Umschalt+S` | `Strg+Umschalt+S` | ✓ |
 | Partitur-Einstellungen (Titel, Tonart, Taktart, Auftakt) | `Strg+,` *(Icastico)* | `Strg+,` *(Icastico)* | ✓ |
 | Drucken | `Strg+P` | `Strg+P` | geplant |
-| Piano-Roll ein / aus | `Strg+Umschalt+P` *(Icastico)* | `Strg+Umschalt+P` *(Icastico)* – In Logic öffnet P den Piano-Roll-Editor; hier ist P ein Ton. | ✓ |
+| Piano-Roll für die gewählte Zeile ein / aus | `Strg+Umschalt+P` *(Icastico)* | `Strg+Umschalt+P` *(Icastico)* – In Logic öffnet P den Piano-Roll-Editor; hier ist P ein Ton. | ✓ |
 | Tastenhilfe | `F1` / `?` *(Icastico)* | `F1` / `?` *(Icastico)* | ✓ |
 
 ## Wiedergabe & Aufnahme

@@ -88,3 +88,37 @@ describe('Verovio renders our MEI', () => {
     expect(pages[0]).toContain('id="m0"');
   });
 });
+
+describe('staves shown as piano roll are left out', () => {
+  let engraver: Engraver;
+  beforeAll(async () => {
+    engraver = await Engraver.create();
+  });
+  const score = demoScore();
+  const guitar = score.parts.find((p) => p.instrument === 'guitar')!;
+  const piano = score.parts.find((p) => p.instrument === 'piano')!;
+
+  it('drops the staff, its notes and renumbers the rest', () => {
+    const all = scoreToMei(score);
+    const some = scoreToMei(score, { hiddenStaves: new Set([`${guitar.id}:0`]) });
+    expect(some.staffs.length).toBe(all.staffs.length - 1);
+    expect(some.staffs.map((s) => s.n)).toEqual(some.staffs.map((_, i) => i + 1));
+    expect(some.staffs.some((s) => s.partId === guitar.id)).toBe(false);
+    const guitarIds = [...all.elements.values()].filter((r) => r.partId === guitar.id).length;
+    expect(guitarIds).toBeGreaterThan(0);
+    expect([...some.elements.values()].some((r) => r.partId === guitar.id)).toBe(false);
+  });
+
+  it('keeps the other staff of a two-staff instrument and renders without warnings', () => {
+    const { mei, staffs } = scoreToMei(score, { hiddenStaves: new Set([`${piano.id}:1`, `${guitar.id}:0`]) });
+    expect(staffs.filter((s) => s.partId === piano.id).map((s) => s.staffIndex)).toEqual([0]);
+    const { log, pages } = engraver.engrave(mei);
+    expect(log).toBe('');
+    expect(pages.length).toBeGreaterThan(0);
+  });
+
+  it('refuses to engrave nothing', () => {
+    const every = new Set(scoreToMei(score).staffs.map((s) => `${s.partId}:${s.staffIndex}`));
+    expect(() => scoreToMei(score, { hiddenStaves: every })).toThrow(/Keine Zeile/);
+  });
+});

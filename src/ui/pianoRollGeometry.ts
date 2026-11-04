@@ -29,7 +29,10 @@ export const LABEL_WIDTH = 44;
 /** Width in pixels of the zone at either end of a bar that resizes instead of moving. */
 export const EDGE_PX = 6;
 
-export function layoutFor(score: Score, ref: VoiceRef, pxPerWhole = DEFAULT_PX_PER_WHOLE): RollLayout {
+/** Height in pixels the pitch rows of a small strip share. */
+export const COMPACT_HEIGHT = 28;
+
+export function layoutFor(score: Score, ref: VoiceRef, pxPerWhole = DEFAULT_PX_PER_WHOLE, compact = false): RollLayout {
   const { part, voice } = getVoice(score, ref);
   const range = getInstrument(part.instrument).range;
   let low = midiOf(range.low);
@@ -41,13 +44,29 @@ export function layoutFor(score: Score, ref: VoiceRef, pxPerWhole = DEFAULT_PX_P
     }
   }
   const measures = measuresOf(score);
+  const totalTime = measures[measures.length - 1]!.end;
+  if (compact) {
+    // A strip shows only the contour of what is played: the rows of the tones, no key column.
+    const tones = voice.events.flatMap((e) => e.tones.map((x) => midiOf(x.pitch)));
+    const lowest = tones.length ? Math.min(...tones) : 60;
+    const highest = tones.length ? Math.max(...tones) : 60;
+    const rows = highest - lowest + 3;
+    return {
+      pxPerWhole,
+      rowHeight: Math.max(2, Math.min(8, Math.floor(COMPACT_HEIGHT / rows))),
+      labelWidth: 0,
+      lowMidi: lowest - 1,
+      highMidi: highest + 1,
+      totalTime,
+    };
+  }
   return {
     pxPerWhole,
     rowHeight: ROW_HEIGHT,
     labelWidth: LABEL_WIDTH,
     lowMidi: Math.max(0, low - 2),
     highMidi: Math.min(127, high + 2),
-    totalTime: measures[measures.length - 1]!.end,
+    totalTime,
   };
 }
 

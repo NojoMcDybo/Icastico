@@ -7,7 +7,7 @@
  * (`RollEdit`); the edits themselves are pure commands (core/editor/rollEdits.ts).
  * A drag is one gesture: previews while dragging, one undo step at the end.
  */
-import { type EditorState, type Selection, type VoiceRef, allVoiceRefs, getVoice, inputLength } from '../core/editor/state';
+import { type EditorState, type Selection, type VoiceRef, getVoice, inputLength } from '../core/editor/state';
 import { type RollEdit } from '../core/editor/rollEdits';
 import { getInstrument } from '../core/instruments';
 import { measuresOf } from '../core/model';
@@ -38,6 +38,8 @@ export interface RollHost {
   state(): EditorState;
   /** Click on a tone (or on empty space: null). Never changes the score. */
   select(selection: Selection | null, caretTime: Fraction | null): void;
+  /** The user worked in this lane (it becomes the active one). */
+  activate(): void;
   beginGesture(): void;
   /** Shows what the edit would do. Refused edits keep the last valid preview. */
   preview(edit: RollEdit): void;
@@ -78,11 +80,21 @@ export class PianoRoll {
   private layout: RollLayout | null = null;
   private gesture: Gesture | null = null;
   private pxPerWhole = DEFAULT_PX_PER_WHOLE;
+  private zoomButtons: HTMLButtonElement[] = [];
   /** Last selection scrolled into view / voice centred vertically, so rendering never fights the user's scrolling. */
   private shownSelection = '';
   private centredVoice = '';
 
-  constructor(el: HTMLElement, private readonly host: RollHost) {
+  /** A strip: only the contour, no editing; clicking a bar still selects it. */
+  private compact = false;
+
+  /** `staff` is the notation line this roll stands for; `controls` (mode and size buttons) go into its header. */
+  constructor(
+    private readonly el: HTMLElement,
+    private readonly host: RollHost,
+    private readonly staff: { readonly partId: string; readonly staffIndex: number },
+    controls: HTMLElement,
+  ) {
     this.head = document.createElement('div');
     this.head.className = 'roll__head';
     this.title = document.createElement('span');
@@ -91,7 +103,8 @@ export class PianoRoll {
     this.info.className = 'roll__info';
     const zoomOut = this.zoomButton('−', 'Verkleinern (Strg + Mausrad)', 1 / 1.25);
     const zoomIn = this.zoomButton('+', 'Vergrößern (Strg + Mausrad)', 1.25);
-    this.head.append(this.title, this.info, zoomOut, zoomIn);
+    this.head.append(this.title, this.info, zoomOut, zoomIn, controls);
+    this.zoomButtons = [zoomOut, zoomIn];
     this.scroller = document.createElement('div');
     this.scroller.className = 'roll__scroll';
     el.replaceChildren(this.head, this.scroller);
@@ -129,11 +142,18 @@ export class PianoRoll {
     this.render();
   }
 
-  /** The voice shown: the one holding the selection or caret, else the first. */
+  /** The voice shown: the first one written on this staff. */
   private currentVoice(s: EditorState): VoiceRef | null {
-    const at = s.selection ?? s.caret;
-    if (at) return { partId: at.partId, voiceId: at.voiceId };
-    return allVoiceRefs(s.score)[0] ?? null;
+    const part = s.score.parts.find((p) => p.id === this.staff.partId);
+    const voice = part?.voices.find((v) => v.staff === this.staff.staffIndex);
+    return part && voice ? { partId: part.id, voiceId: voice.id } : null;
+  }
+
+  /** Small strip or full view; takes effect at the next `render`. */
+  setCompact(compact: boolean): void {
+    this.compact = compact;
+    this.el.classList.toggle('is-compact', compact);
+    for (const b of this.zoomButtons) b.hidden = compact;
   }
 
   /** True while a drag is running (the workstation must not redraw over it). */
@@ -152,14 +172,20 @@ export class PianoRoll {
   render(): void {
     const s = this.host.state();
     const ref = this.currentVoice(s);
-    if (!ref) return;
+    if (!ref) {
+      this.title.textContent = 'Piano-Roll';
+      this.scroller.replaceChildren();
+      return;
+    }
     const { part, voice } = getVoice(s.score, ref);
     const instrument = getInstrument(part.instrument);
-    const layout = layoutFor(s.score, ref, this.pxPerWhole);
+    const layout = layoutFor(s.score, ref, this.pxPerWhole, this.compact);
     this.layout = layout;
 
     const written = instrument.staves[voice.staff]?.clef.octave ?? 0;
-    this.title.textContent = `Piano-Roll · ${part.name}`;
+    const several = instrument.staves.length > 1 ? ` · System ${voice.staff + 1}` : '';
+    this.title.textContent = `Piano-Roll · ${part.name}${several}`;
+    this.info.hidden = this.compact;
     this.info.textContent = `Raster ${durationName(s.input.base)} (Zahlentaste)${written !== 0 ? ' · klingende Tonhöhe, in der Notenschrift eine Oktave höher notiert' : ''}`;
 
     const width = contentWidth(layout);
@@ -206,7 +232,7 @@ export class PianoRoll {
       body.append(svgEl('line', { x1: x, x2: x, y1: 0, y2: height }, 'roll__caret'));
     }
 
-    this.drawKeys(body, layout); // on top of the bars: they slide under the key column
+    if (!this.compact) this.drawKeys(body, layout); // on top of the bars: they slide under the key column
     this.svg = svg;
     this.scroller.replaceChildren(svg);
     this.syncKeys();
@@ -218,7 +244,7 @@ export class PianoRoll {
     const measures = measuresOf(s.score);
     const grid = s.input.base;
     const step = timeWidth(layout, grid);
-    if (step >= 5) {
+    if (step >= 5 && !this.compact) {
       for (let i = 1; lt(frac(i * grid.n, grid.d), layout.totalTime); i++) {
         const x = xOfTime(layout, frac(i * grid.n, grid.d));
         body.append(svgEl('line', { x1: x, x2: x, y1: 0, y2: height }, 'roll__line'));
@@ -297,7 +323,13 @@ export class PianoRoll {
     const s = this.host.state();
     const voice = this.currentVoice(s);
     if (!p || !voice) return;
+    this.host.activate();
     const bar = this.barAt(e.target);
+    if (this.compact) {
+      // A strip only selects; a click on the empty strip is handled by the lane (opens it).
+      if (bar) this.host.select({ kind: 'event', ...voice, eventId: bar.eventId, toneId: bar.toneId }, bar.onset);
+      return;
+    }
     if (bar) {
       const x0 = xOfTime(this.layout, bar.onset);
       const mode = zoneOf(x0, x0 + timeWidth(this.layout, bar.duration), p.x);
@@ -371,7 +403,7 @@ export class PianoRoll {
     const layout = this.layout;
     const s = this.host.state();
     const voice = this.currentVoice(s);
-    if (!p || !layout || !voice || p.x < layout.labelWidth || this.onKeyColumn(e) || this.barAt(e.target)) return;
+    if (this.compact || !p || !layout || !voice || p.x < layout.labelWidth || this.onKeyColumn(e) || this.barAt(e.target)) return;
     const c = drawChange(layout, p.x, p.y, p.x, s.input.base);
     const onset = c.onset;
     this.host.edit({ kind: 'create', voice, onset, duration: inputLength(s.input), midi: c.midi });

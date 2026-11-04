@@ -41,6 +41,15 @@ export interface ElementRef {
 export interface MeiOptions {
   /** Make sure the score shows a measure containing this time (input caret). */
   readonly coverTime?: Fraction;
+  /** Staves left out of the engraving (shown as piano roll instead), as `<partId>:<staffIndex>`. */
+  readonly hiddenStaves?: ReadonlySet<string>;
+}
+
+/** A staff of the engraving: its MEI number and where it belongs in the score. */
+export interface StaffInfo {
+  readonly n: number;
+  readonly partId: string;
+  readonly staffIndex: number;
 }
 
 /** xml:id of a staff within a measure, e.g. for positioning the caret. */
@@ -50,6 +59,8 @@ export interface MeiResult {
   readonly mei: string;
   /** xml:id → model reference. */
   readonly elements: ReadonlyMap<string, ElementRef>;
+  /** The staves that were engraved, top to bottom. */
+  readonly staffs: readonly StaffInfo[];
 }
 
 const esc = (s: string): string =>
@@ -129,6 +140,7 @@ function staffGrpXml(score: Score, slots: StaffSlot[]): string {
   for (const part of score.parts) {
     const def = getInstrument(part.instrument);
     const own = slots.filter((s) => s.part === part);
+    if (own.length === 0) continue;
     const staffDef = (s: StaffSlot, withLabel: boolean, ind: string) =>
       `${ind}<staffDef n="${s.n}" lines="5" ${clefAttrs(def.staves[s.staffIndex]!.clef)}>` +
       (withLabel ? `<label>${esc(part.name)}</label><labelAbbr>${esc(def.shortName)}</labelAbbr>` : '') +
@@ -166,17 +178,21 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
   const slots: StaffSlot[] = [];
   for (const part of score.parts) {
     getInstrument(part.instrument).staves.forEach((_, staffIndex) => {
+      if (options.hiddenStaves?.has(`${part.id}:${staffIndex}`)) return;
       slots.push({ n: slots.length + 1, part, staffIndex });
     });
   }
+  if (slots.length === 0) throw new Error('Keine Zeile für die Notenschrift übrig.');
 
   // Notate every voice once: voiceId → items per measure.
   const notated = new Map<string, NotatedItem[][]>();
   for (const part of score.parts) {
     for (const voice of part.voices) {
+      const slot = slots.find((sl) => sl.part === part && sl.staffIndex === voice.staff);
+      if (!slot) continue; // this staff is shown as piano roll
       const perMeasure = notateVoice(voice, measures);
       notated.set(voice.id, perMeasure);
-      const staffN = slots.find((sl) => sl.part === part && sl.staffIndex === voice.staff)!.n;
+      const staffN = slot.n;
       perMeasure.forEach((items, mi) => {
         const m = measures[mi]!;
         for (const it of items) {
@@ -248,5 +264,5 @@ ${body.join('\n')}
   </score></mdiv></body></music>
 </mei>
 `;
-  return { mei, elements };
+  return { mei, elements, staffs: slots.map((s) => ({ n: s.n, partId: s.part.id, staffIndex: s.staffIndex })) };
 }
