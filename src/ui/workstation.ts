@@ -147,6 +147,11 @@ export class Workstation {
   private saving: Promise<boolean> = Promise.resolve(true);
   /** A note being dragged with the mouse: up/down changes the pitch, onto another note makes a chord. */
   private drag: NoteDrag | null = null;
+  /** Space is held: a click in the notation plays from there instead of selecting. */
+  private spaceHeld = false;
+  /** A click happened while Space was held, so letting go must not also trigger Space's own command. */
+  private spaceUsed = false;
+  private pendingSpace: { command: CommandId | UiCommandId; arg: number } | null = null;
   /** The click that ends a drag must not select something else. */
   private swallowClick = false;
   private autosaveTimer = 0;
@@ -249,6 +254,8 @@ export class Workstation {
       () => this.confirmDiscard(),
     );
     window.addEventListener('keydown', (e) => this.onKey(e));
+    window.addEventListener('keyup', (e) => this.onKeyUp(e));
+    window.addEventListener('blur', () => this.releaseSpace());
     el.pages.addEventListener('click', (e) => this.onClick(e));
     el.pages.addEventListener('pointerdown', (e) => this.onPointerDown(e));
     el.pages.addEventListener('pointermove', (e) => this.onPointerMove(e));
@@ -277,7 +284,28 @@ export class Workstation {
 
   // ── Input ────────────────────────────────────────────────────────────────
 
+  /** Space let go: if it was only tapped, its own command (e.g. Logic's rest) happens now. */
+  private onKeyUp(e: KeyboardEvent): void {
+    if (e.code !== 'Space') return;
+    if (this.spaceHeld) e.preventDefault(); // no click on a focused button when Space is let go
+    const pending = this.pendingSpace;
+    const used = this.spaceUsed;
+    this.releaseSpace();
+    if (pending && !used) this.run(pending.command, pending.arg);
+  }
+
+  private releaseSpace(): void {
+    this.spaceHeld = false;
+    this.spaceUsed = false;
+    this.pendingSpace = null;
+  }
+
   private onKey(e: KeyboardEvent): void {
+    if (e.code === 'Space' && !e.repeat && !isDialogOpen() && !this.busy && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+      this.spaceHeld = true;
+      this.spaceUsed = false;
+      e.preventDefault(); // Space belongs to the editor, not to whichever button has the focus
+    }
     if (isDialogOpen() || this.busy) return;
     if (this.history.inGesture) {
       // A piano-roll drag is running: Escape throws it away completely, nothing else works meanwhile.
@@ -319,6 +347,11 @@ export class Workstation {
     const binding = (numpad ? findBinding(this.keymap, numpad) : undefined) ?? findBinding(this.keymap, combo);
     if (!binding) return;
     e.preventDefault();
+    if (combo === 'Space') {
+      // Space can also be held while clicking (play from there), so its command waits until the key is let go.
+      if (!e.repeat) this.pendingSpace = { command: binding.command, arg: binding.arg ?? 0 };
+      return;
+    }
     this.run(binding.command, binding.arg ?? 0);
   }
 
@@ -829,6 +862,7 @@ export class Workstation {
 
   private onPointerDown(e: PointerEvent): void {
     if (e.button !== 0 || this.empty || this.drag) return;
+    if (this.spaceHeld) return this.playFromClick(e);
     const ref = this.hitTest(e);
     if (!ref?.eventId) return;
     const s = this.history.state;
@@ -854,6 +888,20 @@ export class Workstation {
       preview: null,
     };
     this.el.pages.setPointerCapture(e.pointerId);
+  }
+
+  /** Space + click: play from the clicked symbol; a click beside the staves plays from the start. */
+  private playFromClick(e: PointerEvent): void {
+    e.preventDefault();
+    this.spaceUsed = true;
+    this.pendingSpace = null;
+    this.swallowClick = true;
+    window.setTimeout(() => (this.swallowClick = false), 80);
+    const time = this.hitTest(e)?.onset ?? ZERO;
+    if (this.player.active) this.player.stop();
+    this.playPos = time;
+    this.update();
+    this.togglePlay();
   }
 
   /** The note of the same staff under the pointer (with a little tolerance), if any. */

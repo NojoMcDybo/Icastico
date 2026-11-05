@@ -431,7 +431,8 @@ try {
   await type('t');
   check((await page.locator('.roll__link--tie').count()) === 1 && (await page.locator('.page g.tie').count()) === 1, 'T8: Haltebogen zwischen zwei gleichen Noten – in Roll und Notenschrift gezeichnet');
   await type('ArrowUp');
-  check(/zerreißen/.test(await status()) && (await page.locator('.roll__link--tie').count()) === 1, 'T8: Ein Ton unter Haltebogen lässt sich nicht umstimmen (der Bogen risse)');
+  check(!/zerreißen/.test(await status()) && (await page.locator('.roll__link--tie').count()) === 1, 'T8: Ein Ton unter Haltebogen lässt sich umstimmen, der Bogen bleibt (der Partner zieht mit)');
+  await type('ArrowDown');
   await type('t');
   check((await page.locator('.roll__link--tie').count()) === 0 && (await bars.count()) === 5, 'T8: Noch einmal T löst den Haltebogen, beide Noten bleiben');
 
@@ -492,6 +493,39 @@ try {
   await page.click('.transport__play');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'false');
   check(true, 'Stopp hält die Wiedergabe an');
+  // Sound wirklich weg: schon eingeplante Noten (bis zu einer Sekunde im Voraus) dürfen nach „Stopp“ nicht mehr klingen
+  await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
+  await page.click('.transport__play');
+  await page.waitForFunction(() => (globalThis.__icasticoHz?.() ?? 0) > 0, null, { timeout: 30000 });
+  await page.click('.transport__play');
+  // innerhalb einer halben Sekunde still – und danach bleibt es still (nichts Eingeplantes klingt später nach)
+  await page.waitForFunction(() => (globalThis.__icasticoHz?.() ?? 1) === 0, null, { polling: 50, timeout: 700 });
+  let quiet = true;
+  for (let k = 0; k < 25; k++) {
+    await page.waitForTimeout(100);
+    if ((await page.evaluate(() => globalThis.__icasticoHz?.() ?? -1)) !== 0) quiet = false;
+  }
+  check(quiet, 'Stopp macht still und es bleibt still: auch bereits eingeplante Noten klingen nicht weiter');
+  // Leertaste halten + Klick: ab dort abspielen; neben dem Notensystem: von vorn
+  const pressed = () => page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');
+  await page.keyboard.down('Space');
+  await page.locator('.page g.note').last().click({ force: true });
+  await page.keyboard.up('Space');
+  await pressed();
+  // in Takt 2 angeklickt: schon in der ersten halben Sekunde Takt 2 (von vorn bräuchte es mehrere Sekunden)
+  await page.waitForFunction(() => Number(document.querySelectorAll('.lcd__value')[0]?.textContent) >= 2, null, { timeout: 600 });
+  check(true, 'Leertaste halten und in die letzte Note klicken: spielt ab dieser Stelle (Takt 2), nicht von vorn');
+  await page.click('.transport__play');
+  await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'false');
+  await page.keyboard.down('Space');
+  const pageBox = await page.locator('.page').first().boundingBox();
+  await page.mouse.click(pageBox.x + 14, pageBox.y + pageBox.height - 10);
+  await page.keyboard.up('Space');
+  await pressed();
+  await page.waitForFunction(() => document.querySelectorAll('.lcd__value')[0]?.textContent === '1', null, { timeout: 10000 });
+  check(true, 'Leertaste halten und neben das Notensystem klicken: spielt von Anfang an');
+  await page.click('.transport__play');
+  await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'false');
   await type('Control+Enter');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');
   await type('Control+Enter');
@@ -744,6 +778,16 @@ try {
   await saved();
   check(Object.keys(await files()).some((path) => path.endsWith('PDF-Test – Gitarre.icastico')), 'Einzelstimme: „PDF-Test – Gitarre“ liegt als eigene Partitur in der Bibliothek');
   check((await page.locator('.page g.staff').count()) >= 1 && !(await page.locator('.page').first().textContent())?.includes('Gesang'), 'Einzelstimme: die neue Partitur zeigt nur noch die Gitarre');
+
+  // ── Gebundene Noten ändern ihre Tonhöhe gemeinsam ──
+  await newScore('Bogen-Eins');
+  await type('5', 'c', 'c', 'Escape');
+  await page.locator('.page g.note').first().click({ force: true });
+  await type('t', 'ArrowUp');
+  await saved();
+  const tiedFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Bogen-Eins.icastico'))[1].contents;
+  const tiedPitches = [...tiedFile.matchAll(/"pitch": "([A-G][#b]?[0-9])"/g)].map((m) => m[1]);
+  check(tiedPitches.length === 2 && tiedPitches[0] === tiedPitches[1] && tiedPitches[0].startsWith('D') && /"kind": "tie"/.test(tiedFile), 'Gebundene Noten: ↑ auf der ersten Note hebt beide gemeinsam an, der Haltebogen bleibt');
 
   check(errors.length === 0, `Keine Fehler in der Konsole${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   console.log(`\nAlle ${step} Prüfungen bestanden. Screenshots: ${outDir}`);

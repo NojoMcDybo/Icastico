@@ -27,6 +27,8 @@ export class Player {
   private raf = 0;
   /** Guards against a second start while the first is still waiting for the audio device. */
   private starting = false;
+  /** A stop that arrived while the sound was still being started. */
+  private cancelled = false;
 
   constructor(
     private readonly events: PlayerEvents,
@@ -40,12 +42,15 @@ export class Player {
   async start(score: Score, fromSeconds: number, loop: boolean): Promise<void> {
     if (this.active) return;
     this.starting = true;
+    this.cancelled = false;
     this.loop = loop;
     this.plan = planPlayback(score);
     try {
       if (this.plan.length === 0) throw new Error('Es gibt noch nichts zu hören – erst Noten eingeben.');
       const from = fromSeconds >= this.plan.length ? 0 : fromSeconds;
-      this.playing = await this.synth.play(planFrom(this.plan, from), from);
+      const playing = await this.synth.play(planFrom(this.plan, from), from);
+      if (this.cancelled) return playing.stop(); // stopped while the sounds were loading
+      this.playing = playing;
       this.tick();
     } catch (err) {
       this.events.error(err instanceof Error ? err.message : String(err));
@@ -60,7 +65,13 @@ export class Player {
   }
 
   stop(): void {
-    if (!this.playing) return;
+    if (!this.playing) {
+      if (this.starting) {
+        this.cancelled = true;
+        this.events.stopped();
+      }
+      return;
+    }
     this.playing.stop();
     this.playing = null;
     cancelAnimationFrame(this.raf);
@@ -87,12 +98,18 @@ export class Player {
 
   private async restart(plan: PlaybackPlan): Promise<void> {
     this.playing = null;
+    this.starting = true;
+    this.cancelled = false;
     try {
-      this.playing = await this.synth.play(plan, 0);
+      const playing = await this.synth.play(plan, 0);
+      if (this.cancelled) return playing.stop();
+      this.playing = playing;
       this.tick();
     } catch (err) {
       this.events.error(err instanceof Error ? err.message : String(err));
       this.events.stopped();
+    } finally {
+      this.starting = false;
     }
   }
 }

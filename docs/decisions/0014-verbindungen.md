@@ -31,8 +31,12 @@ keinen Platz im Modell. Vorbereitet war das durch die Ton-IDs (ADR 0012).
 - **Schutz vor Zerreißen:** Jede Änderung geht durch `withValidLinks`. Fällt ein
   Ton weg, verschwinden seine Verbindungen im selben Rückgängig-Schritt. Eine
   Änderung, die eine Verbindung unmöglich machen würde (gebundene Noten
-  auseinanderziehen, gebundenen Ton umstimmen, eine gebundene Note kürzen),
-  wird mit Meldung **abgelehnt**, nichts wird still repariert.
+  auseinanderziehen, eine gebundene Note kürzen), wird mit Meldung **abgelehnt**,
+  nichts wird still repariert.
+- **Gebundene Noten sind eine Note:** Wird ein gebundener Ton umgestimmt (Taste,
+  Ziehen in der Notenschrift oder in der Roll), ziehen alle Töne der Kette mit
+  (`carryTies`, gleiche Schreibweise). Nur wenn ein Partner dadurch mit einem
+  anderen Ton seines Akkords zusammenfiele, wird die Änderung abgelehnt.
 - **Bedienung:** `T` setzt/löst einen Haltebogen zur nächsten Note, `Strg+Umschalt+G`
   setzt/löst Gleiten. Bei einem gewählten Akkordton wirkt es nur auf ihn, sonst
   auf alle Töne der Note (Haltebogen: gleiche Tonhöhen; Gleiten: je Ton der

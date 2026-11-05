@@ -28,11 +28,18 @@ interface Loaded {
   readonly ctx: AudioContext;
   readonly synth: WorkletSynthesizer;
   readonly meter: AnalyserNode;
+  /** Everything the synthesizer plays goes through here; muted while old, already queued notes run out after a stop. */
+  readonly master: GainNode;
 }
+
+/** MIDI controller 120: all sound off. */
+const ALL_SOUND_OFF = 120 as Parameters<WorkletSynthesizer['controllerChange']>[1];
 
 export class Sampler implements Engine {
   private loading: Promise<Loaded> | null = null;
   private loaded: Loaded | null = null;
+  /** Audio-clock time until which messages of a stopped playback may still arrive in the synthesizer. */
+  private drainUntil = 0;
 
   get isLoaded(): boolean {
     return this.loaded !== null;
@@ -51,9 +58,11 @@ export class Sampler implements Engine {
       await synth.isReady;
       const meter = ctx.createAnalyser();
       meter.fftSize = 4096;
-      synth.connect(meter);
+      const master = ctx.createGain();
+      synth.connect(master);
+      master.connect(meter);
       meter.connect(ctx.destination);
-      this.loaded = { ctx, synth, meter };
+      this.loaded = { ctx, synth, meter, master };
       return this.loaded;
     })().catch((err: unknown) => {
       this.loading = null;
@@ -63,10 +72,11 @@ export class Sampler implements Engine {
   }
 
   async play(plan: PlaybackPlan, from: number): Promise<Playing> {
-    const { ctx, synth } = await this.load();
+    const { ctx, synth, master } = await this.load();
     if (ctx.state !== 'running') await ctx.resume();
     const actions = midiActions(plan, PROGRAMS);
-    const origin = ctx.currentTime + LEAD_IN - from; // piece time 0 on the audio clock
+    // A playback stopped a moment ago may still have messages on their way: start only after they are through.
+    const origin = Math.max(ctx.currentTime + LEAD_IN, this.drainUntil) - from; // piece time 0 on the audio clock
 
     const send = (a: MidiAction): void => {
       const at = { time: Math.max(ctx.currentTime, origin + a.t) };
@@ -97,11 +107,22 @@ export class Sampler implements Engine {
       position: () => Math.max(0, ctx.currentTime - origin),
       stop: () => {
         window.clearInterval(timer);
+        // The synthesizer cannot drop messages it already holds for the future (up to LOOKAHEAD seconds of notes):
+        // silence it now, and when the last of them has arrived, switch everything off and reset the channels.
+        const now = ctx.currentTime;
+        const sent = next > 0 ? origin + actions[next - 1]!.t : now;
+        const quiet = Math.max(now, sent) + 0.05;
+        master.gain.cancelScheduledValues(now);
+        master.gain.setValueAtTime(0, now);
         synth.stopAll(true);
+        const at = { time: quiet };
         for (let channel = 0; channel < 16; channel++) {
-          synth.pitchWheel(channel, BEND_CENTER);
-          synth.controllerChange(channel, EXPRESSION, 127);
+          synth.controllerChange(channel, ALL_SOUND_OFF, 0, at);
+          synth.pitchWheel(channel, BEND_CENTER, at);
+          synth.controllerChange(channel, EXPRESSION, 127, at);
         }
+        master.gain.setValueAtTime(1, quiet + 0.02);
+        this.drainUntil = quiet + 0.05;
       },
     };
   }

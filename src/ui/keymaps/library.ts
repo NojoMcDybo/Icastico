@@ -33,6 +33,7 @@ export const MOUSE_COMMANDS = new Set([
   'mouse.rollOverdraw',
   'mouse.shapeMenu',
   'mouse.glideMenu',
+  'mouse.playFrom',
   'mouse.curvePoint',
 ]);
 

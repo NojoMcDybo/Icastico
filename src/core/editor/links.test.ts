@@ -71,9 +71,35 @@ describe('ties', () => {
     expect(moved.message).toMatch(/Haltebogen zerreißen/);
     const shorter = applyRollEdit(tied, { kind: 'change', voice: VOICE, eventId: events(tied)[0]!.id, duration: frac(1, 8) });
     expect(shorter.score).toBe(tied.score);
+  });
+
+  it('tied notes change pitch together, from either end, by key, by mouse drag command and in the roll', () => {
+    const tied = cmd(select(melody(), 0), 'edit.tie');
+    const pitches = (s: EditorState) => events(s).slice(0, 2).map((e) => e.tones[0]!.pitch);
     const up = cmd(select(tied, 0), 'edit.step', 1);
-    expect(up.score).toBe(tied.score);
-    expect(up.message).toMatch(/Haltebogen zerreißen/);
+    expect(up.message).toBeNull();
+    expect(pitches(up).map((p) => p.step + p.octave)).toEqual(['D5', 'D5']);
+    expect(up.score.links).toHaveLength(1);
+    expect(validateScore(up.score)).toEqual([]);
+    const down = cmd(select(tied, 1), 'edit.octave', -1);
+    expect(pitches(down).map((p) => p.step + p.octave)).toEqual(['C4', 'C4']);
+    const roll = applyRollEdit(tied, { kind: 'change', voice: VOICE, eventId: events(tied)[1]!.id, tone: { id: events(tied)[1]!.tones[0]!.id, midi: 74 } });
+    expect(pitches(roll).map((p) => p.step + p.octave)).toEqual(['D5', 'D5']);
+    expect(roll.score.links).toHaveLength(1);
+  });
+
+  it('a whole chain of three tied notes follows, even when the middle one is changed', () => {
+    let s = fresh();
+    s = cmd(s, 'input.duration', 5);
+    for (let i = 0; i < 3; i++) s = cmd(s, 'input.note', 0);
+    s = cmd(s, 'edit.escape');
+    s = cmd(select(s, 0), 'edit.tie');
+    s = cmd(select(s, 1), 'edit.tie');
+    expect(s.score.links).toHaveLength(2);
+    const moved = cmd(select(s, 1), 'edit.step', 2);
+    expect(events(moved).slice(0, 3).map((e) => e.tones[0]!.pitch.step)).toEqual(['E', 'E', 'E']);
+    expect(moved.score.links).toHaveLength(2);
+    expect(validateScore(moved.score)).toEqual([]);
   });
 
   it('a longer second note keeps the tie', () => {

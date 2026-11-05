@@ -266,6 +266,13 @@
           "logic": { "keys": ["Klick"], "source": "icastico", "note": "Menü mit Lautstärke und einer Linie über die Länge der Note." }
         },
         {
+          "id": "play.fromClick",
+          "title": "Ab einer Stelle abspielen: Leertaste halten und in die Notenschrift klicken",
+          "command": "mouse.playFrom",
+          "finale": { "keys": ["Klick"], "source": "icastico", "note": "Leertaste halten. Ein Klick neben das Notensystem spielt von Anfang an. Die Auswahl bleibt, wie sie war." },
+          "logic": { "keys": ["Klick"], "source": "icastico", "note": "Leertaste halten. In Logic ist die Leertaste sonst die Pause; sie wirkt erst beim Loslassen und nur, wenn nicht geklickt wurde." }
+        },
+        {
           "id": "roll.glideMenu",
           "title": "Piano-Roll: Gleit-Linie anklicken – Verlauf des Übergangs",
           "command": "mouse.glideMenu",
