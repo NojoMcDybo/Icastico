@@ -770,6 +770,18 @@ try {
   check((await notes()) === 3, 'Aufnahme aus: das Keyboard gibt keine Noten mehr ein');
   await type('Escape');
 
+  // ── Noten diktieren: Notennamen per Sprache ──
+  await newScore('Diktat-Test');
+  await page.evaluate(() => window.__voiceHear('fünf c fis', 0.95));
+  check(/verstanden: fünf c fis → Viertel, C, Fis/.test(await status()), 'Diktat: „fünf c fis“ stellt auf Viertel und gibt C und Fis ein, die Statuszeile nennt alle drei');
+  check((await notes()) === 2 && (await page.locator('.page g.accid').count()) >= 1, 'Diktat: die zwei Noten stehen in der Notenschrift, Fis mit Kreuz');
+  await page.evaluate(() => window.__voiceHear('b', 0.95));
+  await page.evaluate(() => window.__voiceHear('c blumenkohl d', 0.95));
+  check((await notes()) === 3 && /nicht verstanden/.test(await status()), 'Diktat: „b“ gibt B ein; eine Reihe mit einem unbekannten Wort wird gar nicht ausgeführt');
+  await page.evaluate(() => window.__voiceHear('c d e', 0.5));
+  check((await notes()) === 3, 'Diktat: eine unsicher erkannte Reihe (unter 0,8) wird nicht ausgeführt');
+  await type('Escape');
+
   // ── Sprachtest-Dialog (Paket 3): Mikrofon, Sprachmodell, Erkennung, Auswertung, Ergebnisdatei ──
   await type('Control+Shift+v');
   await page.waitForSelector('.voicetest');
@@ -787,7 +799,7 @@ try {
   const voiceDownload = page.waitForEvent('download');
   await page.click('.voicetest button:has-text("Ergebnis speichern")');
   const resultFile = JSON.parse(readFileSync(await (await voiceDownload).path(), 'utf8'));
-  check(resultFile.format === 'icastico-sprachtest' && resultFile.words.length === 39 && resultFile.words.some((w) => w.clip), 'Sprachtest: die Ergebnisdatei enthält Wortliste, Ergebnisse und die Aufnahme');
+  check(resultFile.format === 'icastico-sprachtest' && resultFile.words.length > 39 && resultFile.words.some((w) => w.clip), 'Sprachtest: die Ergebnisdatei enthält Wortliste, Ergebnisse und die Aufnahme');
   await page.click('.voicetest button:has-text("Schließen")');
   await page.waitForSelector('.voicetest', { state: 'detached' });
 

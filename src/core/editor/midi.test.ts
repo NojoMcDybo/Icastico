@@ -7,6 +7,21 @@ import { type EditorState, type VoiceRef, getVoice } from './state';
 const VOICE: VoiceRef = { partId: 'voice', voiceId: 'voice-v1' };
 const notes = (s: EditorState) => getVoice(s.score, VOICE).voice.events.map((e) => e.tones.map((t) => pitchToString(t.pitch)).join('+'));
 
+describe('notes dictated with their accidental', () => {
+  const spelled = (letter: number, alter: number) => letter * 5 + alter + 2;
+  it('fis is F sharp whatever the key, es is E flat, and the caret moves on', () => {
+    let s = runCommand(newScoreState(), 'input.duration', 5);
+    for (const [letter, alter] of [[3, 1], [2, -1], [6, -1], [0, 1], [1, -1]] as const) s = runCommand(s, 'input.spelled', spelled(letter, alter));
+    expect(notes(s)).toEqual(['F#4', 'Eb4', 'Bb3', 'C#4', 'Db4']);
+    expect(validateScore(s.score)).toEqual([]);
+  });
+
+  it('a number that names no note changes nothing', () => {
+    const s = newScoreState();
+    for (const bad of [-1, 35, 2.5, Number.NaN]) expect(runCommand(s, 'input.spelled', bad)).toBe(s);
+  });
+});
+
 describe('notes from a MIDI keyboard', () => {
   it('a key gives exactly that pitch, in every octave, and the caret moves on', () => {
     let s = runCommand(newScoreState(), 'input.duration', 5);

@@ -342,6 +342,14 @@ function enterPitchClass(s0: EditorState, pc: number): EditorState {
 
 const validMidi = (n: number): boolean => Number.isInteger(n) && n >= 0 && n <= 127;
 
+/** A note named with its accidental ("fis", "es"): `arg` = letter index (C = 0 … B = 6) × 5 + alteration + 2. Spoken dictation. */
+function enterSpelled(s0: EditorState, arg: number): EditorState {
+  const step = STEPS[Math.floor(arg / 5)];
+  const alter = (arg % 5) - 2;
+  if (!Number.isInteger(arg) || arg < 0 || !step) return s0;
+  return enterPitch(s0, step, alter);
+}
+
 /** A key of a MIDI keyboard: the note at exactly that pitch, spelled in the key like a black piano key. */
 function enterMidi(s0: EditorState, midi: number): EditorState {
   if (!validMidi(midi)) return s0;
@@ -917,6 +925,7 @@ export const COMMANDS = {
   'input.dot': { title: 'Punktierung', run: toggleDot },
   'input.note': { title: 'Note eingeben', run: enterNote },
   'input.pitchClass': { title: 'Note nach Klaviertaste eingeben', run: enterPitchClass },
+  'input.spelled': { title: 'Note mit Vorzeichen eingeben (diktiert: fis, es …)', run: enterSpelled },
   'input.midi': { title: 'Note vom MIDI-Keyboard eingeben', run: enterMidi },
   'input.midiAdd': { title: 'Weiteren Ton vom MIDI-Keyboard zum Akkord', run: addMidi },
   'mark.toggle': { title: 'Zeichen an der Note (Dynamik, Artikulation, Verzierung)', run: toggleMark },

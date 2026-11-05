@@ -46,6 +46,18 @@ Offen: der Test mit Instrument im Hintergrund (Ziel ≥ 85 %), und ob im Dauerbe
 Fehlauslösungen erzeugen (Gegenmaßnahmen: Sprechpausen-Erkennung mit Mindestlautstärke, Wörter werden ignoriert,
 solange etwas abgespielt wird; die Statuszeile zeigt, was verstanden wurde, Strg+Z nimmt es zurück).
 
+## Noten diktieren (Nachtrag)
+
+Der Wortschatz kennt jetzt Notennamen (c d e f g a h; cis des fis es as b his …; "h" ist B, "b" ist Bb; Buchstaben auch als
+„zeh/deh/eh/eff/geh/ah/hah“, weil der Erkenner gesprochene Buchstaben oft so schreibt). Reine Buchstaben folgen wie die
+Tasten der Tonart (input.note), Namen mit Vorzeichen setzen es fest (input.spelled); die Oktave ist die nächste zur
+vorigen Note, „Oktave hoch/runter“ korrigiert. Mehrere Befehle in einem Atemzug („fünf c fis“) werden nur ausgeführt, wenn
+**alles** erkannt wurde und die Sicherheit ≥ 0,8 ist. Die Sicherheit ist bei Reihen deutlich niedriger als bei Einzelwörtern
+(mit der synthetischen Stimme 0,3–0,5, auch bei richtig erkannten Reihen), Reihen werden also meist abgelehnt; zuverlässig ist
+**eine Note pro Atemzug**. Bei Reihen verschluckte der Erkenner mit der synthetischen Stimme auch Buchstaben („c d e f g“ → „zeh d f geh“).
+Schwach: Cis/Ces, Dis/Des (klingen ähnlich). Der Sprachtest (Strg+Umschalt+V) fragt die Notennamen mit ab; Wortliste und
+Synonyme werden danach nach der Stimme des Owners angepasst. „Be“ (Erniedrigung) heißt jetzt „Bemol“, weil „B“ ein Notenname ist.
+
 ## Alternativen
 
 - **whisper.cpp / Whisper** (Erkenner B des Plans): nicht eingebaut. Es bräuchte eine schwere Bibliothek
