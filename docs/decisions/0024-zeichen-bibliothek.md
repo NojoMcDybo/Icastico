@@ -36,6 +36,8 @@ Lautstärke, Staccato und Akzent, Triller, Fermate – und die Wiederholungsstru
 - **MusicXML:** Import und Export von Artikulation, Verzierung, Fermate, Lautstärke, Crescendo (wedge),
   Wiederholungsstrichen, Klammern (`ending`), Segno/Coda und den Wörtern; ein Hin-und-zurück-Test sichert das.
 
+- **Bedienung (Nachtrag):** Die Palette ist ein Menü aus Glas unter dem Knopf „Zeichen“ (oder Strg+J). Doppelklick setzt ein Zeichen an die gewählte Note bzw. den Takt (ist es schon da, bleibt es); ein Zeichen aus dem Menü lässt sich auf eine Note ziehen, ein gesetztes Zeichen auf eine andere. Wiederholungsstriche und Klammern sind Teil der Taktlinie und lassen sich (noch) nicht ziehen, nur im Menü setzen.
+
 ## Spielregeln der Reihenfolge
 
 Eine Wiederholung spielt zweimal; ein Takt mit Klammer klingt nur im Durchgang seiner Nummer (nach einem

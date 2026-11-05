@@ -24,10 +24,11 @@ function check(condition, what) {
 }
 
 const server = await preview({ preview: { port: 4174, strictPort: false }, logLevel: 'silent' });
-const browser = await chromium.launch();
+// A fake microphone (Chromium's own beeps) for the voice test dialog
+const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
 const errors = [];
 try {
-  const context = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true });
+  const context = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true, permissions: ['microphone'] });
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
@@ -490,14 +491,14 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.lcd__value')[1]?.textContent !== '1', null, { timeout: 30000 });
   check(true, 'Wiedergabe läuft: Schlag und Takt in der Anzeige laufen mit der Audiouhr (die Instrumentenklänge sind geladen)');
   check((await page.evaluate(() => globalThis.__icasticoHz?.() ?? -1)) >= 0 && !/nicht verfügbar/.test(await status()), 'Die Instrumentenklänge wurden geladen, kein Rückfall auf den einfachen Klang');
-  await page.click('.transport__play');
+  await page.click('.transport__stop');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'false');
   check(true, 'Stopp hält die Wiedergabe an');
   // Sound wirklich weg: schon eingeplante Noten (bis zu einer Sekunde im Voraus) dürfen nach „Stopp“ nicht mehr klingen
   await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
   await page.click('.transport__play');
   await page.waitForFunction(() => (globalThis.__icasticoHz?.() ?? 0) > 0, null, { timeout: 30000 });
-  await page.click('.transport__play');
+  await page.click('.transport__stop');
   // innerhalb einer halben Sekunde still – und danach bleibt es still (nichts Eingeplantes klingt später nach)
   await page.waitForFunction(() => (globalThis.__icasticoHz?.() ?? 1) === 0, null, { polling: 50, timeout: 700 });
   let quiet = true;
@@ -515,7 +516,7 @@ try {
   // in Takt 2 angeklickt: schon in der ersten halben Sekunde Takt 2 (von vorn bräuchte es mehrere Sekunden)
   await page.waitForFunction(() => Number(document.querySelectorAll('.lcd__value')[0]?.textContent) >= 2, null, { timeout: 600 });
   check(true, 'Leertaste halten und in die letzte Note klicken: spielt ab dieser Stelle (Takt 2), nicht von vorn');
-  await page.click('.transport__play');
+  await page.click('.transport__stop');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'false');
   await page.keyboard.down('Space');
   const pageBox = await page.locator('.page').first().boundingBox();
@@ -524,12 +525,33 @@ try {
   await pressed();
   await page.waitForFunction(() => document.querySelectorAll('.lcd__value')[0]?.textContent === '1', null, { timeout: 10000 });
   check(true, 'Leertaste halten und neben das Notensystem klicken: spielt von Anfang an');
-  await page.click('.transport__play');
+  await page.click('.transport__stop');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'false');
   await type('Control+Enter');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');
   await type('Control+Enter');
   check(true, 'Strg+Eingabe startet und stoppt die Wiedergabe');
+  // Leertaste wie bei Finale: startet und stoppt, ohne dass man vorher ins Bild klicken muss (der Fokus darf auf einem Knopf liegen)
+  const isPlaying = (on) => page.waitForFunction((v) => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === v, String(on), { timeout: 30000 });
+  await page.keyboard.press('Space');
+  await isPlaying(true);
+  await page.keyboard.press('Space');
+  await isPlaying(false);
+  check(true, 'Die Leertaste startet und stoppt die Wiedergabe');
+  await page.click('.transport__play');
+  await isPlaying(true);
+  await page.keyboard.press('Space');
+  await isPlaying(false);
+  check(true, 'Die Leertaste stoppt, auch wenn der Fokus auf dem Abspielknopf liegt (kein Klick ins Bild nötig)');
+  await page.click('.transport__play');
+  await isPlaying(true);
+  await page.click('.transport__stop');
+  await isPlaying(false);
+  await page.click('.transport__stop');
+  check((await lcd('TAKT').first().textContent()) === '1', 'Der Stopp-Knopf hält an, ein zweites Mal springt er zum Anfang');
+  for (let k = 0; k < 8; k++) await page.click('.transport__buttons button[aria-label="Einen Takt vor"]');
+  const lastBar = Number(await lcd('TAKT').first().textContent());
+  check(lastBar >= 2, `Vorspulen bleibt am letzten Takt (Takt ${lastBar}) stehen, springt nicht zurück zum Anfang`);
   check((await page.locator('.transport__record').isDisabled()), 'Der Aufnahmeknopf ist noch gesperrt (kommt später)');
   await page.screenshot({ path: join(outDir, 'transport.png') });
 
@@ -699,6 +721,52 @@ try {
   await page.click('[data-preset="finale"]');
   await type('Escape');
 
+  // ── Sprachbefehle (Attrappe ohne Mikrofon, Paket 1–2 des Plans) ──
+  await newScore('Sprach-Test');
+  const mode = () => page.textContent('#mode');
+  await page.evaluate(() => window.__voiceHear('vier', 0.95));
+  check(/Achtel/.test(await mode()) && /verstanden: vier → Achtel/.test(await status()), 'Sprache: „vier“ stellt auf Achtel und die Statuszeile sagt, was verstanden wurde');
+  await page.evaluate(() => window.__voiceHear('Viertel', 0.9));
+  check(/Viertel/.test(await mode()), 'Sprache: „Viertel“ wirkt wie die Taste 5');
+  await page.evaluate(() => window.__voiceHear('vier', 0.4));
+  check(/Viertel/.test(await mode()) && /nicht verstanden/.test(await status()), 'Sprache: unsicher erkannt = nichts passiert, Statuszeile sagt „nicht verstanden“');
+  await page.evaluate(() => window.__voiceHear('Blumenkohl', 0.99));
+  check(/Viertel/.test(await mode()) && /nicht verstanden/.test(await status()), 'Sprache: unbekanntes Wort = nichts passiert');
+  await page.evaluate(() => window.__voiceHear('Achtel', 0.95));
+  await type('c');
+  await page.evaluate(() => window.__voiceHear('rückgängig', 0.95));
+  check((await notes()) === 0, 'Sprache: „rückgängig“ nimmt die eingegebene Note zurück');
+  await type('Escape');
+  check((await page.locator('.voice-field').count()) === 0, 'Das Sprach-Testfeld ist im normalen Start nicht da');
+  const testPage = await context.newPage();
+  await testPage.goto(`${url}?voice=test`);
+  await testPage.waitForSelector('.voice-field input');
+  await testPage.fill('.voice-field input', 'Blumenkohl');
+  await testPage.keyboard.press('Enter');
+  check(/nicht verstanden/.test((await testPage.textContent('#status')) ?? '') || (await testPage.locator('.voice-field input').inputValue()) === '', 'Sprach-Testfeld (?voice=test): ein getipptes Wort wird entgegengenommen');
+  await testPage.close();
+
+  // ── Sprachtest-Dialog (Paket 3): Mikrofon, Sprachmodell, Erkennung, Auswertung, Ergebnisdatei ──
+  await type('Control+Shift+v');
+  await page.waitForSelector('.voicetest');
+  await page.waitForFunction(() => /Bereit/.test(document.querySelector('.voicetest__status')?.textContent ?? ''), null, { timeout: 90000 });
+  check(true, 'Sprachtest: Mikrofon und Sprachmodell (Vosk) sind geladen');
+  await page.keyboard.down('Space');
+  await page.waitForTimeout(1500);
+  await page.keyboard.up('Space');
+  await page.waitForSelector('.voicetest__answer b', { timeout: 30000 });
+  check((await page.locator('.voicetest__answer b').count()) === 2, 'Sprachtest: nach dem Loslassen antworten beide Erkenner (Wortliste und frei)');
+  await page.screenshot({ path: join(outDir, 'sprachtest.png') });
+  await page.click('.voicetest button:has-text("Beenden und auswerten")');
+  await page.waitForSelector('.voicetest__table');
+  check((await page.locator('.voicetest__table tr').count()) === 3, 'Sprachtest: die Auswertung zeigt eine Zeile je Erkenner');
+  const voiceDownload = page.waitForEvent('download');
+  await page.click('.voicetest button:has-text("Ergebnis speichern")');
+  const resultFile = JSON.parse(readFileSync(await (await voiceDownload).path(), 'utf8'));
+  check(resultFile.format === 'icastico-sprachtest' && resultFile.words.length === 39 && resultFile.words.some((w) => w.clip), 'Sprachtest: die Ergebnisdatei enthält Wortliste, Ergebnisse und die Aufnahme');
+  await page.click('.voicetest button:has-text("Schließen")');
+  await page.waitForSelector('.voicetest', { state: 'detached' });
+
   // ── Liedtext und Akkordsymbole (L, K) ──
   await newScore('Leadsheet-Test');
   await type('5', 'c', 'd', 'e', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft');
@@ -796,16 +864,24 @@ try {
   await type('Alt+m', 'Alt+Period');
   await page.waitForFunction(() => document.querySelectorAll('.page g.dynam').length === 1 && document.querySelectorAll('.page g.artic').length === 1);
   check(true, 'Zeichen: Alt+M setzt mf, Alt+. setzt Staccato – beides erscheint in der Notenschrift');
+  await page.setViewportSize({ width: 1400, height: 1100 }); // room for the whole menu below the score
   await type('Control+j');
   await page.waitForSelector('.symbols:not([hidden])');
   check((await page.locator('.symbols__btn.is-on').count()) >= 2, 'Palette (Strg+J): die Zeichen der gewählten Note leuchten');
-  await page.click('.symbols__btn[title="Wiederholung beginnt (𝄆)"]');
+  // Das Menü lässt sich am Kopf aus dem Weg ziehen (nach links unten, unter die Notenschrift)
+  const head = await page.locator('.symbols__head').boundingBox();
+  await page.mouse.move(head.x + 24, head.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(300, 500, { steps: 8 });
+  await page.mouse.up();
+  check((await page.locator('.symbols').boundingBox()).y > 440, 'Das Zeichen-Menü lässt sich am Kopf verschieben');
+  await page.dblclick('.symbols__btn[aria-label="Wiederholung beginnt (𝄆)"]');
   await page.locator('.page g.note').last().click({ force: true });
-  await page.click('.symbols__btn[title="Wiederholung endet (𝄇)"]');
-  await page.click('.symbols__btn[title="Fermate (Halt)"]');
+  await page.dblclick('.symbols__btn[aria-label="Wiederholung endet (𝄇)"]');
+  await page.dblclick('.symbols__btn[aria-label="Fermate (Halt)"]');
   await page.waitForFunction(() => document.querySelectorAll('.page g.fermata').length === 1);
   check((await page.locator('.page g.fermata').count()) === 1 && (await page.locator('.page g.barLine').count()) >= 2, 'Palette: Wiederholungszeichen und Fermate werden gesetzt und gezeichnet');
-  await page.click('.symbols__btn[title="1. Klammer"]');
+  await page.dblclick('.symbols__btn[aria-label="1. Klammer"]');
   await page.waitForFunction(() => document.querySelectorAll('.page g.voltaBracket').length >= 1);
   check(true, 'Palette: eine 1. Klammer wird über dem Takt gezeichnet');
   await page.screenshot({ path: join(outDir, 'zeichen.png') });
@@ -817,10 +893,35 @@ try {
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');
   await page.waitForTimeout(600);
   check(!/Fehler|nicht verfügbar/.test(await status()), 'Wiedergabe mit Wiederholung, Klammer und Dynamik läuft ohne Fehler');
-  await page.click('.transport__play');
+  await page.click('.transport__stop');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'false');
+  // ── Zeichen-Menü: Knopf oben, Ziehen und Verschieben ──
+  const boxOf = async (selector) => (await page.locator(selector).first().boundingBox());
+  const dragTo = async (from, to) => {
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 10 });
+    await page.mouse.up();
+  };
+  const fermataBefore = await boxOf('.page g.fermata');
+  await dragTo(fermataBefore, await boxOf('.page g.note'));
+  await page.waitForFunction((x) => document.querySelector('.page g.fermata')?.getBoundingClientRect().x < x - 20, fermataBefore.x);
+  check((await page.locator('.page g.fermata').count()) === 1, 'Ein gesetztes Zeichen (Fermate) lässt sich mit der Maus auf eine andere Note ziehen');
+  await dragTo(await boxOf('.symbols__btn[aria-label="Triller"]'), await boxOf('.page g.note >> nth=2'));
+  await page.waitForFunction(() => document.querySelectorAll('.page g.trill').length === 1);
+  check(true, 'Ein Zeichen aus dem Menü lässt sich auf eine Note ziehen');
   await type('Control+j');
   await page.waitForSelector('.symbols', { state: 'hidden' });
+  await page.click('#symbols-button');
+  await page.waitForSelector('.symbols:not([hidden])');
+  check((await page.getAttribute('#symbols-button', 'aria-pressed')) === 'true', 'Der Knopf „Zeichen“ oben öffnet das Menü');
+  await page.waitForTimeout(500); // the menu fades in
+  await page.screenshot({ path: join(outDir, 'zeichen-menue.png') });
+  await page.evaluate(() => Object.assign(document.querySelector('.symbols').style, { left: '700px', top: '100px' })); // over the white paper: is the text still readable?
+  await page.screenshot({ path: join(outDir, 'zeichen-glas.png') });
+  await page.click('#symbols-button');
+  await page.waitForSelector('.symbols', { state: 'hidden' });
+  await page.setViewportSize({ width: 1400, height: 900 });
 
   check(errors.length === 0, `Keine Fehler in der Konsole${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   console.log(`\nAlle ${step} Prüfungen bestanden. Screenshots: ${outDir}`);

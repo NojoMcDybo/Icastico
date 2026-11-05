@@ -48,6 +48,7 @@ async function start(): Promise<void> {
       roll: $('roll'),
       transport: $('transport'),
       rollButton: $('roll-button'),
+      symbolsButton: $('symbols-button'),
       updateButton: $('update-button'),
     },
     engraver,

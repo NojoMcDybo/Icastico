@@ -12,7 +12,7 @@
  */
 import { type Fraction, ZERO, add, compare, eq, frac, gt, isDyadic, le, lt, sub } from '../time';
 import { STEPS, keyAlteration, midiOf, type Pitch } from '../pitch';
-import { BAR_SIGNS, NOTE_SYMBOLS, barSign, toggleNoteSymbol } from '../symbols';
+import { type BarSign, BAR_SIGNS, NOTE_SYMBOLS, barSign, toggleNoteSymbol } from '../symbols';
 import { type BarMark, type ChordSymbol, type Link, type LinkKind, type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, measuresOf } from '../model';
 import { decomposeNote, writtenValue } from '../notation/notate';
 import { emptyScore } from '../templates';
@@ -205,19 +205,58 @@ export function signsAtFocus(s: EditorState): { note: readonly string[]; bar: re
   return { note: target(s)?.event.marks ?? [], bar: (s.score.marks ?? []).filter((m) => eq(m.at, bar.start)).map((m) => m.kind) };
 }
 
+/** The score with this bar sign put on the bar starting at `at` (replacing its exclusive neighbours) or taken off. */
+function withBarSign(score: Score, sign: BarSign, at: Fraction, on: boolean): Score {
+  const kept = (score.marks ?? []).filter((m) => !(eq(m.at, at) && (m.kind === sign.id || (sign.exclusive && barSign(m.kind)?.exclusive === sign.exclusive))));
+  const next: BarMark[] = on ? [...kept, { at, kind: sign.id }] : kept;
+  next.sort((a, b) => compare(a.at, b.at) || BAR_SIGNS.findIndex((x) => x.id === a.kind) - BAR_SIGNS.findIndex((x) => x.id === b.kind));
+  const { marks: _old, ...rest } = score;
+  return next.length ? { ...rest, marks: next } : rest;
+}
+
 /** Repeat signs, endings, segno, coda and jumps for the bar of the selected note / the caret; a second time takes it away. */
 function toggleBarSign(s: EditorState, index: number): EditorState {
   const sign = BAR_SIGNS[index];
   if (!sign) return s;
   const bar = focusBar(s);
-  const marks = s.score.marks ?? [];
-  const present = marks.some((m) => m.kind === sign.id && eq(m.at, bar.start));
-  const kept = marks.filter((m) => !(eq(m.at, bar.start) && (m.kind === sign.id || (sign.exclusive && barSign(m.kind)?.exclusive === sign.exclusive))));
-  const next: BarMark[] = present ? [...kept] : [...kept, { at: bar.start, kind: sign.id }];
-  next.sort((a, b) => compare(a.at, b.at) || BAR_SIGNS.findIndex((x) => x.id === a.kind) - BAR_SIGNS.findIndex((x) => x.id === b.kind));
-  const { marks: _old, ...rest } = s.score;
+  const present = (s.score.marks ?? []).some((m) => m.kind === sign.id && eq(m.at, bar.start));
   const where = bar.number === 0 ? 'Auftakt' : `Takt ${bar.number}`;
-  return { ...s, score: next.length ? { ...rest, marks: next } : rest, message: `${sign.label}, ${where}: ${present ? 'entfernt' : 'gesetzt'}` };
+  return { ...s, score: withBarSign(s.score, sign, bar.start, !present), message: `${sign.label}, ${where}: ${present ? 'entfernt' : 'gesetzt'}` };
+}
+
+/**
+ * Drag and drop of a note sign: puts `id` on the note `to` (replacing its exclusive neighbours) and, when it is moved,
+ * takes it off the note `from`. A sign the target already has stays as it is.
+ */
+export function dropNoteSign(s: EditorState, id: string, to: { ref: VoiceRef; eventId: string }, from?: { ref: VoiceRef; eventId: string }): EditorState {
+  const symbol = NOTE_SYMBOLS.find((x) => x.id === id);
+  const event = symbol && findEvent(s.score, to.ref, to.eventId);
+  if (!symbol || !event) return s;
+  const withMarks = (score: Score, at: { ref: VoiceRef; eventId: string }, change: (marks: readonly string[]) => string[]): Score =>
+    updateEvents(score, at.ref, (events) =>
+      events.map((e) => {
+        if (e.id !== at.eventId) return e;
+        const marks = change(e.marks ?? []);
+        const { marks: _old, ...rest } = e;
+        return marks.length ? { ...rest, marks } : rest;
+      }),
+    );
+  let score = s.score;
+  if (from && !(from.eventId === to.eventId && sameVoice(from.ref, to.ref))) score = withMarks(score, from, (m) => m.filter((x) => x !== id));
+  score = withMarks(score, to, (m) => (m.includes(id) ? [...m] : toggleNoteSymbol(m, id)));
+  return { ...s, score, selection: selectEvent(to.ref, event), message: `${symbol.label}: ${from ? 'verschoben' : 'gesetzt'}` };
+}
+
+/** Drag and drop of a bar sign onto the bar starting at `to`; `from` is the bar it is moved away from. */
+export function dropBarSign(s: EditorState, kind: string, to: Fraction, from?: Fraction): EditorState {
+  const sign = barSign(kind);
+  if (!sign) return s;
+  let score = s.score;
+  if (from && !eq(from, to)) score = withBarSign(score, sign, from, false);
+  score = withBarSign(score, sign, to, true);
+  const bar = measuresOf(score, 1, to).find((m) => eq(m.start, to));
+  const where = !bar ? '' : bar.number === 0 ? ', Auftakt' : `, Takt ${bar.number}`;
+  return { ...s, score, message: `${sign.label}${where}: ${from ? 'verschoben' : 'gesetzt'}` };
 }
 
 /** Tablature staff on/off for the guitar part of the selected note / caret (ADR 0022). */

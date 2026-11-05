@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { frac } from '../time';
 import { BAR_SIGNS, NOTE_SYMBOLS, toggleNoteSymbol } from '../symbols';
 import { validateScore } from '../model';
-import { type CommandId, newScoreState, runCommand, signsAtFocus } from './commands';
+import { type CommandId, dropBarSign, dropNoteSign, newScoreState, runCommand, signsAtFocus } from './commands';
 import { getVoice, type EditorState, type VoiceRef } from './state';
 
 const VOICE: VoiceRef = { partId: 'voice', voiceId: 'voice-v1' };
@@ -67,5 +67,36 @@ describe('signs on bars', () => {
     let s = run(eight(), 'mark.bar', bar('dc'));
     s = run(s, 'mark.bar', bar('dsCoda'));
     expect(s.score.marks!.map((m) => m.kind)).toEqual(['dsCoda']);
+  });
+});
+
+describe('drag and drop of signs', () => {
+  it('a sign dropped on another note lands there; a moved sign leaves the old note', () => {
+    const s = eight();
+    const [first, , third] = events(s);
+    let t = dropNoteSign(s, 'stacc', { ref: VOICE, eventId: first!.id });
+    expect(events(t)[0]!.marks).toEqual(['stacc']);
+    t = dropNoteSign(t, 'stacc', { ref: VOICE, eventId: third!.id }, { ref: VOICE, eventId: first!.id });
+    expect(events(t)[0]!.marks).toBeUndefined();
+    expect(events(t)[2]!.marks).toEqual(['stacc']);
+    // dropping it on the note it already sits on changes nothing
+    expect(events(dropNoteSign(t, 'stacc', { ref: VOICE, eventId: third!.id }, { ref: VOICE, eventId: third!.id }))[2]!.marks).toEqual(['stacc']);
+    expect(validateScore(t.score)).toEqual([]);
+  });
+
+  it('a dynamic dropped on a note replaces the one that was there', () => {
+    const s = eight();
+    const id = events(s)[1]!.id;
+    const t = dropNoteSign(dropNoteSign(s, 'p', { ref: VOICE, eventId: id }), 'f', { ref: VOICE, eventId: id });
+    expect(events(t)[1]!.marks).toEqual(['f']);
+  });
+
+  it('a bar sign can be dropped on a bar and moved to another', () => {
+    const s = eight();
+    let t = dropBarSign(s, 'repeatStart', frac(0, 1));
+    expect(t.score.marks).toEqual([{ at: frac(0, 1), kind: 'repeatStart' }]);
+    t = dropBarSign(t, 'repeatStart', frac(1, 1), frac(0, 1));
+    expect(t.score.marks).toEqual([{ at: frac(1, 1), kind: 'repeatStart' }]);
+    expect(validateScore(t.score)).toEqual([]);
   });
 });

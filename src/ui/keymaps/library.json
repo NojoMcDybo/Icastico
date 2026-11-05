@@ -273,6 +273,13 @@
           "logic": { "keys": ["Klick"], "source": "icastico", "note": "Leertaste halten. In Logic ist die Leertaste sonst die Pause; sie wirkt erst beim Loslassen und nur, wenn nicht geklickt wurde." }
         },
         {
+          "id": "symbols.drag",
+          "title": "Zeichen: aus dem Menü auf eine Note ziehen, oder ein gesetztes Zeichen an eine andere Stelle ziehen",
+          "command": "mouse.dragSign",
+          "finale": { "keys": ["Ziehen"], "source": "icastico", "note": "Im Zeichen-Menü setzt ein Doppelklick das Zeichen an die gewählte Note." },
+          "logic": { "keys": ["Ziehen"], "source": "icastico", "note": "Im Zeichen-Menü setzt ein Doppelklick das Zeichen an die gewählte Note." }
+        },
+        {
           "id": "roll.glideMenu",
           "title": "Piano-Roll: Gleit-Linie anklicken – Verlauf des Übergangs",
           "command": "mouse.glideMenu",
@@ -488,8 +495,8 @@
           "id": "play.toggle",
           "title": "Wiedergabe starten / stoppen",
           "command": "play.toggle",
-          "finale": { "keys": ["Mod+Enter"], "source": "icastico" },
-          "logic": { "keys": ["Mod+Enter"], "source": "icastico", "note": "In Logic startet die Leertaste die Wiedergabe; hier ist sie die Pause der Schritteingabe." }
+          "finale": { "keys": ["Mod+Enter", "Space"], "source": "doku", "note": "Wie bei Finale startet und stoppt die Leertaste. Während der Wiedergabe stoppt sie in jeder Belegung." },
+          "logic": { "keys": ["Mod+Enter"], "source": "icastico", "note": "In Logic startet die Leertaste die Wiedergabe; hier ist sie die Pause der Schritteingabe – nur während der Wiedergabe stoppt sie." }
         },
         {
           "id": "play.record",
@@ -526,6 +533,13 @@
           "args": { "0": "Wiederholung Anfang", "1": "Wiederholung Ende", "2": "1. Klammer", "3": "2. Klammer", "4": "3. Klammer", "5": "Segno", "6": "Coda", "7": "To Coda", "8": "Fine", "9": "D.C.", "10": "D.C. al Fine", "11": "D.C. al Coda", "12": "D.S.", "13": "D.S. al Fine", "14": "D.S. al Coda" },
           "finale": { "keys": {}, "source": "icastico", "note": "Nur über die Palette (Strg+J). Aufeinanderfolgende Takte mit derselben Klammer bilden eine gemeinsame Klammer." },
           "logic": { "keys": {}, "source": "icastico", "note": "Nur über die Palette (Strg+J)." }
+        },
+        {
+          "id": "view.voiceTest",
+          "title": "Sprachtest: Wörter einsprechen und Erkenner prüfen (noch ohne Befehle per Sprache)",
+          "command": "view.voiceTest",
+          "finale": { "keys": ["Mod+Shift+V"], "source": "icastico" },
+          "logic": { "keys": ["Mod+Shift+V"], "source": "icastico" }
         },
         {
           "id": "view.symbols",

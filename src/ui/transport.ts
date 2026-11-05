@@ -63,6 +63,7 @@ function cell(label: string, tag: 'span' | 'button'): { el: HTMLElement; value: 
 
 export class Transport {
   private readonly playButton = button('play', 'Wiedergabe starten (Strg+Eingabe)', 'transport__play');
+  private readonly stopButton = button('stop', 'Anhalten (Strg+Eingabe) – noch einmal: zum Anfang', 'transport__stop');
   private readonly loopButton = button('loop', 'Wiederholen: die ganze Partitur immer wieder', 'transport__loop');
   private readonly bar = cell('TAKT', 'span');
   private readonly beat = cell('SCHLAG', 'span');
@@ -82,14 +83,17 @@ export class Transport {
     start.addEventListener('click', () => host.toStart());
     back.addEventListener('click', () => host.step(-1));
     forward.addEventListener('click', () => host.step(1));
-    this.playButton.addEventListener('click', () => (this.current?.playing ? host.stop() : host.play()));
+    this.playButton.addEventListener('click', () => {
+      if (!this.current?.playing) host.play();
+    });
+    this.stopButton.addEventListener('click', () => host.stop());
     this.loopButton.addEventListener('click', () => this.loopButton.setAttribute('aria-pressed', String(host.toggleLoop())));
     this.loopButton.setAttribute('aria-pressed', 'false');
-    this.buttons.push(start, back, forward, this.playButton, this.loopButton);
+    this.buttons.push(start, back, forward, this.playButton, this.stopButton, this.loopButton);
 
     const group = document.createElement('div');
     group.className = 'transport__buttons';
-    group.append(back, forward, start, this.playButton, record, this.loopButton);
+    group.append(start, back, this.playButton, this.stopButton, forward, record, this.loopButton);
 
     const lcd = document.createElement('div');
     lcd.className = 'lcd';
@@ -121,10 +125,6 @@ export class Transport {
     const sig = meterAt(info.score, info.time);
     this.meter.value.textContent = `${sig.count}/${sig.unit}`;
     this.key.value.textContent = keyName(keyAt(info.score, info.time));
-    this.playButton.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${info.playing ? ICONS.stop : ICONS.play}</svg>`;
-    const label = info.playing ? 'Wiedergabe anhalten (Strg+Eingabe)' : 'Wiedergabe starten (Strg+Eingabe)';
-    this.playButton.title = label;
-    this.playButton.setAttribute('aria-label', label);
     this.playButton.setAttribute('aria-pressed', String(info.playing));
     for (const b of this.buttons) b.disabled = info.disabled;
     for (const c of [this.tempo.el, this.meter.el, this.key.el]) (c as HTMLButtonElement).disabled = info.disabled;

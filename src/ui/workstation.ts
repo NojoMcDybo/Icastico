@@ -4,10 +4,10 @@
  *
  * Rendering is skipped when only caret/selection changed (decorate only).
  */
-import { type CommandId, chordSymbolText, ghostPitches, signsAtFocus, lyricsText, newScoreState, runCommand, setChordSymbol, setLyrics } from '../core/editor/commands';
+import { type CommandId, chordSymbolText, dropBarSign, dropNoteSign, ghostPitches, signsAtFocus, lyricsText, newScoreState, runCommand, setChordSymbol, setLyrics } from '../core/editor/commands';
 import { demoScore } from '../core/demo';
 import { History } from '../core/editor/history';
-import { type EditorState, type VoiceRef, createEditorState, getVoice, inputLength, staffCenter } from '../core/editor/state';
+import { type EditorState, type VoiceRef, allVoiceRefs, createEditorState, getVoice, inputLength, staffCenter } from '../core/editor/state';
 import { applyRollEdit } from '../core/editor/rollEdits';
 import { FileFormatError, parseScoreFile, serializeScore } from '../core/file/format';
 import { musicXmlText } from '../core/import/container';
@@ -15,6 +15,7 @@ import { type ImportResult, ImportError, importMusicXml } from '../core/import/m
 import { extractPart } from '../core/extract';
 import { pdfDialog } from './pdfDialog';
 import { SymbolPalette } from './symbolPalette';
+import { BAR_SIGNS, NOTE_SYMBOLS, barSign, noteSymbol } from '../core/symbols';
 import { type PlayMap, playMapOf } from '../core/playOrder';
 import { scoresToPdf } from './pdfExport';
 import { exportMusicXml, type ExportResult } from '../core/export/musicxml';
@@ -37,6 +38,8 @@ import { CurvePopup, type ShapeHost } from './curvePopup';
 import { PianoRoll, type RollHost } from './pianoRoll';
 import { Player } from './player';
 import { Transport } from './transport';
+import { currentVoice, voiceTestEnabled } from '../platform/voice';
+import { VoiceController, mountVoiceField } from './voice/controller';
 import { laneControls, type LaneControls } from './laneControls';
 import {
   DEFAULT_VIEW,
@@ -77,6 +80,7 @@ export interface WorkstationElements {
   /** The piano roll panel below the notation, and its button in the top bar. */
   readonly roll: HTMLElement;
   readonly rollButton: HTMLElement;
+  readonly symbolsButton: HTMLElement;
   /** The transport bar (play buttons and the bar/beat/tempo display) in the top bar. */
   readonly transport: HTMLElement;
   /** "Update" button in the top bar, shown when a new version is known. */
@@ -100,7 +104,7 @@ interface DocumentLocation {
 const AUTOSAVE_DELAY = 1000;
 
 /** Commands that make sense without an open score. */
-const WITHOUT_DOCUMENT = new Set<string>(['file.new', 'file.open', 'library.toggle', 'view.help']);
+const WITHOUT_DOCUMENT = new Set<string>(['file.new', 'file.open', 'library.toggle', 'view.help', 'view.voiceTest']);
 
 const isInside = (root: string, path: string): boolean => {
   const norm = (p: string) => p.replace(/\\/g, '/').toLowerCase();
@@ -111,6 +115,13 @@ const isInside = (root: string, path: string): boolean => {
 const SCALE = 55;
 /** Clicks this close (px) to a symbol still hit it, e.g. inside a hollow notehead. */
 const HIT_TOLERANCE = 10;
+/** How close (px) the pointer must be to a placed sign to pick it up. */
+const SIGN_TOLERANCE = 6;
+
+/** A sign of the library being dragged: from the palette (no `from`) or picked up from where it sits in the score. */
+type SignDrag =
+  | { kind: 'note'; id: string; glyph: string; from?: { ref: VoiceRef; eventId: string } }
+  | { kind: 'bar'; id: string; glyph: string; from?: Fraction };
 const HINT = 'Enter: Eingabe · Strg+N: neu · Strg+O: Bibliothek · F1: alle Tasten';
 const EMPTY_HINT = 'Strg+N: neue Partitur · Strg+O: Bibliothek · F1: alle Tasten';
 
@@ -228,11 +239,14 @@ export class Workstation {
         this.renderStatus();
       },
     });
-    this.symbols = new SymbolPalette({ apply: (kind, index) => this.run(kind === 'note' ? 'mark.toggle' : 'mark.bar', index) });
+    this.symbols = new SymbolPalette({
+      insert: (kind, index) => this.insertSign(kind, index),
+      drag: (kind, index, glyph, e) => this.beginSignDrag(kind === 'note' ? { kind, glyph, id: NOTE_SYMBOLS[index]!.id } : { kind, glyph, id: BAR_SIGNS[index]!.id }, e),
+    });
     document.body.append(this.symbols.el);
     this.transport = new Transport(el.transport, {
       play: () => this.togglePlay(),
-      stop: () => this.player.stop(),
+      stop: () => (this.player.active ? this.player.stop() : this.seek(ZERO)),
       toStart: () => this.seek(ZERO),
       step: (direction) => this.stepBar(direction),
       toggleLoop: () => {
@@ -243,7 +257,22 @@ export class Workstation {
       setTempo: (bpm) => this.setTempo(bpm),
       openSettings: () => void this.scoreSettings(),
     });
+    // Spoken commands (plan "Sprachbefehle"): for now only the stand-in source – text field in test mode, `window.__voiceHear`.
+    const voice = currentVoice();
+    new VoiceController(
+      {
+        run: (command, arg) => this.run(command, arg),
+        say: (message) => {
+          this.history.apply({ ...this.state, message });
+          this.renderStatus();
+        },
+        ready: () => !this.empty && !isDialogOpen() && !this.busy,
+      },
+      voice,
+    );
+    if (voiceTestEnabled()) mountVoiceField((text) => voice.hear(text, 1));
     el.rollButton.addEventListener('click', () => this.run('view.roll'));
+    el.symbolsButton.addEventListener('click', () => this.run('view.symbols'));
     el.libraryButton.hidden = !this.library;
     el.updateButton.hidden = true;
     if (updates) {
@@ -315,6 +344,13 @@ export class Workstation {
       e.preventDefault(); // Space belongs to the editor, not to whichever button has the focus
     }
     if (isDialogOpen() || this.busy) return;
+    if (e.code === 'Space' && this.spaceHeld && this.player.active && !e.repeat) {
+      // Like in Finale: the space bar stops a running playback right away; letting go then does nothing more.
+      this.spaceUsed = true;
+      this.pendingSpace = null;
+      this.player.stop();
+      return;
+    }
     if (this.history.inGesture) {
       // A piano-roll drag is running: Escape throws it away completely, nothing else works meanwhile.
       if (comboOf(e) === 'Escape') {
@@ -386,6 +422,9 @@ export class Workstation {
         return;
       case 'file.exportXml':
         void this.fileExportXml();
+        return;
+      case 'view.voiceTest':
+        void import('./voice/voiceTest').then(({ voiceTestDialog }) => voiceTestDialog(this.platform));
         return;
       case 'view.symbols':
         this.symbols.toggle();
@@ -875,6 +914,8 @@ export class Workstation {
   private onPointerDown(e: PointerEvent): void {
     if (e.button !== 0 || this.empty || this.drag) return;
     if (this.spaceHeld) return this.playFromClick(e);
+    const sign = this.signUnder(e);
+    if (sign) return this.beginSignDrag(sign, e); // a placed sign is picked up, not the note next to it
     const ref = this.hitTest(e);
     if (!ref?.eventId) return;
     const s = this.history.state;
@@ -900,6 +941,133 @@ export class Workstation {
       preview: null,
     };
     this.el.pages.setPointerCapture(e.pointerId);
+  }
+
+  // ── Special signs: double click and drag and drop (ADR 0024) ──────────────
+
+  /** Double click in the palette: the sign goes on the selected note / its bar, unless it is there already. */
+  private insertSign(kind: 'note' | 'bar', index: number): void {
+    if (this.empty) return;
+    const id = kind === 'note' ? NOTE_SYMBOLS[index]!.id : BAR_SIGNS[index]!.id;
+    const at = signsAtFocus(this.state);
+    if ((kind === 'note' ? at.note : at.bar).includes(id)) {
+      this.history.apply({ ...this.state, message: 'Dieses Zeichen ist schon da. Zum Wegnehmen: Strg+Z oder an eine andere Stelle ziehen.' });
+      return this.update();
+    }
+    this.run(kind === 'note' ? 'mark.toggle' : 'mark.bar', index);
+  }
+
+  /** The sign of the library under the pointer in the score, with where it sits (so it can be moved), or null. */
+  private signUnder(e: PointerEvent): SignDrag | null {
+    const direct = this.signOf(e.target as Element | null);
+    if (direct) return direct;
+    // Signs are small and mostly hollow (a fermata is an arc): a pointer just beside one still picks it up – unless it is on a note.
+    const elements = this.result?.elements;
+    for (let n = e.target as Element | null; n && n !== this.el.pages; n = n.parentElement) if (elements?.has(n.id)) return null;
+    let best: Element | null = null;
+    let bestDistance = SIGN_TOLERANCE;
+    for (const candidate of this.el.pages.querySelectorAll('g.dynam, g.hairpin, g.fermata, g.trill, g.mordent, g.turn, g.dir')) {
+      const r = candidate.getBoundingClientRect();
+      const d = Math.hypot(Math.max(r.left - e.clientX, 0, e.clientX - r.right), Math.max(r.top - e.clientY, 0, e.clientY - r.bottom));
+      if (d <= bestDistance) {
+        best = candidate;
+        bestDistance = d;
+      }
+    }
+    return this.signOf(best);
+  }
+
+  /** The sign that `start` (an SVG element, or one inside it) draws, if it is one. */
+  private signOf(start: Element | null): SignDrag | null {
+    const score = this.state.score;
+    const noteSign = (eventId: string, pick: (marks: readonly string[]) => string | undefined): SignDrag | null => {
+      for (const ref of allVoiceRefs(score)) {
+        const event = getVoice(score, ref).voice.events.find((x) => x.id === eventId);
+        const id = event && pick(event.marks ?? []);
+        if (event && id) return { kind: 'note', id, glyph: noteSymbol(id)!.glyph, from: { ref, eventId } };
+      }
+      return null;
+    };
+    for (let n = start; n && n !== this.el.pages; n = n.parentElement) {
+      const hit = /^(dyn|fer|trl|mor|pra|trn|hp)-(.+)$/.exec(n.id);
+      if (hit) {
+        const wanted = { dyn: 'dynamic', hp: 'hairpin', fer: 'fermata', trl: 'trill', mor: 'mord', pra: 'prall', trn: 'turn' }[hit[1] as 'dyn'];
+        return noteSign(hit[2]!, (marks) => marks.find((m) => noteSymbol(m)?.group === wanted || m === wanted));
+      }
+      const bar = /^(?:(segno|coda)|dir-(\w+))-(\d+)$/.exec(n.id);
+      if (bar) {
+        const kind = bar[1] ?? bar[2]!;
+        const start = measuresOf(score, Number(bar[3]) + 1)[Number(bar[3])]?.start;
+        if (start && barSign(kind)) return { kind: 'bar', id: kind, glyph: barSign(kind)!.glyph, from: start };
+      }
+      if (n.classList.contains('artic')) {
+        // Articulations are drawn inside their note, in the order of its marks.
+        const note = n.closest('.note, .chord');
+        const eventId = note && this.result?.elements.get(note.id)?.eventId;
+        const position = note ? [...note.querySelectorAll('.artic')].indexOf(n) : -1;
+        if (eventId && position >= 0) return noteSign(eventId, (marks) => marks.filter((m) => noteSymbol(m)?.group === 'articulation')[position]);
+      }
+    }
+    return null;
+  }
+
+  /** A sign follows the pointer; where it is let go of on the score, it is put on that note / bar. */
+  private beginSignDrag(sign: SignDrag, e: PointerEvent): void {
+    if (e.button !== 0 || this.empty) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let ghost: HTMLElement | null = null;
+    let lit: Element | null = null;
+    const light = (target: Element | null) => {
+      if (lit === target) return;
+      lit?.classList.remove('is-sign-target');
+      target?.classList.add('is-sign-target');
+      lit = target;
+    };
+    const move = (m: PointerEvent) => {
+      if (!ghost) {
+        if (Math.hypot(m.clientX - startX, m.clientY - startY) < 5) return;
+        ghost = document.createElement('div');
+        ghost.className = 'sign-ghost';
+        ghost.textContent = sign.glyph;
+        document.body.append(ghost);
+      }
+      ghost.style.transform = `translate(${m.clientX + 10}px, ${m.clientY + 10}px)`;
+      const hit = this.el.pages.contains(m.target as Node) ? this.hitEntry(m) : undefined;
+      light(hit && (sign.kind === 'bar' || hit[1].eventId) ? document.getElementById(hit[0]) : null);
+    };
+    const end = (up: PointerEvent | null) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', cancel);
+      light(null);
+      if (!ghost) return; // never moved: it was just a click
+      ghost.remove();
+      this.swallowClick = true;
+      window.setTimeout(() => (this.swallowClick = false), 80);
+      if (up && this.el.pages.contains(up.target as Node)) this.dropSign(sign, up);
+    };
+    const cancel = () => end(null);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', cancel);
+  }
+
+  private dropSign(sign: SignDrag, e: PointerEvent): void {
+    const ref = this.hitTest(e);
+    if (!ref) return;
+    if (sign.kind === 'note') {
+      if (!ref.eventId) {
+        this.history.apply({ ...this.state, message: 'Dieses Zeichen gehört an eine Note, nicht an eine Pause.' });
+        return this.update();
+      }
+      this.history.apply(dropNoteSign(this.state, sign.id, { ref: { partId: ref.partId, voiceId: ref.voiceId }, eventId: ref.eventId }, sign.from));
+    } else {
+      const bar = measuresOf(this.state.score, 1, ref.onset).find((m) => m.number === ref.measureNumber);
+      if (!bar) return;
+      this.history.apply(dropBarSign(this.state, sign.id, bar.start, sign.from));
+    }
+    this.update();
   }
 
   /** Space + click: play from the clicked symbol; a click beside the staves plays from the start. */
@@ -995,13 +1163,18 @@ export class Workstation {
 
   /** Direct hit on an SVG shape, else the nearest symbol within HIT_TOLERANCE. */
   private hitTest(e: MouseEvent): ElementRef | undefined {
+    return this.hitEntry(e)?.[1];
+  }
+
+  /** Like `hitTest`, with the id of the SVG element. */
+  private hitEntry(e: MouseEvent): [string, ElementRef] | undefined {
     const elements = this.result?.elements;
     if (!elements) return undefined;
     for (let n = e.target as Element | null; n && n !== this.el.pages; n = n.parentElement) {
       const ref = n.id ? elements.get(n.id) : undefined;
-      if (ref) return ref;
+      if (ref) return [n.id, ref];
     }
-    let best: ElementRef | undefined;
+    let best: [string, ElementRef] | undefined;
     let bestDistance = HIT_TOLERANCE;
     for (const [id, ref] of elements) {
       const r = document.getElementById(id)?.getBoundingClientRect();
@@ -1010,7 +1183,7 @@ export class Workstation {
       const dy = Math.max(r.top - e.clientY, 0, e.clientY - r.bottom);
       const d = Math.hypot(dx, dy);
       if (d <= bestDistance) {
-        best = ref;
+        best = [id, ref];
         bestDistance = d;
       }
     }
@@ -1038,6 +1211,7 @@ export class Workstation {
     this.renderStatus();
     this.scheduleAutosave();
     this.shape.refresh();
+    this.el.symbolsButton.setAttribute('aria-pressed', String(this.symbols.isOpen));
     if (this.symbols.isOpen) {
       const at = signsAtFocus(this.state);
       this.symbols.refresh(at.note, at.bar);
@@ -1243,11 +1417,18 @@ export class Workstation {
   }
 
   private stepBar(direction: number): void {
-    const measures = measuresOf(this.state.score, 1, this.playPos);
-    const index = measures.findIndex((m) => lt(this.playPos, m.end));
-    const here = measures[Math.max(0, index)]!;
-    const target = direction > 0 ? measures[index + 1]?.start : le(this.playPos, here.start) ? measures[index - 1]?.start : here.start;
-    this.seek(target ?? ZERO);
+    // Without the caret's extra bars: after the last bar there is nothing to step to (it used to jump back to the start).
+    const measures = measuresOf(this.state.score, 1);
+    const found = measures.findIndex((m) => lt(this.playPos, m.end));
+    const index = found < 0 ? measures.length - 1 : found;
+    const here = measures[index]!;
+    if (direction > 0) {
+      const next = measures[index + 1]?.start;
+      if (next) return this.seek(next);
+      this.history.apply({ ...this.state, message: 'Das ist schon der letzte Takt.' });
+      return this.update();
+    }
+    this.seek(le(this.playPos, here.start) ? (measures[index - 1]?.start ?? ZERO) : here.start);
   }
 
   private setTempo(bpm: number): void {

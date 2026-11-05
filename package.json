@@ -7,9 +7,10 @@
   "type": "module",
   "scripts": {
     "sounds": "node scripts/fetch-sounds.mjs",
-    "predev": "npm run sounds",
+    "voice": "node scripts/fetch-voice.mjs",
+    "predev": "npm run sounds && npm run voice",
     "dev": "vite",
-    "prebuild": "npm run sounds",
+    "prebuild": "npm run sounds && npm run voice",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -28,7 +29,8 @@
     "@tauri-apps/plugin-updater": "^2.14.1",
     "fflate": "^0.8.3",
     "spessasynth_lib": "^4.4.3",
-    "verovio": "6.3.0"
+    "verovio": "6.3.0",
+    "vosk-browser": "^0.0.8"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.4",

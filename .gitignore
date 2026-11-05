@@ -6,3 +6,5 @@ dist/
 Thumbs.db
 /public/sounds/*.sf3
 /public/sounds/*.part
+/public/voice/*.tar.gz
+/public/voice/*.part

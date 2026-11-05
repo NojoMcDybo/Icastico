@@ -55,6 +55,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Piano-Roll: neue Note über eine bestehende zeichnen | `Alt+Ziehen` *(Icastico)* – Gleicher Anfang und gleiche Länge = Akkord, sonst eine zweite Stimme. | `Alt+Ziehen` *(Icastico)* – Gleicher Anfang und gleiche Länge = Akkord, sonst eine zweite Stimme. | (wie Finale) | ✓ |
 | Piano-Roll: Balken anklicken – Lautstärke und Ein-/Ausblenden | `Klick` *(Icastico)* – Menü mit Lautstärke und einer Linie über die Länge der Note. | `Klick` *(Icastico)* – Menü mit Lautstärke und einer Linie über die Länge der Note. | (wie Finale) | ✓ |
 | Ab einer Stelle abspielen: Leertaste halten und in die Notenschrift klicken | `Klick` *(Icastico)* – Leertaste halten. Ein Klick neben das Notensystem spielt von Anfang an. Die Auswahl bleibt, wie sie war. | `Klick` *(Icastico)* – Leertaste halten. In Logic ist die Leertaste sonst die Pause; sie wirkt erst beim Loslassen und nur, wenn nicht geklickt wurde. | (wie Finale) | ✓ |
+| Zeichen: aus dem Menü auf eine Note ziehen, oder ein gesetztes Zeichen an eine andere Stelle ziehen | `Ziehen` *(Icastico)* – Im Zeichen-Menü setzt ein Doppelklick das Zeichen an die gewählte Note. | `Ziehen` *(Icastico)* – Im Zeichen-Menü setzt ein Doppelklick das Zeichen an die gewählte Note. | (wie Finale) | ✓ |
 | Piano-Roll: Gleit-Linie anklicken – Verlauf des Übergangs | `Klick` *(Icastico)* – Die Linie bestimmt, wie Tonhöhe und Lautstärke durch die Lücke wandern. | `Klick` *(Icastico)* – Die Linie bestimmt, wie Tonhöhe und Lautstärke durch die Lücke wandern. | (wie Finale) | ✓ |
 | Im Lautstärke-/Verlaufsmenü: Punkt auf die Linie setzen | `P` *(Icastico)* – An der Stelle des Mauszeigers. Punkt ziehen formt die ganze Linie, Doppelklick oder Entf entfernt ihn. | `P` *(Icastico)* – An der Stelle des Mauszeigers. Punkt ziehen formt die ganze Linie, Doppelklick oder Entf entfernt ihn. | (wie Finale) | ✓ |
 | Rückgängig | `Strg+Z` | `Strg+Z` | (wie Finale) | ✓ |
@@ -99,7 +100,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 
 | Funktion | Finale | Logic Pro | Finale-Ziffernblock | Icastico |
 |---|---|---|---|---|
-| Wiedergabe starten / stoppen | `Strg+Enter` *(Icastico)* | `Strg+Enter` *(Icastico)* – In Logic startet die Leertaste die Wiedergabe; hier ist sie die Pause der Schritteingabe. | (wie Finale) | ✓ |
+| Wiedergabe starten / stoppen | `Strg+Enter` / `Leertaste` – Wie bei Finale startet und stoppt die Leertaste. Während der Wiedergabe stoppt sie in jeder Belegung. | `Strg+Enter` *(Icastico)* – In Logic startet die Leertaste die Wiedergabe; hier ist sie die Pause der Schritteingabe – nur während der Wiedergabe stoppt sie. | (wie Finale) | ✓ |
 | Aufnahme | – | `R` | (wie Finale) | geplant |
 | Metronom an / aus | – | `K` | (wie Finale) | geplant |
 | Wiederholbereich (Cycle) an / aus | – | `C` | (wie Finale) | geplant |
@@ -110,6 +111,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 |---|---|---|---|---|
 | Zeichen an der gewählten Note (nochmal: weg) | `Alt+Umschalt+P` pp, `Alt+P` p, `Alt+Umschalt+M` mp, `Alt+M` mf, `Alt+F` f, `Alt+Umschalt+F` ff, `Alt+S` sfz, `Alt+C` Crescendo, `Alt+Umschalt+C` Decrescendo, `Alt+.` Staccato, `Alt+−` Tenuto, `Alt+A` Akzent, `Alt+Umschalt+A` Marcato, `Alt+T` Triller, `Alt+Y` Fermate *(Icastico)* – Lautstärken ersetzen sich gegenseitig, ebenso Crescendo/Decrescendo. Alle Zeichen stehen auch in der Palette (Strg+J). | `Alt+Umschalt+P` pp, `Alt+P` p, `Alt+Umschalt+M` mp, `Alt+M` mf, `Alt+F` f, `Alt+Umschalt+F` ff, `Alt+S` sfz, `Alt+C` Crescendo, `Alt+Umschalt+C` Decrescendo, `Alt+.` Staccato, `Alt+−` Tenuto, `Alt+A` Akzent, `Alt+Umschalt+A` Marcato, `Alt+T` Triller, `Alt+Y` Fermate *(Icastico)* | (wie Finale) | ✓ |
 | Zeichen am Takt der gewählten Note: Wiederholung, Klammer, Segno, Coda, Sprung (nochmal: weg) | *Nur über die Palette (Strg+J). Aufeinanderfolgende Takte mit derselben Klammer bilden eine gemeinsame Klammer.* | *Nur über die Palette (Strg+J).* | (wie Finale) | ✓ |
+| Sprachtest: Wörter einsprechen und Erkenner prüfen (noch ohne Befehle per Sprache) | `Strg+Umschalt+V` *(Icastico)* | `Strg+Umschalt+V` *(Icastico)* | (wie Finale) | ✓ |
 | Zeichen-Palette zeigen / verbergen | `Strg+J` *(Icastico)* | `Strg+J` *(Icastico)* | (wie Finale) | ✓ |
 
 ## Quellen
