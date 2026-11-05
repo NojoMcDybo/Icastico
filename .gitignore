@@ -8,3 +8,4 @@ Thumbs.db
 /public/sounds/*.part
 /public/voice/*.tar.gz
 /public/voice/*.part
+/Sprachtest-*.json

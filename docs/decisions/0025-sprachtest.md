@@ -1,6 +1,6 @@
-# 0025 – Sprachtest: Vosk im Fenster, Entscheidung offen
+# 0025 – Sprachtest und Spracherkennung: Vosk im Fenster
 
-- Status: vorgeschlagen (Test läuft; angenommen erst nach dem Test mit der Stimme des Owners)
+- Status: angenommen (nach dem Test mit der Stimme des Owners, 2026-11-05)
 - Datum: 2026-11-05
 
 ## Kontext
@@ -34,6 +34,17 @@ Zusammensetzungen („Vierundsechzigstel“, „Zweiunddreißigstel“, „Halte
 Wortliste meldet Vosk immer die Sicherheit 1 – der Schwellwert des Plans greift dort nicht, „unsicher =
 nichts tun“ muss anders gelöst werden (z. B. Wort verwerfen, wenn „[unk]“ nahe liegt, oder die freie Variante
 zur Gegenprobe). Die Aussagekraft ist begrenzt: eine saubere Computerstimme ist leichter als eine echte.
+
+## Ergebnis des Tests mit der Stimme des Owners (ruhiger Raum)
+
+*Vosk mit Wortliste:* 35 von 39 richtig (89,7 %), **0 falsch**, 4 nicht verstanden, im Mittel 361 ms.
+*Vosk frei:* 30 von 39 richtig (76,9 %), 0 falsch, 696 ms. Nicht verstanden wurden nur lange Zusammensetzungen
+(„Vierundsechzigstel“, „Zweiunddreißigstel“, „Haltebogen“) und einmal „Viertel“ (nichts gehört); für diese
+Befehle gibt es kürzere Wörter („eins“, „zwei“, „Bogen“). Die 95 % des Plans sind knapp verfehlt, die wichtigere
+Fehlerquote (< 2 %) ist mit 0 % erfüllt. **Entscheidung:** Der Aufnahmeknopf benutzt Vosk mit Wortliste.
+Offen: der Test mit Instrument im Hintergrund (Ziel ≥ 85 %), und ob im Dauerbetrieb Hintergrundgeräusche
+Fehlauslösungen erzeugen (Gegenmaßnahmen: Sprechpausen-Erkennung mit Mindestlautstärke, Wörter werden ignoriert,
+solange etwas abgespielt wird; die Statuszeile zeigt, was verstanden wurde, Strg+Z nimmt es zurück).
 
 ## Alternativen
 

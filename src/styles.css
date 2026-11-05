@@ -1559,6 +1559,17 @@ body.is-dragging-note * {
   color: #0b1a2b;
 }
 
+.transport__record[aria-pressed='true'] {
+  background: rgb(194 85 80 / 0.28);
+  animation: recording 1.4s ease-in-out infinite;
+}
+
+@keyframes recording {
+  50% {
+    box-shadow: 0 0 0 4px rgb(194 85 80 / 0.28);
+  }
+}
+
 .transport__record svg {
   fill: #c25550;
   stroke: none;

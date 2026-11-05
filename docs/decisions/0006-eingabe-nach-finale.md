@@ -24,7 +24,7 @@ später daneben entstehen.
 | 0 | Pause | Finale-Doku |
 | . | Punktierung | Finale-Doku (ausgewählte Note); in der Eingabe: für die *nächste* Note – **Annahme** |
 | T | Haltebogen | Finale-Doku |
-| R | Note → Pause | Finale-Doku |
+| R | Note → Pause | Finale-Doku – **seit 0.15.0 ersetzt:** R ist die Aufnahmetaste (Entscheidung des Owners, ADR 0025); Entf macht dasselbe wie das alte R |
 | Alt + 1–7 (Mac: Option) | Notenwert der eingegebenen Note ändern | Finale-Doku |
 | H | wie B (deutsches H) | Icastico |
 | ↑ / ↓ | letzte/ausgewählte Note eine Stufe höher/tiefer | **Annahme** – in Finale bewegen die Pfeile den Cursor vertikal |

@@ -142,7 +142,7 @@ export function voiceTestDialog(platform: Platform): Promise<void> {
         e.preventDefault();
         e.stopPropagation();
         close();
-      } else if (e.code === 'Space' && !(e.target instanceof HTMLSelectElement) && !(e.target instanceof HTMLButtonElement && e.target !== hold)) {
+      } else if (e.code === 'Space' && !(e.target instanceof HTMLSelectElement)) {
         e.preventDefault();
         if (!e.repeat) startHold();
       }

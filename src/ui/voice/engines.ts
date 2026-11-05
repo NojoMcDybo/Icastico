@@ -110,6 +110,11 @@ export function voskGrammar(): string {
   return JSON.stringify([...phrases, '[unk]']);
 }
 
+/** The recogniser the record button uses: Vosk held to the words of the vocabulary (0 wrong in the owner's test, ADR 0025). */
+export function createCommandEngine(): VoiceEngine {
+  return new VoskEngine(new VoskModelHolder(), 'vosk-wortliste', 'Vosk mit Wortliste', voskGrammar());
+}
+
 export function createEngines(): VoiceEngine[] {
   const holder = new VoskModelHolder();
   return [

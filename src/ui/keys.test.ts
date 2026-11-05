@@ -76,7 +76,7 @@ describe('key-binding library', () => {
 
   it('every listed command exists, ids are unique, keys have the expected form', () => {
     const ids = new Set<string>();
-    const valid = /^((Mod|Alt|Shift)\+)*([A-Z0-9?]|Num[0-9]|F1|Plus|Minus|Period|Comma|Space|Backquote|Enter|Escape|Delete|Backspace|Insert|Arrow(Up|Down|Left|Right)|Ziehen|Klick)$/;
+    const valid = /^((Mod|Alt|Shift)\+)*([A-Z0-9?]|Num[0-9]|F1|Plus|Minus|Period|Comma|Space|Backquote|Enter|Escape|Delete|Backspace|Insert|Arrow(Up|Down|Left|Right)|Ziehen|Klick|MIDI)$/;
     for (const g of KEY_LIBRARY.groups) {
       for (const fn of g.functions) {
         expect(ids.has(fn.id), `doppelte id ${fn.id}`).toBe(false);

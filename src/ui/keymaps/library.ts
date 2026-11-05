@@ -26,7 +26,8 @@ export type UiCommandId =
   | 'play.toggle'
   | 'text.lyrics'
   | 'text.chord'
-  | 'view.voiceTest';
+  | 'view.voiceTest'
+  | 'play.record';
 
 /** Functions handled by the mouse, listed for the help only. */
 export const MOUSE_COMMANDS = new Set([
@@ -37,6 +38,7 @@ export const MOUSE_COMMANDS = new Set([
   'mouse.glideMenu',
   'mouse.playFrom',
   'mouse.dragSign',
+  'midi.note',
   'mouse.curvePoint',
 ]);
 
@@ -60,6 +62,7 @@ export const UI_COMMANDS: ReadonlySet<string> = new Set<UiCommandId>([
   'text.lyrics',
   'text.chord',
   'view.voiceTest',
+  'play.record',
 ]);
 
 export type PresetId = 'finale' | 'logic' | 'speedy';

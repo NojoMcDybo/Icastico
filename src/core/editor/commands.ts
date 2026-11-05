@@ -340,6 +340,31 @@ function enterPitchClass(s0: EditorState, pc: number): EditorState {
   return enterPitch(s, step, alter);
 }
 
+const validMidi = (n: number): boolean => Number.isInteger(n) && n >= 0 && n <= 127;
+
+/** A key of a MIDI keyboard: the note at exactly that pitch, spelled in the key like a black piano key. */
+function enterMidi(s0: EditorState, midi: number): EditorState {
+  if (!validMidi(midi)) return s0;
+  const s = ensureCaret(s0);
+  if (!s.caret) return say(s, 'Die Partitur hat keine Stimme.');
+  const { step, alter } = spellPitchClass(midi % 12, keyAt(s.score, s.caret.time));
+  return enterPitch(s, step, alter, midi);
+}
+
+/** A second key pressed together with the one just entered: its tone joins that note. */
+function addMidi(s: EditorState, midi: number): EditorState {
+  if (!validMidi(midi)) return s;
+  const t = target(s);
+  if (!t) return enterMidi(s, midi);
+  if (t.event.tones.some((tone) => midiOf(tone.pitch) === midi)) return s;
+  const { step, alter } = spellPitchClass(midi % 12, keyAt(s.score, t.event.onset));
+  const pitch: Pitch = { step, alter, octave: Math.floor(midi / 12) - 1 };
+  const score = updateEvents(s.score, t.ref, (events) =>
+    events.map((e) => (e.id === t.event.id ? { ...e, tones: sortTones([...e.tones, { id: freshToneId(s.score, e.id), pitch }]) } : e)),
+  );
+  return { ...s, score, selection: selectEvent(t.ref, t.event), message: null };
+}
+
 /** The lowest pitch of a letter (with accidental) above a sounding pitch: how chord notes are stacked. */
 function pitchAbove(step: Pitch['step'], alter: number, topMidi: number): Pitch {
   let pitch: Pitch = { step, alter, octave: -1 };
@@ -381,13 +406,14 @@ function toggleChordMode(s0: EditorState): EditorState {
 }
 
 /** Enters a note at the caret; `alter` null = as the key signature says. */
-function enterPitch(s0: EditorState, step: Pitch['step'], alterOverride: number | null): EditorState {
+function enterPitch(s0: EditorState, step: Pitch['step'], alterOverride: number | null, exactMidi?: number): EditorState {
   const s = ensureCaret(s0);
   const caret = s.caret;
   if (!caret) return say(s, 'Die Partitur hat keine Stimme.');
   if (s.input.chord) return enterChordPitch(s, caret, step, alterOverride);
   const alter = alterOverride ?? keyAlteration(keyAt(s.score, caret.time), step);
-  const pitch = nearestOctave(step, alter, referencePitch(s, caret));
+  // A MIDI key names its octave; letter keys take the nearest one.
+  const pitch = exactMidi !== undefined ? { step, alter, octave: Math.floor(exactMidi / 12) - 1 } : nearestOctave(step, alter, referencePitch(s, caret));
   const length = inputLength(s.input);
   const insert = s.input.insert;
   const prev = getVoice(s.score, caret).voice.events.find((e) => eq(eventEnd(e), caret.time));
@@ -891,6 +917,8 @@ export const COMMANDS = {
   'input.dot': { title: 'Punktierung', run: toggleDot },
   'input.note': { title: 'Note eingeben', run: enterNote },
   'input.pitchClass': { title: 'Note nach Klaviertaste eingeben', run: enterPitchClass },
+  'input.midi': { title: 'Note vom MIDI-Keyboard eingeben', run: enterMidi },
+  'input.midiAdd': { title: 'Weiteren Ton vom MIDI-Keyboard zum Akkord', run: addMidi },
   'mark.toggle': { title: 'Zeichen an der Note (Dynamik, Artikulation, Verzierung)', run: toggleMark },
   'mark.bar': { title: 'Zeichen am Takt (Wiederholung, Klammer, Segno, Coda, Sprung)', run: toggleBarSign },
   'edit.tab': { title: 'Tabulatur an/aus', run: toggleTab },

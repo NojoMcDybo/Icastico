@@ -12,6 +12,8 @@ export class Recorder {
   private recording = false;
   /** Called for every block with its loudness 0–1 (for a level meter). */
   onLevel: (level: number) => void = () => undefined;
+  /** Called with every block as it comes in (the record button cuts words out of this). */
+  onBlock: (block: Float32Array, rate: number) => void = () => undefined;
 
   /** Asks for the microphone (the first time the system asks the user). Throws with a readable message. */
   async open(): Promise<void> {
@@ -31,6 +33,7 @@ export class Recorder {
       let sum = 0;
       for (const v of block) sum += v * v;
       this.onLevel(Math.min(1, Math.sqrt(sum / block.length) * 4));
+      this.onBlock(block, context.sampleRate);
       this.chunks.push(block);
       this.length += block.length;
       if (!this.recording) {

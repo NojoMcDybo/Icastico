@@ -198,7 +198,7 @@
           "id": "edit.toRest",
           "title": "Note in Pause umwandeln",
           "command": "edit.toRest",
-          "finale": { "keys": ["R"], "source": "doku" }
+          "finale": { "keys": [], "source": "icastico", "note": "In Finale R; hier ist R die Aufnahmetaste, Entf macht dasselbe." }
         },
         {
           "id": "edit.delete",
@@ -500,8 +500,17 @@
         },
         {
           "id": "play.record",
-          "title": "Aufnahme",
+          "title": "Aufnahme: Sprache und MIDI-Keyboard hören zu",
+          "command": "play.record",
+          "finale": { "keys": ["R"], "source": "icastico", "note": "Vom Owner bestimmt (Plan Sprachbefehle). In Finale macht R aus einer Note eine Pause; das geht hier mit Entf." },
           "logic": { "keys": ["R"], "source": "doku" }
+        },
+        {
+          "id": "midi.note",
+          "title": "MIDI-Keyboard: Taste spielen gibt die Note ein (bei laufender Aufnahme; mehrere Tasten zugleich = Akkord)",
+          "command": "midi.note",
+          "finale": { "keys": ["MIDI"], "source": "icastico" },
+          "logic": { "keys": ["MIDI"], "source": "icastico" }
         },
         {
           "id": "play.metronome",

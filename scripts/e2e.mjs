@@ -552,7 +552,7 @@ try {
   for (let k = 0; k < 8; k++) await page.click('.transport__buttons button[aria-label="Einen Takt vor"]');
   const lastBar = Number(await lcd('TAKT').first().textContent());
   check(lastBar >= 2, `Vorspulen bleibt am letzten Takt (Takt ${lastBar}) stehen, springt nicht zurück zum Anfang`);
-  check((await page.locator('.transport__record').isDisabled()), 'Der Aufnahmeknopf ist noch gesperrt (kommt später)');
+  check(!(await page.locator('.transport__record').isDisabled()), 'Der Aufnahmeknopf ist bedienbar');
   await page.screenshot({ path: join(outDir, 'transport.png') });
 
   // ── Akkorde: Akkordmodus, Aufeinanderziehen, Überzeichnen ──
@@ -745,6 +745,30 @@ try {
   await testPage.keyboard.press('Enter');
   check(/nicht verstanden/.test((await testPage.textContent('#status')) ?? '') || (await testPage.locator('.voice-field input').inputValue()) === '', 'Sprach-Testfeld (?voice=test): ein getipptes Wort wird entgegengenommen');
   await testPage.close();
+
+  // ── Aufnahmeknopf: Sprache und MIDI-Keyboard hören zu ──
+  await newScore('Aufnahme-Test');
+  await page.evaluate(() => {
+    const keyboard = { name: 'Test-Keyboard', onmidimessage: null };
+    window.__midiKeyboard = keyboard;
+    navigator.requestMIDIAccess = async () => ({ inputs: { forEach: (cb) => cb(keyboard) }, onstatechange: null });
+  });
+  const press = (...keys) => page.evaluate((k) => k.forEach((n) => window.__midiKeyboard.onmidimessage?.({ data: new Uint8Array([0x90, n, 100]) })), keys);
+  await type('5');
+  await page.click('.transport__record');
+  await page.waitForFunction(() => /hört zu/.test(document.querySelector('#status')?.textContent ?? ''), null, { timeout: 90000 });
+  const listening = await status();
+  check(/Sprache/.test(listening) && /Test-Keyboard/.test(listening) && /● Aufnahme/.test(await mode()), 'Aufnahme: der Knopf startet Sprache (Mikrofon, Sprachmodell) und MIDI-Keyboard, die Anzeige zeigt „● Aufnahme“');
+  await press(64);
+  check((await notes()) === 1, 'Aufnahme: eine MIDI-Taste gibt eine Note ein');
+  await page.waitForTimeout(150); // a pause between the chords (a key within 60 ms of the first joins it)
+  await press(67, 71);
+  check((await notes()) === 3 && (await page.locator('.page g.chord').count()) === 1, 'Aufnahme: zwei Tasten zugleich werden ein Akkord auf einer Note');
+  await type('r');
+  check((await page.getAttribute('.transport__record', 'aria-pressed')) === 'false' && !/● Aufnahme/.test(await mode()), 'Aufnahme: die Taste R schaltet die Aufnahme wieder aus');
+  await press(72);
+  check((await notes()) === 3, 'Aufnahme aus: das Keyboard gibt keine Noten mehr ein');
+  await type('Escape');
 
   // ── Sprachtest-Dialog (Paket 3): Mikrofon, Sprachmodell, Erkennung, Auswertung, Ergebnisdatei ──
   await type('Control+Shift+v');

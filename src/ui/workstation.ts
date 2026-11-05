@@ -39,6 +39,8 @@ import { PianoRoll, type RollHost } from './pianoRoll';
 import { Player } from './player';
 import { Transport } from './transport';
 import { currentVoice, voiceTestEnabled } from '../platform/voice';
+import { type MidiListener, listenToMidi } from '../platform/midi';
+import { VoiceListener } from './voice/listener';
 import { VoiceController, mountVoiceField } from './voice/controller';
 import { laneControls, type LaneControls } from './laneControls';
 import {
@@ -115,6 +117,8 @@ const isInside = (root: string, path: string): boolean => {
 const SCALE = 55;
 /** Clicks this close (px) to a symbol still hit it, e.g. inside a hollow notehead. */
 const HIT_TOLERANCE = 10;
+/** MIDI keys pressed within this time after the first one count as one chord. */
+const CHORD_WINDOW_MS = 60;
 /** How close (px) the pointer must be to a placed sign to pick it up. */
 const SIGN_TOLERANCE = 6;
 
@@ -162,6 +166,12 @@ export class Workstation {
   private drag: NoteDrag | null = null;
   /** Space is held: a click in the notation plays from there instead of selecting. */
   private readonly symbols: SymbolPalette;
+  /** The record button is on: speech and the MIDI keyboard are being listened to. */
+  private recording = false;
+  private voiceListener: VoiceListener | null = null;
+  private midiListener: MidiListener | null = null;
+  /** When the first key of the current MIDI chord was pressed (ms), to tell chords from single notes. */
+  private chordStart = -Infinity;
   /** How the music being played maps back onto the written score (repeats, jumps). */
   private playMap: PlayMap = { score: undefined as never, fromScore: (t) => t, toScore: (t) => t };
   private spaceHeld = false;
@@ -248,6 +258,7 @@ export class Workstation {
       play: () => this.togglePlay(),
       stop: () => (this.player.active ? this.player.stop() : this.seek(ZERO)),
       toStart: () => this.seek(ZERO),
+      toggleRecord: () => void this.toggleRecord(),
       step: (direction) => this.stepBar(direction),
       toggleLoop: () => {
         this.loop = !this.loop;
@@ -259,16 +270,21 @@ export class Workstation {
     });
     // Spoken commands (plan "Sprachbefehle"): for now only the stand-in source – text field in test mode, `window.__voiceHear`.
     const voice = currentVoice();
-    new VoiceController(
+    const voiceController = new VoiceController(
       {
         run: (command, arg) => this.run(command, arg),
         say: (message) => {
           this.history.apply({ ...this.state, message });
           this.renderStatus();
         },
-        ready: () => !this.empty && !isDialogOpen() && !this.busy,
+        ready: () => !this.empty && !isDialogOpen() && !this.busy && !this.player.active,
       },
       voice,
+    );
+    this.voiceListener = new VoiceListener(
+      (text, confidence) => voiceController.hear(text, confidence),
+      (message) => this.say(message),
+      () => this.recording && !this.player.active,
     );
     if (voiceTestEnabled()) mountVoiceField((text) => voice.hear(text, 1));
     el.rollButton.addEventListener('click', () => this.run('view.roll'));
@@ -422,6 +438,9 @@ export class Workstation {
         return;
       case 'file.exportXml':
         void this.fileExportXml();
+        return;
+      case 'play.record':
+        void this.toggleRecord();
         return;
       case 'view.voiceTest':
         void import('./voice/voiceTest').then(({ voiceTestDialog }) => voiceTestDialog(this.platform));
@@ -1394,6 +1413,65 @@ export class Workstation {
     };
   }
 
+  // ── Record button: speech and MIDI keyboard ──────────────────────────────
+
+  private say(message: string): void {
+    this.history.apply({ ...this.state, message });
+    this.renderStatus();
+  }
+
+  /** Starts / stops listening to the microphone (spoken commands) and to a MIDI keyboard (played notes). */
+  private async toggleRecord(): Promise<void> {
+    if (this.recording) return this.stopRecording();
+    if (this.empty) return;
+    this.recording = true;
+    this.renderTransport();
+    this.say('● Aufnahme: Sprache und MIDI-Keyboard werden vorbereitet …');
+    const problems: string[] = [];
+    const started: string[] = [];
+    await Promise.all([
+      this.voiceListener!.start().then(
+        () => started.push('Sprache'),
+        (err) => problems.push(err instanceof Error ? err.message : String(err)),
+      ),
+      listenToMidi((note) => this.midiNote(note.pitch)).then(
+        (midi) => {
+          this.midiListener = midi;
+          started.push(midi.inputs.length ? `MIDI (${midi.inputs.join(', ')})` : 'MIDI (noch kein Keyboard angeschlossen)');
+        },
+        (err) => problems.push(err instanceof Error ? err.message : String(err)),
+      ),
+    ]);
+    if (!this.recording) return this.stopSources(); // switched off again while it was starting
+    if (started.length === 0) {
+      this.recording = false;
+      this.renderTransport();
+    }
+    this.say(started.length ? `● Aufnahme: hört zu – ${started.join(' und ')}.${problems.length ? ' Nicht möglich: ' + problems.join(' ') : ''}` : `Aufnahme nicht möglich: ${problems.join(' ')}`);
+  }
+
+  private stopRecording(): void {
+    this.recording = false;
+    this.stopSources();
+    this.renderTransport();
+    this.say('Aufnahme aus.');
+  }
+
+  private stopSources(): void {
+    this.voiceListener?.stop();
+    this.midiListener?.stop();
+    this.midiListener = null;
+  }
+
+  /** A key of the MIDI keyboard: a note at the caret; keys pressed within 60 ms of the first join it as a chord. */
+  private midiNote(pitch: number): void {
+    if (!this.recording || this.empty || isDialogOpen() || this.busy) return;
+    const now = performance.now();
+    const together = now - this.chordStart < CHORD_WINDOW_MS;
+    if (!together) this.chordStart = now;
+    this.run(together ? 'input.midiAdd' : 'input.midi', pitch);
+  }
+
   // ── Playback ─────────────────────────────────────────────────────────────
 
   private togglePlay(): void {
@@ -1439,7 +1517,7 @@ export class Workstation {
   }
 
   private renderTransport(): void {
-    this.transport.show({ score: this.state.score, time: this.playPos, playing: this.player.active, loop: this.loop, disabled: this.empty });
+    this.transport.show({ score: this.state.score, time: this.playPos, playing: this.player.active, loop: this.loop, recording: this.recording, disabled: this.empty });
     this.renderPlayhead();
   }
 
@@ -1448,7 +1526,7 @@ export class Workstation {
       for (const ui of this.rollLanes.values()) ui.roll.setPlayhead(this.empty ? null : this.playPos, false);
     } else {
       for (const ui of this.rollLanes.values()) ui.roll.setPlayhead(this.playPos, true);
-      this.transport.show({ score: this.state.score, time: this.playPos, playing: true, loop: this.loop, disabled: false });
+      this.transport.show({ score: this.state.score, time: this.playPos, playing: true, loop: this.loop, recording: this.recording, disabled: false });
     }
   }
 
@@ -1739,6 +1817,7 @@ export class Workstation {
     this.el.status.textContent = this.empty ? EMPTY_HINT : (s.message ?? this.describeSelection() ?? HINT);
     if (s.caret) {
       const parts = [`Eingabe · ${durationName(inputLength(s.input))}`];
+      if (this.recording) parts.unshift('● Aufnahme');
       if (s.input.insert) parts.push('Einfügen');
       if (s.input.chord) parts.push('Akkord');
       if (s.input.pendingTie) parts.push('Haltebogen ⌒');

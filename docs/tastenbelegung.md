@@ -44,7 +44,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Notenwert der Note ändern | `Alt+1` 64tel, `Alt+2` 32tel, `Alt+3` 16tel, `Alt+4` Achtel, `Alt+5` Viertel, `Alt+6` Halbe, `Alt+7` Ganze | `Alt+1` Ganze, `Alt+2` Halbe, `Alt+3` Viertel, `Alt+4` Achtel, `Alt+5` 16tel, `Alt+6` 32tel, `Alt+7` 64tel *(Icastico)* | (wie Finale) | ✓ |
 | Haltebogen zur nächsten Note gleicher Tonhöhe (nochmal: lösen) | `T` | `Umschalt+T` *(Icastico)* – T ist in Logic die Taste für Fis. | (wie Finale) | ✓ |
 | Gleiten zur nächsten Note (nochmal: lösen). Die Lücke dazwischen ist die Gleitdauer | `Strg+Umschalt+G` *(Icastico)* | `Strg+Umschalt+G` *(Icastico)* | (wie Finale) | ✓ |
-| Note in Pause umwandeln | `R` | – | (wie Finale) | ✓ |
+| Note in Pause umwandeln | *In Finale R; hier ist R die Aufnahmetaste, Entf macht dasselbe.* | – | (wie Finale) | ✓ |
 | Note löschen (wird zur Pause) | `Entf` *(Annahme)* | `Entf` | (wie Finale) | ✓ |
 | Letzte Note löschen und zurückgehen | `⌫` *(Annahme)* | `⌫` *(Icastico)* | (wie Finale) | ✓ |
 | Angeklickten Akkordton in eine eigene Stimme lösen | `Strg+Umschalt+D` *(Icastico)* | `Strg+Umschalt+D` *(Icastico)* | (wie Finale) | ✓ |
@@ -101,7 +101,8 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Funktion | Finale | Logic Pro | Finale-Ziffernblock | Icastico |
 |---|---|---|---|---|
 | Wiedergabe starten / stoppen | `Strg+Enter` / `Leertaste` – Wie bei Finale startet und stoppt die Leertaste. Während der Wiedergabe stoppt sie in jeder Belegung. | `Strg+Enter` *(Icastico)* – In Logic startet die Leertaste die Wiedergabe; hier ist sie die Pause der Schritteingabe – nur während der Wiedergabe stoppt sie. | (wie Finale) | ✓ |
-| Aufnahme | – | `R` | (wie Finale) | geplant |
+| Aufnahme: Sprache und MIDI-Keyboard hören zu | `R` *(Icastico)* – Vom Owner bestimmt (Plan Sprachbefehle). In Finale macht R aus einer Note eine Pause; das geht hier mit Entf. | `R` | (wie Finale) | ✓ |
+| MIDI-Keyboard: Taste spielen gibt die Note ein (bei laufender Aufnahme; mehrere Tasten zugleich = Akkord) | `MIDI` *(Icastico)* | `MIDI` *(Icastico)* | (wie Finale) | ✓ |
 | Metronom an / aus | – | `K` | (wie Finale) | geplant |
 | Wiederholbereich (Cycle) an / aus | – | `C` | (wie Finale) | geplant |
 

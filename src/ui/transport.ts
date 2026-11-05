@@ -11,6 +11,8 @@ export interface TransportHost {
   play(): void;
   stop(): void;
   toStart(): void;
+  /** Record button: starts / stops listening to speech and the MIDI keyboard. */
+  toggleRecord(): void;
   /** One bar back (-1) or forward (+1). */
   step(direction: number): void;
   /** Returns whether looping is on now. */
@@ -25,6 +27,7 @@ export interface TransportInfo {
   readonly time: Fraction;
   readonly playing: boolean;
   readonly loop: boolean;
+  readonly recording: boolean;
   readonly disabled: boolean;
 }
 
@@ -63,6 +66,7 @@ function cell(label: string, tag: 'span' | 'button'): { el: HTMLElement; value: 
 
 export class Transport {
   private readonly playButton = button('play', 'Wiedergabe starten (Strg+Eingabe)', 'transport__play');
+  private readonly recordButton = button('record', 'Aufnahme: Sprache und MIDI-Keyboard hören zu (R)', 'transport__record');
   private readonly stopButton = button('stop', 'Anhalten (Strg+Eingabe) – noch einmal: zum Anfang', 'transport__stop');
   private readonly loopButton = button('loop', 'Wiederholen: die ganze Partitur immer wieder', 'transport__loop');
   private readonly bar = cell('TAKT', 'span');
@@ -78,8 +82,6 @@ export class Transport {
     const start = button('start', 'Zum Anfang', '');
     const back = button('back', 'Einen Takt zurück', '');
     const forward = button('forward', 'Einen Takt vor', '');
-    const record = button('record', 'Aufnehmen – kommt später (Noten diktieren oder einspielen)', 'transport__record');
-    record.disabled = true;
     start.addEventListener('click', () => host.toStart());
     back.addEventListener('click', () => host.step(-1));
     forward.addEventListener('click', () => host.step(1));
@@ -87,13 +89,15 @@ export class Transport {
       if (!this.current?.playing) host.play();
     });
     this.stopButton.addEventListener('click', () => host.stop());
+    this.recordButton.addEventListener('click', () => host.toggleRecord());
+    this.recordButton.setAttribute('aria-pressed', 'false');
     this.loopButton.addEventListener('click', () => this.loopButton.setAttribute('aria-pressed', String(host.toggleLoop())));
     this.loopButton.setAttribute('aria-pressed', 'false');
-    this.buttons.push(start, back, forward, this.playButton, this.stopButton, this.loopButton);
+    this.buttons.push(start, back, forward, this.playButton, this.stopButton, this.recordButton, this.loopButton);
 
     const group = document.createElement('div');
     group.className = 'transport__buttons';
-    group.append(start, back, this.playButton, this.stopButton, forward, record, this.loopButton);
+    group.append(start, back, this.playButton, this.stopButton, forward, this.recordButton, this.loopButton);
 
     const lcd = document.createElement('div');
     lcd.className = 'lcd';
@@ -126,6 +130,7 @@ export class Transport {
     this.meter.value.textContent = `${sig.count}/${sig.unit}`;
     this.key.value.textContent = keyName(keyAt(info.score, info.time));
     this.playButton.setAttribute('aria-pressed', String(info.playing));
+    this.recordButton.setAttribute('aria-pressed', String(info.recording));
     for (const b of this.buttons) b.disabled = info.disabled;
     for (const c of [this.tempo.el, this.meter.el, this.key.el]) (c as HTMLButtonElement).disabled = info.disabled;
     this.loopButton.setAttribute('aria-pressed', String(info.loop));
