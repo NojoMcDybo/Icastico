@@ -7,6 +7,7 @@ import { add, frac, ZERO } from '../time';
 import { midiOf, pitchToString } from '../pitch';
 import { validateScore, type Score } from '../model';
 import { parseLine } from '../line';
+import { NOTE_SYMBOL_IDS } from '../symbols';
 
 /**
  * What the music is, independent of ids and voice numbering: per part, every note as "onset dur pitches lyric".
@@ -90,6 +91,40 @@ describe('MusicXML export (round trip through the importer)', () => {
     const text = exportMusicXml(score).notes.join(' ');
     expect(text).toMatch(/Gleiten: 1×/);
     expect(text).toMatch(/Lautstärke/);
+  });
+
+  it('special signs on notes and bars survive the round trip (ADR 0024)', () => {
+    const base = emptyScore();
+    const voice = base.parts[0]!.voices[0]!;
+    const signs: Record<number, string[]> = { 0: ['mf', 'stacc', 'fermata'], 1: ['cresc', 'acc'], 2: ['trill'], 3: ['f'], 4: ['marc', 'turn'], 5: ['prall'], 6: ['sfz', 'ten'], 7: ['dim'] };
+    const events = parseLine('C5:1 D5:1 E5:1 F5:1 G5:1 A5:1 B5:1 C6:1', 'e').map((e, i) => (signs[i] ? { ...e, marks: signs[i]! } : e));
+    const score: Score = {
+      ...base,
+      marks: [
+        { at: frac(0), kind: 'repeatStart' },
+        { at: frac(1), kind: 'segno' },
+        { at: frac(2), kind: 'volta1' },
+        { at: frac(3), kind: 'repeatEnd' },
+        { at: frac(3), kind: 'volta1' },
+        { at: frac(3), kind: 'toCoda' },
+        { at: frac(4), kind: 'volta2' },
+        { at: frac(5), kind: 'dsCoda' },
+        { at: frac(6), kind: 'coda' },
+        { at: frac(7), kind: 'fine' },
+      ],
+      parts: [{ ...base.parts[0]!, voices: [{ ...voice, events }] }],
+    };
+    const { xml, notes } = exportMusicXml(score);
+    expect(notes).toEqual([]);
+    expect(xml).toContain('<repeat direction="backward"/>');
+    expect(xml).toContain('<ending number="1" type="start"/>');
+    expect(xml).toContain('<wedge type="stop"/>');
+    const back = importMusicXml(xml);
+    expect(back.notes).toEqual([]);
+    expect(back.score.marks).toEqual(score.marks);
+    expect(back.score.parts[0]!.voices[0]!.events.map((e) => e.marks ?? [])).toEqual(
+      events.map((e) => e.marks ?? []).map((m) => [...m].sort((x, y) => NOTE_SYMBOL_IDS.indexOf(x) - NOTE_SYMBOL_IDS.indexOf(y))),
+    );
   });
 
   it('refuses an invalid score instead of writing a broken file', () => {

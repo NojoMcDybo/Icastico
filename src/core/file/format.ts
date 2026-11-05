@@ -14,7 +14,7 @@ import { type Fraction, compare, fracToString, parseFrac } from '../time';
 import { parsePitch, pitchToString } from '../pitch';
 import { type InstrumentId, INSTRUMENTS } from '../instruments';
 import { type Curve, type CurveKind, DEFAULT_VOLUME, curveProblem } from '../curve';
-import { type Link, type NoteEvent, type Part, type Score, type Tone, type Voice, validateScore } from '../model';
+import { type BarMark, type Link, type NoteEvent, type Part, type Score, type Tone, type Voice, validateScore } from '../model';
 
 export const FILE_EXTENSION = 'icastico';
 /**
@@ -23,9 +23,10 @@ export const FILE_EXTENSION = 'icastico';
  * 4 = optional `links` (ties and slides between tones, ADR 0014),
  * 5 = optional `tempo` (quarter notes per minute, ADR 0015),
  * 6 = optional loudness `vol` and `curve` per tone, optional `curve` per link (ADR 0016),
+ * 8 = optional `marks` per note (special signs) and per score (bar signs: repeats, endings, jumps; ADR 0024),
  * 7 = optional `lyric` per note, `chords` (chord symbols) per score (ADR 0019), `tab` per part (ADR 0022).
  */
-export const FORMAT_VERSION = 7;
+export const FORMAT_VERSION = 8;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -45,6 +46,7 @@ function scoreToJson(score: Score): unknown {
     keys: score.keys.map((k) => ({ at: fracToString(k.at), fifths: k.fifths })),
     ...(score.pickup ? { pickup: fracToString(score.pickup) } : {}),
     ...(score.tempo !== undefined ? { tempo: score.tempo } : {}),
+    ...(score.marks?.length ? { marks: score.marks.map((m) => ({ at: fracToString(m.at), kind: m.kind })) } : {}),
     ...(score.chords?.length ? { chords: score.chords.map((c) => ({ at: fracToString(c.at), text: c.text })) } : {}),
     ...(score.links?.length ? { links: score.links.map((l) => ({ id: l.id, kind: l.kind, from: l.from, to: l.to, ...(l.curve ? { curve: curveToJson(l.curve) } : {}) })) } : {}),
     parts: score.parts.map((p) => ({
@@ -60,6 +62,7 @@ function scoreToJson(score: Score): unknown {
           at: fracToString(e.onset),
           dur: fracToString(e.duration),
           ...(e.lyric !== undefined ? { lyric: e.lyric } : {}),
+          ...(e.marks?.length ? { marks: [...e.marks] } : {}),
           tones: e.tones.map((t) => ({
             id: t.id,
             pitch: pitchToString(t.pitch),
@@ -178,6 +181,9 @@ function readEvent(v: unknown, where: string): NoteEvent {
     duration: time(o.dur, `${where} (${id}).dur`),
     tones,
     ...(o.lyric !== undefined ? { lyric: str(o.lyric, `${where} (${id}).lyric`) } : {}),
+    ...(o.marks !== undefined && arr(o.marks, `${where} (${id}).marks`).length > 0
+      ? { marks: arr(o.marks, `${where} (${id}).marks`).map((m, i) => str(m, `${where} (${id}).marks[${i}]`)) }
+      : {}),
   };
 }
 
@@ -238,6 +244,16 @@ function readScore(v: unknown): Score {
     ...(o.pickup !== undefined ? { pickup: time(o.pickup, 'Auftakt') } : {}),
     ...(o.tempo !== undefined ? { tempo: int(o.tempo, 'Tempo') } : {}),
     ...(o.links !== undefined && arr(o.links, 'Verbindungen').length > 0 ? { links: arr(o.links, 'Verbindungen').map(readLink) } : {}),
+    ...(o.marks !== undefined && arr(o.marks, 'Taktzeichen').length > 0
+      ? {
+          marks: arr(o.marks, 'Taktzeichen')
+            .map((m, i) => {
+              const e = obj(m, `Taktzeichen ${i + 1}`);
+              return { at: time(e.at, `Taktzeichen ${i + 1}`), kind: str(e.kind, `Taktzeichen ${i + 1}`) as BarMark['kind'] };
+            })
+            .sort((a, b) => compare(a.at, b.at)),
+        }
+      : {}),
     ...(o.chords !== undefined && arr(o.chords, 'Akkordsymbole').length > 0
       ? {
           chords: arr(o.chords, 'Akkordsymbole')
@@ -270,6 +286,8 @@ const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
   5: (doc) => ({ ...doc, version: 6 }),
   // 6 → 7: adds the optional "lyric" of notes and "chords" of the score. Version-6 files have none.
   6: (doc) => ({ ...doc, version: 7 }),
+  // 7 → 8: adds the optional "marks" of notes and of the score. Version-7 files have none.
+  7: (doc) => ({ ...doc, version: 8 }),
 };
 
 /** Applies `fn` to every event object of a (still unvalidated) score; anything unexpected is left for the reader to reject. */

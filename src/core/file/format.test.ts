@@ -10,6 +10,7 @@ import version3File from './fixtures/version3.icastico?raw';
 import version4File from './fixtures/version4.icastico?raw';
 import version5File from './fixtures/version5.icastico?raw';
 import version6File from './fixtures/version6.icastico?raw';
+import version7File from './fixtures/version7.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -296,5 +297,32 @@ describe('format version 7: lyrics and chord symbols (ADR 0019)', () => {
     expect(() => parseScoreFile(serializeScore({ ...base, chords: [{ at: frac(0, 1), text: ' ' }] }, '0'))).toThrow(/Akkordsymbol/);
     const bad = { ...base, parts: base.parts.map((p, pi) => (pi ? p : { ...p, voices: p.voices.map((v, vi) => (vi ? v : { ...v, events: v.events.map((e, i) => (i ? e : { ...e, lyric: 'a b' })) })) })) };
     expect(() => parseScoreFile(serializeScore(bad, '0'))).toThrow(/Liedtext/);
+  });
+});
+
+describe('format version 8: special signs (ADR 0024)', () => {
+  it('opens files saved by Icastico 0.12.0 (format version 7): lyrics and chord symbols kept, no signs', () => {
+    const score = parseScoreFile(version7File);
+    expect(fileVersion(version7File)).toBe(7);
+    expect(score.chords).toEqual([{ at: frac(0, 1), text: 'Am7' }]);
+    expect(score.marks).toBeUndefined();
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  it('keeps note signs and bar signs exactly and rejects unknown ones', () => {
+    const base = parseScoreFile(version7File);
+    const score: Score = {
+      ...base,
+      marks: [{ at: frac(0, 1), kind: 'repeatStart' }, { at: frac(1, 1), kind: 'volta1' }, { at: frac(1, 1), kind: 'repeatEnd' }],
+      parts: base.parts.map((p) => ({ ...p, voices: p.voices.map((v, vi) => ({ ...v, events: v.events.map((e, ei) => (vi === 0 && ei === 0 ? { ...e, marks: ['mf', 'stacc', 'fermata'] } : e)) })) })),
+    };
+    const text = serializeScore(score, '0.0.0');
+    expect(text).toContain('"marks": ["mf", "stacc", "fermata"]');
+    expect(parseScoreFile(text)).toEqual(score);
+    expect(() => parseScoreFile(serializeScore({ ...score, marks: [{ at: frac(0, 1), kind: 'nonsense' as never }] }, '0'))).toThrow(/Taktzeichen/);
+    const bad = { ...score, parts: score.parts.map((p) => ({ ...p, voices: p.voices.map((v) => ({ ...v, events: v.events.map((e) => (e.marks ? { ...e, marks: ['zzz'] } : e)) })) })) };
+    expect(() => parseScoreFile(serializeScore(bad, '0'))).toThrow(/Zeichen/);
   });
 });

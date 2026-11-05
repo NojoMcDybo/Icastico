@@ -13,6 +13,7 @@ import { type Fraction, ZERO, add, compare, eq, frac, le, lt, sub } from '../tim
 import { type Pitch, STEPS, midiOf, spellMidi } from '../pitch';
 import { type InstrumentId, getInstrument } from '../instruments';
 import {
+  type BarMark,
   type ChordSymbol,
   type KeyChange,
   type Link,
@@ -28,6 +29,7 @@ import {
   validateScore,
 } from '../model';
 import { decomposeTuplet } from '../notation/notate';
+import { BAR_SIGNS, noteSymbol, toggleNoteSymbol, type BarSignKind } from '../symbols';
 import { type XmlElement, XmlError, child, childText, childrenNamed, parseXml } from './xml';
 
 export const KIND_TEXT: Record<string, string> = {
@@ -123,6 +125,27 @@ interface Raw {
   readonly tieStart: boolean[];
   readonly tieStop: boolean[];
   readonly lyric: string | null;
+  /** Signs of the sign library found on / before the note (ADR 0024). */
+  readonly marks: string[];
+}
+
+const ARTICULATIONS: Record<string, string> = { staccato: 'stacc', staccatissimo: 'stacciss', tenuto: 'ten', accent: 'acc', 'strong-accent': 'marc' };
+const ORNAMENTS: Record<string, string> = { 'trill-mark': 'trill', mordent: 'mord', 'inverted-mordent': 'prall', turn: 'turn' };
+
+/** The signs of a note's <notations>; what the library does not know is counted in `unknown`. */
+function notationMarks(note: XmlElement, unknown: () => void): string[] {
+  const out: string[] = [];
+  for (const n of childrenNamed(note, 'notations')) {
+    for (const group of [child(n, 'articulations'), child(n, 'ornaments')]) {
+      for (const sign of group?.children ?? []) {
+        const id = ARTICULATIONS[sign.name] ?? ORNAMENTS[sign.name];
+        if (id) out.push(id);
+        else if (sign.name !== 'accidental-mark') unknown();
+      }
+    }
+    if (child(n, 'fermata')) out.push('fermata');
+  }
+  return out;
 }
 
 const STEP_SET = new Set<string>(STEPS);
@@ -183,6 +206,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
 
   const parts: Part[] = [];
   const chordSymbols = new Map<string, ChordSymbol>();
+  const barMarks = new Map<string, BarMark>();
   const links: Link[] = [];
   let linkNumber = 0;
 
@@ -205,6 +229,9 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
     let fifths = 0;
     let measureStart: Fraction = ZERO;
     const raws = new Map<string, Raw[]>(); // "staff:voice" → notes
+    const comingMarks: string[] = []; // dynamics and wedges written before the note they belong to
+    let voltaOpen = 0;
+    let voltaClose = false;
 
     measures.forEach((measureEl, mi) => {
       const here = starts[mi] ?? measureStart;
@@ -214,6 +241,10 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
       let lastOnset = 0;
       let last: Raw | null = null;
       const at = (pos: number): Fraction => add(here, frac(Math.round(pos), 4 * divisions));
+      /** Bar signs are taken from the first part; every part has the same bars. */
+      const addBar = (kind: BarSignKind): void => {
+        if (partIndex === 0) barMarks.set(`${kind}@${here.n}/${here.d}`, { at: here, kind });
+      };
 
       for (const el of measureEl.children) {
         if (el.name === 'attributes') {
@@ -249,7 +280,20 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
           const sound = el.name === 'sound' ? el : child(el, 'sound');
           const bpm = sound?.attrs.tempo ? Number(sound.attrs.tempo) : NaN;
           if (partIndex === 0 && tempo === undefined && Number.isFinite(bpm)) tempo = Math.max(MIN_TEMPO, Math.min(MAX_TEMPO, Math.round(bpm)));
-          if (el.name === 'direction' && child(el, 'direction-type') && child(child(el, 'direction-type')!, 'words')) skip('Textanweisungen');
+          for (const type of el.name === 'direction' ? childrenNamed(el, 'direction-type') : []) {
+            for (const d of child(type, 'dynamics')?.children ?? []) if (noteSymbol(d.name)?.group === 'dynamic') comingMarks.push(d.name);
+            const wedge = child(type, 'wedge');
+            if (wedge?.attrs.type === 'crescendo') comingMarks.push('cresc');
+            else if (wedge?.attrs.type === 'diminuendo') comingMarks.push('dim');
+            if (child(type, 'segno')) addBar('segno');
+            if (child(type, 'coda')) addBar('coda');
+            const words = child(type, 'words')?.text.trim();
+            if (words) {
+              const sign = BAR_SIGNS.find((b) => b.text === words);
+              if (sign) addBar(sign.id);
+              else skip('Textanweisungen');
+            }
+          }
         } else if (el.name === 'harmony') {
           const text = chordText(el);
           const time = placeable(at(cursor)) ? at(cursor) : snap(at(cursor));
@@ -310,15 +354,26 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
             }
             continue;
           }
-          const raw: Raw = { onset: start, duration: lt(start, finish) ? sub(finish, start) : frac(1, 64), pitches: [pitch], tieStart: [tieStart], tieStop: [tieStop], lyric: syllableOf(el) };
+          const marks = [...comingMarks.splice(0), ...notationMarks(el, () => skip('Zeichen, die es in der Bibliothek nicht gibt'))].reduce<string[]>((list, id) => (list.includes(id) ? list : toggleNoteSymbol(list, id)), []);
+          const raw: Raw = { onset: start, duration: lt(start, finish) ? sub(finish, start) : frac(1, 64), pitches: [pitch], tieStart: [tieStart], tieStop: [tieStop], lyric: syllableOf(el), marks };
           const list = raws.get(key) ?? [];
           list.push(raw);
           raws.set(key, list);
           last = raw;
-        } else if (el.name === 'print' || el.name === 'barline' || el.name === 'figured-bass') {
+        } else if (el.name === 'barline') {
+          const repeat = child(el, 'repeat');
+          if (repeat) addBar(repeat.attrs.direction === 'forward' ? 'repeatStart' : 'repeatEnd');
+          const ending = child(el, 'ending');
+          if (ending?.attrs.type === 'start') voltaOpen = Math.min(3, Math.max(1, parseInt(ending.attrs.number ?? '1', 10) || 1));
+          else if (ending) voltaClose = true;
+        } else if (el.name === 'print' || el.name === 'figured-bass') {
           // layout only
         }
       }
+
+      if (voltaOpen) addBar(`volta${voltaOpen}` as BarSignKind);
+      if (voltaClose) voltaOpen = 0;
+      voltaClose = false;
 
       // Length of this measure: the notated meter, except an incomplete first measure (upbeat).
       const full = measureLength(sig);
@@ -360,7 +415,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
         // Tones are sorted by sounding pitch; the tie flags travel with their tone.
         const order = raw.pitches.map((_, ti) => ti).sort((a, b) => midiOf(raw.pitches[a]!) - midiOf(raw.pitches[b]!));
         const tones = order.map((src, ti) => ({ id: `${id}-t${ti + 1}`, pitch: raw.pitches[src]!, src }));
-        lane.events.push({ id, onset: raw.onset, duration: raw.duration, tones: tones.map(({ id: toneId, pitch }) => ({ id: toneId, pitch })), ...(raw.lyric ? { lyric: raw.lyric } : {}) });
+        lane.events.push({ id, onset: raw.onset, duration: raw.duration, tones: tones.map(({ id: toneId, pitch }) => ({ id: toneId, pitch })), ...(raw.lyric ? { lyric: raw.lyric } : {}), ...(raw.marks.length ? { marks: raw.marks } : {}) });
         lane.end = add(raw.onset, raw.duration);
         tones.forEach((t) => {
           toneAt.set(`${key}|${raw.onset.n}/${raw.onset.d}|${midiOf(t.pitch)}`, t.id);
@@ -395,6 +450,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
     ...(pickup ? { pickup } : {}),
     ...(tempo !== undefined && tempo !== DEFAULT_TEMPO ? { tempo } : {}),
     ...(links.length ? { links } : {}),
+    ...(barMarks.size ? { marks: [...barMarks.values()].sort((a, b) => compare(a.at, b.at) || BAR_SIGNS.findIndex((x) => x.id === a.kind) - BAR_SIGNS.findIndex((x) => x.id === b.kind)) } : {}),
     ...(chordSymbols.size ? { chords: [...chordSymbols.values()].sort((a, b) => compare(a.at, b.at)) } : {}),
     parts,
   };

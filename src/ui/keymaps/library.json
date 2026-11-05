@@ -507,6 +507,34 @@
           "logic": { "keys": ["C"], "source": "doku" }
         }
       ]
+    },
+    {
+      "title": "Zeichen",
+      "functions": [
+        {
+          "id": "mark.toggle",
+          "title": "Zeichen an der gewählten Note (nochmal: weg)",
+          "command": "mark.toggle",
+          "args": { "0": "ppp", "1": "pp", "2": "p", "3": "mp", "4": "mf", "5": "f", "6": "ff", "7": "fff", "8": "sfz", "9": "Crescendo", "10": "Decrescendo", "11": "Staccato", "12": "Staccatissimo", "13": "Tenuto", "14": "Akzent", "15": "Marcato", "16": "Triller", "17": "Mordent", "18": "Pralltriller", "19": "Doppelschlag", "20": "Fermate" },
+          "finale": { "keys": { "1": ["Alt+Shift+P"], "2": ["Alt+P"], "3": ["Alt+Shift+M"], "4": ["Alt+M"], "5": ["Alt+F"], "6": ["Alt+Shift+F"], "8": ["Alt+S"], "9": ["Alt+C"], "10": ["Alt+Shift+C"], "11": ["Alt+Period"], "13": ["Alt+Minus"], "14": ["Alt+A"], "15": ["Alt+Shift+A"], "16": ["Alt+T"], "20": ["Alt+Y"] }, "source": "icastico", "note": "Lautstärken ersetzen sich gegenseitig, ebenso Crescendo/Decrescendo. Alle Zeichen stehen auch in der Palette (Strg+J)." },
+          "logic": { "keys": { "1": ["Alt+Shift+P"], "2": ["Alt+P"], "3": ["Alt+Shift+M"], "4": ["Alt+M"], "5": ["Alt+F"], "6": ["Alt+Shift+F"], "8": ["Alt+S"], "9": ["Alt+C"], "10": ["Alt+Shift+C"], "11": ["Alt+Period"], "13": ["Alt+Minus"], "14": ["Alt+A"], "15": ["Alt+Shift+A"], "16": ["Alt+T"], "20": ["Alt+Y"] }, "source": "icastico" }
+        },
+        {
+          "id": "mark.bar",
+          "title": "Zeichen am Takt der gewählten Note: Wiederholung, Klammer, Segno, Coda, Sprung (nochmal: weg)",
+          "command": "mark.bar",
+          "args": { "0": "Wiederholung Anfang", "1": "Wiederholung Ende", "2": "1. Klammer", "3": "2. Klammer", "4": "3. Klammer", "5": "Segno", "6": "Coda", "7": "To Coda", "8": "Fine", "9": "D.C.", "10": "D.C. al Fine", "11": "D.C. al Coda", "12": "D.S.", "13": "D.S. al Fine", "14": "D.S. al Coda" },
+          "finale": { "keys": {}, "source": "icastico", "note": "Nur über die Palette (Strg+J). Aufeinanderfolgende Takte mit derselben Klammer bilden eine gemeinsame Klammer." },
+          "logic": { "keys": {}, "source": "icastico", "note": "Nur über die Palette (Strg+J)." }
+        },
+        {
+          "id": "view.symbols",
+          "title": "Zeichen-Palette zeigen / verbergen",
+          "command": "view.symbols",
+          "finale": { "keys": ["Mod+J"], "source": "icastico" },
+          "logic": { "keys": ["Mod+J"], "source": "icastico" }
+        }
+      ]
     }
   ]
 }

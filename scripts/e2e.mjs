@@ -633,7 +633,7 @@ try {
   await type('Escape');
   await saved();
   const shaped = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Verlauf-Test.icastico'))[1].contents;
-  check(/"version": 7/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 7)');
+  check(/"version": 8/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 8)');
   await type('Control+Enter');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true', null, { timeout: 30000 });
   await page.waitForTimeout(1500);
@@ -788,6 +788,39 @@ try {
   const tiedFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Bogen-Eins.icastico'))[1].contents;
   const tiedPitches = [...tiedFile.matchAll(/"pitch": "([A-G][#b]?[0-9])"/g)].map((m) => m[1]);
   check(tiedPitches.length === 2 && tiedPitches[0] === tiedPitches[1] && tiedPitches[0].startsWith('D') && /"kind": "tie"/.test(tiedFile), 'Gebundene Noten: ↑ auf der ersten Note hebt beide gemeinsam an, der Haltebogen bleibt');
+
+  // ── Zeichen: Taste, Palette, Wiederholung, Klammern ──
+  await newScore('Zeichen-Test');
+  await type('7', 'c', 'd', 'e', 'f', 'Escape');
+  await page.locator('.page g.note').first().click({ force: true });
+  await type('Alt+m', 'Alt+Period');
+  await page.waitForFunction(() => document.querySelectorAll('.page g.dynam').length === 1 && document.querySelectorAll('.page g.artic').length === 1);
+  check(true, 'Zeichen: Alt+M setzt mf, Alt+. setzt Staccato – beides erscheint in der Notenschrift');
+  await type('Control+j');
+  await page.waitForSelector('.symbols:not([hidden])');
+  check((await page.locator('.symbols__btn.is-on').count()) >= 2, 'Palette (Strg+J): die Zeichen der gewählten Note leuchten');
+  await page.click('.symbols__btn[title="Wiederholung beginnt (𝄆)"]');
+  await page.locator('.page g.note').last().click({ force: true });
+  await page.click('.symbols__btn[title="Wiederholung endet (𝄇)"]');
+  await page.click('.symbols__btn[title="Fermate (Halt)"]');
+  await page.waitForFunction(() => document.querySelectorAll('.page g.fermata').length === 1);
+  check((await page.locator('.page g.fermata').count()) === 1 && (await page.locator('.page g.barLine').count()) >= 2, 'Palette: Wiederholungszeichen und Fermate werden gesetzt und gezeichnet');
+  await page.click('.symbols__btn[title="1. Klammer"]');
+  await page.waitForFunction(() => document.querySelectorAll('.page g.voltaBracket').length >= 1);
+  check(true, 'Palette: eine 1. Klammer wird über dem Takt gezeichnet');
+  await page.screenshot({ path: join(outDir, 'zeichen.png') });
+  await saved();
+  const signsFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Zeichen-Test.icastico'))[1].contents;
+  check(/"version": 8/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 8)');
+  await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
+  await page.click('.transport__play');
+  await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');
+  await page.waitForTimeout(600);
+  check(!/Fehler|nicht verfügbar/.test(await status()), 'Wiedergabe mit Wiederholung, Klammer und Dynamik läuft ohne Fehler');
+  await page.click('.transport__play');
+  await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'false');
+  await type('Control+j');
+  await page.waitForSelector('.symbols', { state: 'hidden' });
 
   check(errors.length === 0, `Keine Fehler in der Konsole${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   console.log(`\nAlle ${step} Prüfungen bestanden. Screenshots: ${outDir}`);

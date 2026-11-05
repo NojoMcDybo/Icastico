@@ -19,6 +19,16 @@ import {
   tupletGroups,
 } from '../notation/notate';
 import { KIND_TEXT } from '../import/musicxml';
+import { barSign, noteSymbol, voltaNumber } from '../symbols';
+
+const ARTICULATION_XML: Record<string, string> = { stacc: 'staccato', stacciss: 'staccatissimo', ten: 'tenuto', acc: 'accent', marc: 'strong-accent' };
+const ORNAMENT_XML: Record<string, string> = { trill: 'trill-mark', mord: 'mordent', prall: 'inverted-mordent', turn: 'turn' };
+
+/** Index of the note where a crescendo / decrescendo starting at `k` ends: the next note with a dynamic, else the last note. */
+function hairpinEnd(events: readonly { readonly marks?: readonly string[] }[], k: number): number {
+  const next = events.findIndex((e, i) => i > k && e.marks?.some((m) => noteSymbol(m)?.group === 'dynamic'));
+  return next >= 0 ? next : events.length - 1;
+}
 
 export interface ExportResult {
   readonly xml: string;
@@ -122,7 +132,26 @@ export function exportMusicXml(score: Score, appVersion = ''): ExportResult {
         if (manyStaves) attrs.push(`<staves>${def.staves.length}</staves>`);
         def.staves.forEach((st, i) => attrs.push(clefXml(i + 1, st.clef.shape, st.clef.line, st.clef.octave, manyStaves)));
       }
+      const kinds = (score.marks ?? []).filter((b) => le(m.start, b.at) && lt(b.at, m.end)).map((b) => b.kind as string);
+      const volta = Math.max(0, ...kinds.map(voltaNumber));
+      const prevVolta = mi > 0 ? Math.max(0, ...(score.marks ?? []).filter((b) => le(measures[mi - 1]!.start, b.at) && lt(b.at, measures[mi - 1]!.end)).map((b) => voltaNumber(b.kind))) : 0;
+      const nextVolta = measures[mi + 1] ? Math.max(0, ...(score.marks ?? []).filter((b) => le(measures[mi + 1]!.start, b.at) && lt(b.at, measures[mi + 1]!.end)).map((b) => voltaNumber(b.kind))) : 0;
+      const leftBar = [
+        kinds.includes('repeatStart') ? '<bar-style>heavy-light</bar-style>' : '',
+        volta && volta !== prevVolta ? `<ending number="${volta}" type="start"/>` : '',
+        kinds.includes('repeatStart') ? '<repeat direction="forward"/>' : '',
+      ].join('');
+      if (leftBar) out.push(`      <barline location="left">${leftBar}</barline>`);
       if (attrs.length) out.push(`      <attributes>${attrs.join('')}</attributes>`);
+      if (partIndex === 0) {
+        const staff = manyStaves ? '<staff>1</staff>' : '';
+        for (const kind of kinds) {
+          const sign = barSign(kind);
+          if (kind === 'segno') out.push(`      <direction placement="above"><direction-type><segno/></direction-type>${staff}<sound segno="segno"/></direction>`);
+          else if (kind === 'coda') out.push(`      <direction placement="above"><direction-type><coda/></direction-type>${staff}<sound coda="coda"/></direction>`);
+          else if (sign?.text) out.push(`      <direction placement="above"><direction-type><words>${esc(sign.text)}</words></direction-type>${staff}</direction>`);
+        }
+      }
       if (mi === 0 && partIndex === 0) {
         const bpm = score.tempo ?? DEFAULT_TEMPO;
         out.push(`      <direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${bpm}</per-minute></metronome></direction-type><sound tempo="${bpm}"/></direction>`);
@@ -137,6 +166,11 @@ export function exportMusicXml(score: Score, appVersion = ''): ExportResult {
         // Chord symbols are written once, in the first voice of the first part, before the item they fall into.
         const harmonies = partIndex === 0 && vi === 0 ? (score.chords ?? []).filter((c) => le(m.start, c.at) && lt(c.at, m.end)) : [];
         const written = new Set<string>();
+        // Where a crescendo / decrescendo ends (MusicXML wants the stop written where it happens).
+        const wedgeStops = new Set<string>();
+        voice.events.forEach((e, k) => {
+          if (e.marks?.some((x) => x === 'cresc' || x === 'dim')) wedgeStops.add(voice.events[hairpinEnd(voice.events, k)]!.id);
+        });
 
         items.forEach((item, i) => {
           const start = item.kind === 'measureRest' ? m.start : item.onset;
@@ -149,9 +183,15 @@ export function exportMusicXml(score: Score, appVersion = ''): ExportResult {
             const xml = harmonyXml(c.text, units(sub(c.at, start))) ?? `<direction><direction-type><words>${esc(c.text)}</words></direction-type></direction>`;
             out.push(`      ${xml}`);
           }
-          out.push(...itemToXml(item, i, brackets, vi + 1, staffTag, octaveShift, voice, continues, units, length, tieOut, tieIn).map((l) => `      ${l}`));
+          out.push(...itemToXml(item, i, brackets, vi + 1, staffTag, octaveShift, voice, continues, units, length, tieOut, tieIn, wedgeStops).map((l) => `      ${l}`));
         });
       });
+      const rightBar = [
+        kinds.includes('repeatEnd') ? '<bar-style>light-heavy</bar-style>' : '',
+        volta && volta !== nextVolta ? `<ending number="${volta}" type="${kinds.includes('repeatEnd') ? 'stop' : 'discontinue'}"/>` : '',
+        kinds.includes('repeatEnd') ? '<repeat direction="backward"/>' : '',
+      ].join('');
+      if (rightBar) out.push(`      <barline location="right">${rightBar}</barline>`);
       out.push('    </measure>');
     });
     out.push('  </part>');
@@ -186,6 +226,7 @@ function itemToXml(
   measureUnits: number,
   tieOut: ReadonlySet<string>,
   tieIn: ReadonlySet<string>,
+  wedgeStops: ReadonlySet<string>,
 ): string[] {
   if (item.kind === 'measureRest') {
     return [`<note><rest measure="yes"/><duration>${measureUnits}</duration><voice>${voiceNo}</voice>${staffTag}</note>`];
@@ -201,14 +242,28 @@ function itemToXml(
     return [`<note><rest/><duration>${duration}</duration><voice>${voiceNo}</voice>${type}${modification}${staffTag}${tuplet}</note>`];
   }
   const lyric = !item.tiedFromPrevious ? lyricXml(voice, item, continues) : '';
-  return item.tones.map((tone, ti) => {
+  const event = item.tiedFromPrevious ? undefined : voice.events.find((e) => e.id === item.eventId);
+  const signs = event?.marks ?? [];
+  const staffNo = staffTag.replace('<staff>', '').replace('</staff>', '');
+  const direction = (type: string, placement: string) => `<direction placement="${placement}"><direction-type>${type}</direction-type>${staffTag ? `<staff>${staffNo}</staff>` : ''}</direction>`;
+  const before: string[] = [];
+  if (!item.tiedFromPrevious && wedgeStops.has(item.eventId)) before.push(direction('<wedge type="stop"/>', 'below'));
+  for (const sign of signs) {
+    if (noteSymbol(sign)?.group === 'dynamic') before.push(direction(`<dynamics><${sign}/></dynamics>`, 'below'));
+    else if (sign === 'cresc') before.push(direction('<wedge type="crescendo"/>', 'below'));
+    else if (sign === 'dim') before.push(direction('<wedge type="diminuendo"/>', 'below'));
+  }
+  const notationSigns = signs
+    .map((sign) => (ARTICULATION_XML[sign] ? `<articulations><${ARTICULATION_XML[sign]}/></articulations>` : ORNAMENT_XML[sign] ? `<ornaments><${ORNAMENT_XML[sign]}/></ornaments>` : sign === 'fermata' ? '<fermata/>' : ''))
+    .join('');
+  return [...before, ...item.tones.map((tone, ti) => {
     const stop = item.tiedFromPrevious || tieIn.has(tone.id);
     const start = item.tiedToNext || tieOut.has(tone.id);
     const ties = `${stop ? '<tie type="stop"/>' : ''}${start ? '<tie type="start"/>' : ''}`;
     const tied = `${stop ? '<tied type="stop"/>' : ''}${start ? '<tied type="start"/>' : ''}`;
-    const tuplet = tupletNotation(ti === 0 && bracket !== undefined, ti === 0 && bracketEnd, tied);
+    const tuplet = tupletNotation(ti === 0 && bracket !== undefined, ti === 0 && bracketEnd, tied + (ti === 0 ? notationSigns : ''));
     return `<note>${ti > 0 ? '<chord/>' : ''}${pitchXml(tone.pitch, octaveShift)}<duration>${duration}</duration>${ties}<voice>${voiceNo}</voice>${type}${modification}${staffTag}${tuplet}${ti === 0 ? lyric : ''}</note>`;
-  });
+  })];
 }
 
 function tupletNotation(start: boolean, stop: boolean, tied = ''): string {

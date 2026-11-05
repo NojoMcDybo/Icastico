@@ -87,6 +87,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Gitarrentabulatur (Strg+T), berechnete Griffe (ADR 0022)
 - [x] PDF-Export (Strg+P), Notenblatt mit mehreren Beispielen pro Seite, Einzelstimme herausziehen (ADR 0023)
 - [x] Fehlerbehebungen nach 0.12.0: „Stopp“ macht auch bereits eingeplante Noten still (und wirkt auch beim Laden), Leertaste halten + Klick spielt ab der Stelle, gebundene Noten ändern ihre Tonhöhe gemeinsam
+- [x] Bibliothek der Sonderzeichen (Strg+J, ADR 0024): Dynamik, Crescendo, Artikulation, Verzierungen, Fermate, Wiederholungszeichen, 1./2. Klammer, Segno, Coda, D.C./D.S.; Wiedergabe folgt den Wiederholungen, MusicXML hin und zurück
 - [ ] Finale-Dateien (`.musx`) direkt lesen – verschlüsseltes Binärformat, bewusst zurückgestellt (ADR 0021)
 - [ ] Seitenlayout von Hand (Umbrüche, Systemabstand, Kopf-/Fußzeile), mehrere Strophen, Tabulatur-Spieltechniken
 

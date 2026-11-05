@@ -12,7 +12,8 @@
  */
 import { type Fraction, ZERO, add, compare, eq, frac, gt, isDyadic, le, lt, sub } from '../time';
 import { STEPS, keyAlteration, midiOf, type Pitch } from '../pitch';
-import { type ChordSymbol, type Link, type LinkKind, type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, measuresOf } from '../model';
+import { BAR_SIGNS, NOTE_SYMBOLS, barSign, toggleNoteSymbol } from '../symbols';
+import { type BarMark, type ChordSymbol, type Link, type LinkKind, type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, measuresOf } from '../model';
 import { decomposeNote, writtenValue } from '../notation/notate';
 import { emptyScore } from '../templates';
 import {
@@ -169,6 +170,54 @@ function setEventDuration(s: EditorState, ref: VoiceRef, ev: NoteEvent, length: 
 function inputDuration(s: EditorState, n: number): EditorState {
   const base = finaleDuration(n);
   return base ? { ...s, input: { ...s.input, base, dots: 0 }, message: null } : s;
+}
+
+// ── Special signs (ADR 0024) ───────────────────────────────────────────────
+
+/** Puts a sign of the library on the selected note, or takes it off (a second time). Dynamics and the like replace their neighbours. */
+function toggleMark(s: EditorState, index: number): EditorState {
+  const symbol = NOTE_SYMBOLS[index];
+  if (!symbol) return s;
+  const t = target(s);
+  if (!t) return say(s, NO_NOTE);
+  const marks = toggleNoteSymbol(t.event.marks, symbol.id);
+  const score = updateEvents(s.score, t.ref, (events) =>
+    events.map((e) => {
+      if (e.id !== t.event.id) return e;
+      const { marks: _old, ...rest } = e;
+      return marks.length ? { ...rest, marks } : rest;
+    }),
+  );
+  const on = marks.includes(symbol.id);
+  return { ...s, score, selection: selectEvent(t.ref, t.event), message: `${symbol.label}: ${on ? 'gesetzt' : 'entfernt'}` };
+}
+
+/** The bar the selected note / the caret is in. */
+function focusBar(s: EditorState) {
+  const time = selectionTime(s.score, s.selection) ?? s.caret?.time ?? ZERO;
+  const measures = measuresOf(s.score, 1, time);
+  return measures.find((m) => le(m.start, time) && lt(time, m.end)) ?? measures[0]!;
+}
+
+/** The signs on the selected note and on its bar – what the palette lights. */
+export function signsAtFocus(s: EditorState): { note: readonly string[]; bar: readonly string[] } {
+  const bar = focusBar(s);
+  return { note: target(s)?.event.marks ?? [], bar: (s.score.marks ?? []).filter((m) => eq(m.at, bar.start)).map((m) => m.kind) };
+}
+
+/** Repeat signs, endings, segno, coda and jumps for the bar of the selected note / the caret; a second time takes it away. */
+function toggleBarSign(s: EditorState, index: number): EditorState {
+  const sign = BAR_SIGNS[index];
+  if (!sign) return s;
+  const bar = focusBar(s);
+  const marks = s.score.marks ?? [];
+  const present = marks.some((m) => m.kind === sign.id && eq(m.at, bar.start));
+  const kept = marks.filter((m) => !(eq(m.at, bar.start) && (m.kind === sign.id || (sign.exclusive && barSign(m.kind)?.exclusive === sign.exclusive))));
+  const next: BarMark[] = present ? [...kept] : [...kept, { at: bar.start, kind: sign.id }];
+  next.sort((a, b) => compare(a.at, b.at) || BAR_SIGNS.findIndex((x) => x.id === a.kind) - BAR_SIGNS.findIndex((x) => x.id === b.kind));
+  const { marks: _old, ...rest } = s.score;
+  const where = bar.number === 0 ? 'Auftakt' : `Takt ${bar.number}`;
+  return { ...s, score: next.length ? { ...rest, marks: next } : rest, message: `${sign.label}, ${where}: ${present ? 'entfernt' : 'gesetzt'}` };
 }
 
 /** Tablature staff on/off for the guitar part of the selected note / caret (ADR 0022). */
@@ -803,6 +852,8 @@ export const COMMANDS = {
   'input.dot': { title: 'Punktierung', run: toggleDot },
   'input.note': { title: 'Note eingeben', run: enterNote },
   'input.pitchClass': { title: 'Note nach Klaviertaste eingeben', run: enterPitchClass },
+  'mark.toggle': { title: 'Zeichen an der Note (Dynamik, Artikulation, Verzierung)', run: toggleMark },
+  'mark.bar': { title: 'Zeichen am Takt (Wiederholung, Klammer, Segno, Coda, Sprung)', run: toggleBarSign },
   'edit.tab': { title: 'Tabulatur an/aus', run: toggleTab },
   'input.tuplet': { title: 'Triolen / Quintolen / Septolen', run: toggleTuplet },
   'input.length': { title: 'Notenwert (Ziffernblock)', run: inputLengthKey },

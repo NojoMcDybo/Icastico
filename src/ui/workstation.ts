@@ -4,7 +4,7 @@
  *
  * Rendering is skipped when only caret/selection changed (decorate only).
  */
-import { type CommandId, chordSymbolText, ghostPitches, lyricsText, newScoreState, runCommand, setChordSymbol, setLyrics } from '../core/editor/commands';
+import { type CommandId, chordSymbolText, ghostPitches, signsAtFocus, lyricsText, newScoreState, runCommand, setChordSymbol, setLyrics } from '../core/editor/commands';
 import { demoScore } from '../core/demo';
 import { History } from '../core/editor/history';
 import { type EditorState, type VoiceRef, createEditorState, getVoice, inputLength, staffCenter } from '../core/editor/state';
@@ -14,6 +14,8 @@ import { musicXmlText } from '../core/import/container';
 import { type ImportResult, ImportError, importMusicXml } from '../core/import/musicxml';
 import { extractPart } from '../core/extract';
 import { pdfDialog } from './pdfDialog';
+import { SymbolPalette } from './symbolPalette';
+import { type PlayMap, playMapOf } from '../core/playOrder';
 import { scoresToPdf } from './pdfExport';
 import { exportMusicXml, type ExportResult } from '../core/export/musicxml';
 import { getInstrument } from '../core/instruments';
@@ -148,6 +150,9 @@ export class Workstation {
   /** A note being dragged with the mouse: up/down changes the pitch, onto another note makes a chord. */
   private drag: NoteDrag | null = null;
   /** Space is held: a click in the notation plays from there instead of selecting. */
+  private readonly symbols: SymbolPalette;
+  /** How the music being played maps back onto the written score (repeats, jumps). */
+  private playMap: PlayMap = { score: undefined as never, fromScore: (t) => t, toScore: (t) => t };
   private spaceHeld = false;
   /** A click happened while Space was held, so letting go must not also trigger Space's own command. */
   private spaceUsed = false;
@@ -212,7 +217,8 @@ export class Workstation {
     this.buildNotationBar();
     this.player = new Player({
       frame: (seconds) => {
-        this.playPos = timeAt(this.state.score, seconds);
+        // The music may be played in another order than written (repeats): show the bar that sounds.
+        this.playPos = this.playMap.toScore(timeAt(this.state.score, seconds));
         this.renderPlayhead();
       },
       stopped: () => this.update(),
@@ -222,6 +228,8 @@ export class Workstation {
         this.renderStatus();
       },
     });
+    this.symbols = new SymbolPalette({ apply: (kind, index) => this.run(kind === 'note' ? 'mark.toggle' : 'mark.bar', index) });
+    document.body.append(this.symbols.el);
     this.transport = new Transport(el.transport, {
       play: () => this.togglePlay(),
       stop: () => this.player.stop(),
@@ -378,6 +386,10 @@ export class Workstation {
         return;
       case 'file.exportXml':
         void this.fileExportXml();
+        return;
+      case 'view.symbols':
+        this.symbols.toggle();
+        this.update();
         return;
       case 'file.extractPart':
         void this.fileExtractPart();
@@ -1026,6 +1038,10 @@ export class Workstation {
     this.renderStatus();
     this.scheduleAutosave();
     this.shape.refresh();
+    if (this.symbols.isOpen) {
+      const at = signsAtFocus(this.state);
+      this.symbols.refresh(at.note, at.bar);
+    }
   }
 
   // ── Lanes: notation and piano rolls, one roll per staff ────────────────────
@@ -1213,7 +1229,8 @@ export class Workstation {
       return;
     }
     const score = this.state.score;
-    void this.player.start(score, secondsOf(score, this.playPos), this.loop).then(() => this.renderTransport());
+    this.playMap = playMapOf(score);
+    void this.player.start(this.playMap.score, secondsOf(score, this.playMap.fromScore(this.playPos)), this.loop).then(() => this.renderTransport());
   }
 
   /** Moves the playhead; if the music is playing it continues from there. */

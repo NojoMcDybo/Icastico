@@ -15,6 +15,7 @@ import { type Fraction, ZERO, add, compare, div, eq, frac, gt, isZero, le, lt, s
 import { type Pitch, midiOf } from './pitch';
 import { type Curve, MAX_VOLUME, MIN_VOLUME, curveProblem } from './curve';
 import { getInstrument, type InstrumentId } from './instruments';
+import { BAR_SIGN_IDS, NOTE_SYMBOL_IDS, type BarSignKind } from './symbols';
 
 export interface TimeSignature {
   /** Beats per measure, e.g. 3 in 3/4. */
@@ -56,6 +57,14 @@ export interface NoteEvent {
   readonly tones: readonly Tone[];
   /** Lyric syllable sung on this note (ADR 0019); a trailing "-" means the word goes on. Absent = none. */
   readonly lyric?: string;
+  /** Special signs on the note (ADR 0024): ids from the sign library, e.g. "mf", "stacc", "fermata". Absent = none. */
+  readonly marks?: readonly string[];
+}
+
+/** A sign that belongs to a bar (ADR 0024): repeat, ending bracket, segno, coda, jump. `at` is the start of that bar. */
+export interface BarMark {
+  readonly at: Fraction;
+  readonly kind: BarSignKind;
 }
 
 /** A chord symbol such as "Am7" or "C/G", fixed to a point on the timeline (ADR 0019). */
@@ -100,6 +109,8 @@ export interface Score {
   readonly links?: readonly Link[];
   /** Chord symbols above the top staff, sorted by `at`, one per time; absent = none. */
   readonly chords?: readonly ChordSymbol[];
+  /** Bar signs, sorted by `at`; one of each kind per bar; absent = none. */
+  readonly marks?: readonly BarMark[];
 }
 
 /**
@@ -349,6 +360,7 @@ export function validateScore(score: Score): string[] {
           problems.push(`${part.name}: Event ${ev.id} überlappt mit dem vorherigen Event derselben Stimme.`);
         }
         if (ev.tones.length === 0) problems.push(`${part.name}: Event ${ev.id} hat keine Tonhöhe.`);
+        for (const mark of ev.marks ?? []) if (!NOTE_SYMBOL_IDS.includes(mark)) problems.push(`${part.name}: Das Zeichen "${mark}" an ${ev.id} gibt es nicht.`);
         if (ev.lyric !== undefined && (ev.lyric === '' || /\s/.test(ev.lyric))) problems.push(`${part.name}: Der Liedtext von ${ev.id} ist ungültig.`);
         for (const tone of ev.tones) {
           if (toneIds.has(tone.id)) problems.push(`Doppelte Ton-ID ${tone.id}.`);
@@ -365,6 +377,14 @@ export function validateScore(score: Score): string[] {
     }
   }
   problems.push(...linkProblems(score));
+  const seenMarks = new Set<string>();
+  for (const m of score.marks ?? []) {
+    const key = `${m.kind}@${m.at.n}/${m.at.d}`;
+    if (!BAR_SIGN_IDS.includes(m.kind)) problems.push(`Das Taktzeichen "${m.kind}" gibt es nicht.`);
+    if (lt(m.at, ZERO)) problems.push(`Das Taktzeichen "${m.kind}" beginnt vor dem Anfang.`);
+    if (seenMarks.has(key)) problems.push(`Das Taktzeichen "${m.kind}" steht doppelt.`);
+    seenMarks.add(key);
+  }
   let lastChord: Fraction | null = null;
   for (const c of score.chords ?? []) {
     if (c.text.trim() === '') problems.push('Ein Akkordsymbol ist leer.');

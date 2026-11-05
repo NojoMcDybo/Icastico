@@ -51,3 +51,4 @@ Was wird dadurch leichter, was schwerer?
 | 0021 | [MusicXML exportieren](0021-musicxml-export.md) | angenommen |
 | 0022 | [Gitarrentabulatur](0022-tabulatur.md) | angenommen |
 | 0023 | [PDF, Notenblätter und Einzelstimmen](0023-pdf-und-einzelstimmen.md) | angenommen |
+| 0024 | [Bibliothek der Sonderzeichen](0024-zeichen-bibliothek.md) | angenommen |

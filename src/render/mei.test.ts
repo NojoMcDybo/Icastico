@@ -152,6 +152,66 @@ describe('tuplets (ADR 0020)', () => {
   });
 });
 
+describe('special signs (ADR 0024)', () => {
+  let engraver: Engraver;
+  beforeAll(async () => {
+    engraver = await Engraver.create();
+  });
+  /** The demo's voice with signs on its first notes and bar signs on bars 1–3. */
+  const withSigns = () => {
+    const score = demoScore();
+    const marks: Record<number, string[]> = { 0: ['mf', 'stacc', 'fermata'], 1: ['cresc', 'acc'], 2: ['trill'], 3: ['f'] };
+    return {
+      ...score,
+      marks: [
+        { at: frac(0), kind: 'repeatStart' as const },
+        { at: frac(1), kind: 'segno' as const },
+        { at: frac(2), kind: 'volta1' as const },
+        { at: frac(2), kind: 'repeatEnd' as const },
+        { at: frac(3), kind: 'volta2' as const },
+        { at: frac(3), kind: 'dsCoda' as const },
+      ],
+      parts: score.parts.map((p) =>
+        p.id !== 'voice' ? p : { ...p, voices: p.voices.map((v) => ({ ...v, events: v.events.map((e, i) => (marks[i] ? { ...e, marks: marks[i]! } : e)) })) },
+      ),
+    };
+  };
+
+  it('writes articulation as attribute, the other note signs as control elements, bar signs as barlines, endings and words', () => {
+    const { mei } = scoreToMei(withSigns());
+    expect(mei).toMatch(/artic="stacc"/);
+    expect(mei).toMatch(/artic="acc"/);
+    expect(mei).toMatch(/<dynam [^>]*>mf<\/dynam>/);
+    expect(mei).toMatch(/<fermata /);
+    expect(mei).toMatch(/<trill /);
+    expect(mei).toMatch(/<hairpin [^>]*form="cres"/);
+    expect(mei).toMatch(/<measure [^>]*left="rptstart"/);
+    expect(mei).toMatch(/<measure [^>]*right="rptend"/);
+    expect(mei).toMatch(/<ending [^>]*n="1" label="1\."/);
+    expect(mei).toMatch(/<ending [^>]*n="2" label="2\."/);
+    expect(mei).toMatch(/glyph.name="segno"/);
+    expect(mei).toMatch(/>D\.S\. al Coda<\/dir>/);
+  });
+
+  it('Verovio draws all of it without warnings', () => {
+    const { log, pages } = engraver.engrave(scoreToMei(withSigns()).mei);
+    expect(log).toBe('');
+    const svg = pages.join('');
+    expect(svg).toContain('class="voltaBracket"');
+    expect(svg).toContain('class="symbol"'); // the segno
+    expect(svg).toContain('class="hairpin"');
+    expect(svg).toContain('class="fermata"');
+    expect(svg).toContain('class="dynam"');
+    expect(svg).toContain('class="trill"');
+  });
+
+  it('an end followed directly by a start is one barline', () => {
+    const score = { ...demoScore(), marks: [{ at: frac(0), kind: 'repeatEnd' as const }, { at: frac(1), kind: 'repeatStart' as const }] };
+    expect(scoreToMei(score).mei).toMatch(/right="rptboth"/);
+    expect(scoreToMei(score).mei).not.toMatch(/left="rptstart"/);
+  });
+});
+
 describe('tablature (ADR 0022)', () => {
   let engraver: Engraver;
   beforeAll(async () => {

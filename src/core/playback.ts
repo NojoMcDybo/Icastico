@@ -13,7 +13,8 @@
 import { type Fraction, frac, lt, sub, toNumber } from './time';
 import { DEFAULT_VOLUME, curveAt } from './curve';
 import type { InstrumentId } from './instruments';
-import { DEFAULT_TEMPO, type Link, type Score, type ToneSpot, eventEnd, locateTones, measuresOf } from './model';
+import { DEFAULT_TEMPO, type Link, type NoteEvent, type Score, type ToneSpot, eventEnd, locateTones, measuresOf } from './model';
+import { noteSymbol } from './symbols';
 
 export interface PitchPoint {
   /** Seconds from the start of the piece. */
@@ -58,8 +59,59 @@ export const secondsOf = (score: Score, t: Fraction): number => (toNumber(t) * 2
 /** The time on the timeline for a number of seconds (rounded to 1/960 of a whole note – good for display). */
 export const timeAt = (score: Score, seconds: number): Fraction => frac(Math.max(0, Math.round((seconds * tempoOf(score) * 960) / 240)), 960);
 
+/** Keeps a strike strength inside MIDI's range. */
+const clampVelocity = (v: number): number => Math.max(1, Math.min(127, Math.round(v)));
+
+/**
+ * How hard every note is struck because of its dynamics (ADR 0024): the last dynamic sign of the voice counts
+ * until the next one; a crescendo / decrescendo moves from the sign it starts at to the next dynamic sign
+ * (else 25 steps further) in even steps over the notes between. Articulation adds its boost. Notes in a voice
+ * without any dynamic sign are not listed (they keep the default).
+ */
+function dynamicLevels(score: Score): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const part of score.parts) {
+    for (const voice of part.voices) {
+      const events: readonly NoteEvent[] = voice.events;
+      if (!events.some((e) => e.marks?.some((m) => noteSymbol(m)?.group === 'dynamic' || noteSymbol(m)?.group === 'hairpin' || noteSymbol(m)?.boost))) continue;
+      const dynamicOf = (e: NoteEvent) => (e.marks ?? []).map(noteSymbol).find((s) => s?.group === 'dynamic');
+      const levels: number[] = [];
+      const once: (number | undefined)[] = [];
+      let run = DEFAULT_VOLUME;
+      for (const e of events) {
+        const d = dynamicOf(e);
+        if (d?.velocity !== undefined && !d.accentOnly) run = d.velocity;
+        levels.push(run);
+        once.push(d?.accentOnly ? d.velocity : undefined);
+      }
+      events.forEach((e, k) => {
+        const hairpin = e.marks?.find((m) => m === 'cresc' || m === 'dim');
+        if (!hairpin) return;
+        let j = events.findIndex((x, idx) => idx > k && dynamicOf(x) !== undefined);
+        if (j < 0) j = events.length - 1;
+        if (j <= k) return;
+        const a = levels[k]!;
+        const next = dynamicOf(events[j]!);
+        const b = next?.velocity !== undefined && !next.accentOnly ? next.velocity : a + (hairpin === 'cresc' ? 25 : -25);
+        for (let t = k; t < j; t++) levels[t] = a + ((b - a) * (t - k)) / (j - k);
+        if (!next) levels[j] = b;
+      });
+      events.forEach((e, k) => {
+        const boost = (e.marks ?? []).reduce((sum, m) => sum + (noteSymbol(m)?.boost ?? 0), 0);
+        out.set(e.id, clampVelocity((once[k] ?? levels[k]!) + boost));
+      });
+    }
+  }
+  return out;
+}
+
+/** The part of its written length a note sounds because of its articulation (staccato 0.5 …); 1 = all of it. */
+const soundingLength = (e: NoteEvent): number => (e.marks ?? []).reduce((f, m) => noteSymbol(m)?.length ?? f, 1);
+
 export function planPlayback(score: Score): PlaybackPlan {
   const spots = locateTones(score);
+  const dynamics = dynamicLevels(score);
+  const strike = (m: ToneSpot): number => m.tone.volume ?? dynamics.get(m.event.id) ?? DEFAULT_VOLUME;
   const chained = new Map<string, string>(); // tone → the tone its sound continues into
   const via = new Map<string, Link>(); // the link a sound continues along
   for (const link of score.links ?? []) {
@@ -85,16 +137,18 @@ export function planPlayback(score: Score): PlaybackPlan {
     }
     const path: PitchPoint[] = [];
     const gain: GainPoint[] = [];
-    const strongest = Math.max(...members.map((m) => m.tone.volume ?? DEFAULT_VOLUME));
+    const strongest = Math.max(...members.map(strike));
     members.forEach((m, i) => {
       const midi = midiNumber(m);
       const t0 = secondsOf(score, m.event.onset);
-      const t1 = secondsOf(score, eventEnd(m.event));
+      const written = secondsOf(score, eventEnd(m.event));
+      // Staccato and friends shorten the last note of a sound (a tied or glided note goes on).
+      const t1 = i === members.length - 1 ? t0 + (written - t0) * soundingLength(m.event) : written;
       for (const t of [t0, t1]) {
         const last = path[path.length - 1];
         if (!last || last.t !== t || last.midi !== midi) path.push({ t, midi });
       }
-      const rel = (m.tone.volume ?? DEFAULT_VOLUME) / strongest;
+      const rel = strike(m) / strongest;
       if (m.tone.curve) {
         const steps = Math.max(4, Math.min(80, Math.ceil((t1 - t0) / CURVE_STEP)));
         for (let k = 0; k <= steps; k++) gain.push({ t: t0 + ((t1 - t0) * k) / steps, level: rel * curveAt(m.tone.curve, k / steps) });
@@ -108,7 +162,7 @@ export function planPlayback(score: Score): PlaybackPlan {
         const n0 = secondsOf(score, next.event.onset);
         const nextMidi = midiNumber(next);
         const from = rel * (m.tone.curve ? curveAt(m.tone.curve, 1) : 1);
-        const to = ((next.tone.volume ?? DEFAULT_VOLUME) / strongest) * (next.tone.curve ? curveAt(next.tone.curve, 0) : 1);
+        const to = (strike(next) / strongest) * (next.tone.curve ? curveAt(next.tone.curve, 0) : 1);
         for (let k = 1; k < GLIDE_STEPS; k++) {
           const f = curveAt(link.curve, k / GLIDE_STEPS);
           const t = t1 + ((n0 - t1) * k) / GLIDE_STEPS;

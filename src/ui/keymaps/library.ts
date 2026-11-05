@@ -17,6 +17,7 @@ export type UiCommandId =
   | 'file.exportXml'
   | 'file.exportPdf'
   | 'file.extractPart'
+  | 'view.symbols'
   | 'file.save'
   | 'file.saveAs'
   | 'score.settings'
@@ -47,6 +48,7 @@ export const UI_COMMANDS: ReadonlySet<string> = new Set<UiCommandId>([
   'file.exportXml',
   'file.exportPdf',
   'file.extractPart',
+  'view.symbols',
   'file.save',
   'file.saveAs',
   'score.settings',

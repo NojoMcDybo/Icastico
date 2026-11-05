@@ -12,6 +12,7 @@
  */
 import { type Score, type Part, type Tone, eventEnd, locateTones, measuresOf, type Measure, validateScore } from '../core/model';
 import { type Fraction, compare, div, gt, le, lt, sub, frac } from '../core/time';
+import { barSign, noteSymbol, voltaNumber } from '../core/symbols';
 import { getInstrument, type Clef } from '../core/instruments';
 import { keyAlteration, type Pitch } from '../core/pitch';
 import { GUITAR_STRINGS, assignFrets, type Fingering } from '../core/tab';
@@ -116,7 +117,10 @@ function lyricXml(syllable: string, previousContinues: boolean): { xml: string; 
   return { xml: `<verse n="1"><syl${attrs}>${esc(text)}</syl></verse>`, continues };
 }
 
-function noteXml(item: NotatedNote, accidentals: AccidentalState, tiedIn: ReadonlySet<string>, indent: string, verse = ''): string {
+/** MEI @artic values of the articulation signs of a note ("stacc ten"). */
+const ARTIC: Record<string, string> = { stacc: 'stacc', stacciss: 'stacciss', ten: 'ten', acc: 'acc', marc: 'marc' };
+
+function noteXml(item: NotatedNote, accidentals: AccidentalState, tiedIn: ReadonlySet<string>, indent: string, verse = '', artic = ''): string {
   const tie =
     item.tiedFromPrevious && item.tiedToNext ? 'm' : item.tiedToNext ? 'i' : item.tiedFromPrevious ? 't' : '';
   const tieAttr = tie ? ` tie="${tie}"` : '';
@@ -125,19 +129,19 @@ function noteXml(item: NotatedNote, accidentals: AccidentalState, tiedIn: Readon
     `pname="${p.step.toLowerCase()}" oct="${p.octave}"${accidentals.attrsFor(p, item.tiedFromPrevious || tiedIn.has(toneId))}`;
 
   if (item.tones.length === 1) {
-    const head = `${indent}<note xml:id="${item.id}" ${durAttrs(item.duration)} ${pitchAttrs(item.tones[0]!.pitch, item.tones[0]!.id)}${tieAttr}`;
+    const head = `${indent}<note xml:id="${item.id}" ${durAttrs(item.duration)} ${pitchAttrs(item.tones[0]!.pitch, item.tones[0]!.id)}${tieAttr}${artic}`;
     return verse ? `${head}>${verse}</note>` : `${head}/>`;
   }
   const notes = item.tones
     .map((t) => `${indent}  <note xml:id="${chordNoteId(item, t)}" ${pitchAttrs(t.pitch, t.id)}${tieAttr}/>`)
     .join('\n');
-  return `${indent}<chord xml:id="${item.id}" ${durAttrs(item.duration)}>\n${notes}${verse ? `\n${indent}  ${verse}` : ''}\n${indent}</chord>`;
+  return `${indent}<chord xml:id="${item.id}" ${durAttrs(item.duration)}${artic}>\n${notes}${verse ? `\n${indent}  ${verse}` : ''}\n${indent}</chord>`;
 }
 
-function itemXml(item: NotatedItem, accidentals: AccidentalState, tiedIn: ReadonlySet<string>, indent: string, verse = ''): string {
+function itemXml(item: NotatedItem, accidentals: AccidentalState, tiedIn: ReadonlySet<string>, indent: string, verse = '', artic = ''): string {
   switch (item.kind) {
     case 'note':
-      return noteXml(item, accidentals, tiedIn, indent, verse);
+      return noteXml(item, accidentals, tiedIn, indent, verse, artic);
     case 'rest':
       // The gap a glide travels through is time without a rest sign.
       return `${indent}<${item.invisible ? 'space' : 'rest'} xml:id="${item.id}" ${durAttrs(item.duration)}/>`;
@@ -278,6 +282,41 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
     controls.set(pa.lastMeasure, list);
   }
 
+  // Special signs on notes (ADR 0024): articulation is an attribute, the rest are control elements in the bar of the note.
+  const articOf = new Map<string, string>();
+  for (const part of score.parts) {
+    for (const voice of part.voices) {
+      const withMarks = voice.events.filter((e) => e.marks?.length);
+      for (const ev of withMarks) {
+        const artic = (ev.marks ?? []).filter((m) => ARTIC[m]).map((m) => ARTIC[m]);
+        if (artic.length) articOf.set(ev.id, ` artic="${artic.join(' ')}"`);
+        const first = pieces.get(ev.id);
+        const ref = first && elements.get(first.first.id);
+        if (!first || !ref) continue; // a note on a staff shown as piano roll
+        const list = controls.get(first.firstMeasure) ?? [];
+        const at = `staff="${ref.staffN}" startid="#${first.first.id}"`;
+        for (const mark of ev.marks ?? []) {
+          const symbol = noteSymbol(mark);
+          if (!symbol) continue;
+          if (symbol.group === 'dynamic') list.push(`<dynam xml:id="dyn-${ev.id}" staff="${ref.staffN}" startid="#${first.first.id}" place="below">${mark}</dynam>`);
+          else if (mark === 'fermata') list.push(`<fermata xml:id="fer-${ev.id}" ${at} place="above"/>`);
+          else if (mark === 'trill') list.push(`<trill xml:id="trl-${ev.id}" ${at} place="above"/>`);
+          else if (mark === 'mord') list.push(`<mordent xml:id="mor-${ev.id}" ${at} form="lower" place="above"/>`);
+          else if (mark === 'prall') list.push(`<mordent xml:id="pra-${ev.id}" ${at} form="upper" place="above"/>`);
+          else if (mark === 'turn') list.push(`<turn xml:id="trn-${ev.id}" ${at} place="above"/>`);
+          else if (mark === 'cresc' || mark === 'dim') {
+            // The hairpin runs to the next note with a dynamic (else to the last note of the voice).
+            const later = voice.events.filter((e) => compare(e.onset, ev.onset) > 0);
+            const stop = later.find((e) => e.marks?.some((m) => noteSymbol(m)?.group === 'dynamic')) ?? later[later.length - 1];
+            const end = stop && pieces.get(stop.id);
+            if (end) list.push(`<hairpin xml:id="hp-${ev.id}" ${at} endid="#${end.first.id}" form="${mark === 'cresc' ? 'cres' : 'dim'}" place="below"/>`);
+          }
+        }
+        controls.set(first.firstMeasure, list);
+      }
+    }
+  }
+
   // Lyrics: the syllable is written on the first drawn piece of its note; "-" chains syllables into words.
   const syllables = new Map<string, string>();
   for (const part of score.parts) {
@@ -317,13 +356,30 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
     return `${indent}<chord xml:id="${item.id}-tab" ${durAttrs(item.duration)}>${played.map((x) => note(`${item.id}-${x.t.id}-tab`, x.f)).join('')}</chord>`;
   };
 
+  // Bar signs (ADR 0024): the signs of every bar, found by the start time of the bar they belong to.
+  const barKinds = measures.map((m) => (score.marks ?? []).filter((b) => le(m.start, b.at) && lt(b.at, m.end)).map((b) => b.kind as string));
+  const hasKind = (mi: number, kind: string): boolean => barKinds[mi]?.includes(kind) ?? false;
+  const voltaOf = (mi: number): number => Math.max(0, ...(barKinds[mi] ?? []).map(voltaNumber));
+  let openEnding = 0;
+
   const body: string[] = [];
   measures.forEach((m, mi) => {
+    const volta = voltaOf(mi);
+    if (openEnding !== volta) {
+      if (openEnding) body.push('      </ending>');
+      if (volta) body.push(`      <ending xml:id="ending-${mi}" n="${volta}" label="${volta}.">`);
+      openEnding = volta;
+    }
     const change = mi > 0 ? scoreDefChange(measures[mi - 1]!, m) : null;
     if (change) body.push(change);
     // An upbeat is shorter than its meter: metcon="false" tells Verovio it is intended.
     const metcon = m.number === 0 ? ' metcon="false"' : '';
-    body.push(`      <measure xml:id="m${m.number}" n="${m.number}"${metcon}>`);
+    // Repeat barlines; an end directly followed by a start is one double-dotted barline.
+    const joinedLeft = hasKind(mi, 'repeatStart') && mi > 0 && hasKind(mi - 1, 'repeatEnd');
+    const joinedRight = hasKind(mi, 'repeatEnd') && hasKind(mi + 1, 'repeatStart');
+    const left = hasKind(mi, 'repeatStart') && !joinedLeft ? ' left="rptstart"' : '';
+    const right = joinedRight ? ' right="rptboth"' : hasKind(mi, 'repeatEnd') ? ' right="rptend"' : '';
+    body.push(`      <measure xml:id="m${m.number}" n="${m.number}"${metcon}${left}${right}>`);
     for (const slot of slots) {
       body.push(`        <staff xml:id="${staffElementId(m.number, slot.n)}" n="${slot.n}">`);
       const onStaff = slot.part.voices.filter((v) => v.staff === slot.staffIndex);
@@ -350,8 +406,10 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
           if (fingering) {
             body.push(tabItemXml(item, fingering, indent));
           } else {
-            const verse = item.kind === 'note' && !item.tiedFromPrevious ? (syllables.get(item.eventId) ?? '') : '';
-            body.push(itemXml(item, accidentals, tiedIn, indent, verse));
+            const first = item.kind === 'note' && !item.tiedFromPrevious;
+            const verse = first ? (syllables.get(item.eventId) ?? '') : '';
+            const artic = first ? (articOf.get(item.eventId) ?? '') : '';
+            body.push(itemXml(item, accidentals, tiedIn, indent, verse, artic));
           }
           if (beam && i === beam[1]) body.push('            </beam>');
           if (brackets.some((g) => g.end === i)) body.push('            </tuplet>');
@@ -361,6 +419,14 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
       body.push('        </staff>');
     }
     for (const control of controls.get(m.number) ?? []) body.push(`        ${control}`);
+    // Segno, coda and the words of jumps sit above the top staff: signs at the first beat, words at the last.
+    const beatsInBar = Math.max(1, Math.round(div(sub(m.end, m.gridStart), frac(1, m.sig.unit)).n / div(sub(m.end, m.gridStart), frac(1, m.sig.unit)).d));
+    for (const kind of barKinds[mi] ?? []) {
+      const sign = barSign(kind);
+      if (kind === 'segno') body.push(`        <dir xml:id="segno-${mi}" staff="${slots[0]!.n}" tstamp="1" place="above"><symbol glyph.auth="smufl" glyph.name="segno"/></dir>`);
+      else if (kind === 'coda') body.push(`        <dir xml:id="coda-${mi}" staff="${slots[0]!.n}" tstamp="1" place="above"><symbol glyph.auth="smufl" glyph.name="coda"/></dir>`);
+      else if (sign?.text) body.push(`        <dir xml:id="dir-${kind}-${mi}" staff="${slots[0]!.n}" tstamp="${beatsInBar}" place="above">${esc(sign.text)}</dir>`);
+    }
     // Chord symbols sit above the top staff, at their beat inside the measure.
     for (const c of score.chords ?? []) {
       if (!le(m.start, c.at) || !lt(c.at, m.end)) continue;
@@ -369,6 +435,7 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
     }
     body.push('      </measure>');
   });
+  if (openEnding) body.push('      </ending>');
 
   const first = measures[0]!;
   const composer = score.composer
