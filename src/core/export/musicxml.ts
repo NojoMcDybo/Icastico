@@ -21,7 +21,7 @@ import {
 import { KIND_TEXT } from '../import/musicxml';
 import { barSign, noteSymbol, voltaNumber } from '../symbols';
 
-const ARTICULATION_XML: Record<string, string> = { stacc: 'staccato', stacciss: 'staccatissimo', ten: 'tenuto', acc: 'accent', marc: 'strong-accent' };
+const ARTICULATION_XML: Record<string, string> = { stacc: 'staccato', stacciss: 'staccatissimo', ten: 'tenuto', acc: 'accent', marc: 'strong-accent', breath: 'breath-mark', caesura: 'caesura' };
 const ORNAMENT_XML: Record<string, string> = { trill: 'trill-mark', mord: 'mordent', prall: 'inverted-mordent', turn: 'turn' };
 
 /** Index of the note where a crescendo / decrescendo starting at `k` ends: the next note with a dynamic, else the last note. */
@@ -103,7 +103,20 @@ export function exportMusicXml(score: Score, appVersion = ''): ExportResult {
   }
   if (links.some((l) => l.curve)) notes.push('Gleit-Verläufe sind nicht in der Datei.');
 
-  const partList = score.parts.map((p, i) => `    <score-part id="P${i + 1}"><part-name>${esc(p.name)}</part-name></score-part>`).join('\n');
+  // Brackets and braces around parts: a part-group opens before its first part and closes after its last.
+  const groupNumber = new Map<string, number>();
+  (score.groups ?? []).forEach((g, k) => g.parts.forEach((id) => groupNumber.set(id, k + 1)));
+  const partList = score.parts
+    .flatMap((p, i) => {
+      const g = (score.groups ?? []).find((x) => x.parts.includes(p.id));
+      const n = groupNumber.get(p.id);
+      return [
+        ...(g && g.parts[0] === p.id ? [`    <part-group type="start" number="${n}"><group-symbol>${g.symbol}</group-symbol><group-barline>yes</group-barline></part-group>`] : []),
+        `    <score-part id="P${i + 1}"><part-name>${esc(p.name)}</part-name></score-part>`,
+        ...(g && g.parts[g.parts.length - 1] === p.id ? [`    <part-group type="stop" number="${n}"/>`] : []),
+      ];
+    })
+    .join('\n');
   const partXml = score.parts.map((part, pi) => partToXml(part, pi));
 
   function partToXml(part: Part, partIndex: number): string {
@@ -187,7 +200,7 @@ export function exportMusicXml(score: Score, appVersion = ''): ExportResult {
         });
       });
       const rightBar = [
-        kinds.includes('repeatEnd') ? '<bar-style>light-heavy</bar-style>' : '',
+        kinds.includes('repeatEnd') || kinds.includes('finalBar') ? '<bar-style>light-heavy</bar-style>' : kinds.includes('doubleBar') ? '<bar-style>light-light</bar-style>' : '',
         volta && volta !== nextVolta ? `<ending number="${volta}" type="${kinds.includes('repeatEnd') ? 'stop' : 'discontinue'}"/>` : '',
         kinds.includes('repeatEnd') ? '<repeat direction="backward"/>' : '',
       ].join('');
@@ -254,7 +267,7 @@ function itemToXml(
     else if (sign === 'dim') before.push(direction('<wedge type="diminuendo"/>', 'below'));
   }
   const notationSigns = signs
-    .map((sign) => (ARTICULATION_XML[sign] ? `<articulations><${ARTICULATION_XML[sign]}/></articulations>` : ORNAMENT_XML[sign] ? `<ornaments><${ORNAMENT_XML[sign]}/></ornaments>` : sign === 'fermata' ? '<fermata/>' : ''))
+    .map((sign) => (ARTICULATION_XML[sign] ? `<articulations><${ARTICULATION_XML[sign]}/></articulations>` : ORNAMENT_XML[sign] ? `<ornaments><${ORNAMENT_XML[sign]}/></ornaments>` : sign === 'fermata' ? '<fermata/>' : sign === 'arpeggio' ? '<arpeggiate/>' : ''))
     .join('');
   return [...before, ...item.tones.map((tone, ti) => {
     const stop = item.tiedFromPrevious || tieIn.has(tone.id);

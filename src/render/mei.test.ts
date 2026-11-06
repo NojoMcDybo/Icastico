@@ -375,3 +375,42 @@ describe('ties and glides in the notation', () => {
     expect(mei).not.toContain('voice-v1-m2-mr');
   });
 });
+
+describe('barlines, breath signs and groups (ADR 0027)', () => {
+  let engraver: Engraver;
+  beforeAll(async () => {
+    engraver = await Engraver.create();
+  });
+
+  function score() {
+    let s: EditorState = createEditorState(emptyScore());
+    s = runCommand(s, 'input.duration', 5);
+    for (let i = 0; i < 6; i++) s = runCommand(s, 'input.note', i);
+    s = runCommand(runCommand(runCommand(s, 'input.note', 0), 'input.chordNote', 2), 'input.chordNote', 4);
+    const voice = getVoice(s.score, { partId: 'voice', voiceId: 'voice-v1' }).voice;
+    const withMarks = {
+      ...s.score,
+      marks: [{ at: frac(0, 1), kind: 'doubleBar' as const }, { at: frac(1, 1), kind: 'finalBar' as const }],
+      groups: [{ symbol: 'bracket' as const, parts: ['voice', 'guitar'] }],
+      parts: s.score.parts.map((p) =>
+        p.id !== 'voice' ? p : { ...p, voices: p.voices.map((v) => ({ ...v, events: v.events.map((e, i) => (i === 1 ? { ...e, marks: ['breath'] } : i === 2 ? { ...e, marks: ['caesura'] } : e.id === voice.events[voice.events.length - 1]!.id ? { ...e, marks: ['arpeggio'] } : e)) })) },
+      ),
+    };
+    return withMarks;
+  }
+
+  it('writes the barlines and the group, and Verovio draws all of it without a warning', () => {
+    const { mei } = scoreToMei(score());
+    if (!mei.includes('right="dbl"')) throw new Error(mei.split(String.fromCharCode(10)).filter((l) => l.includes('<measure')).join(' | '));
+    expect(mei).toContain('right="dbl"');
+    expect(mei).toContain('right="end"');
+    expect(mei).toMatch(/<staffGrp symbol="bracket" bar.thru="true">/);
+    expect(mei).toContain('<breath ');
+    expect(mei).toContain('<caesura ');
+    expect(mei).toContain('<arpeg ');
+    const { log, pages } = engraver.engrave(mei);
+    expect(log).toBe('');
+    expect(pages[0]).toMatch(/class="breath"/);
+    expect(pages[0]).toMatch(/class="arpeg"/);
+  });
+});

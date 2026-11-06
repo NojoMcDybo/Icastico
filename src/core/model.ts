@@ -62,6 +62,12 @@ export interface NoteEvent {
 }
 
 /** A sign that belongs to a bar (ADR 0024): repeat, ending bracket, segno, coda, jump. `at` is the start of that bar. */
+/** A bracket or brace around neighbouring parts. */
+export interface StaffGroup {
+  readonly parts: readonly string[];
+  readonly symbol: 'bracket' | 'brace';
+}
+
 export interface BarMark {
   readonly at: Fraction;
   readonly kind: BarSignKind;
@@ -111,6 +117,8 @@ export interface Score {
   readonly chords?: readonly ChordSymbol[];
   /** Bar signs, sorted by `at`; one of each kind per bar; absent = none. */
   readonly marks?: readonly BarMark[];
+  /** Parts whose staves are tied together by a bracket or brace (in score order, next to each other). */
+  readonly groups?: readonly StaffGroup[];
 }
 
 /**
@@ -386,6 +394,16 @@ export function validateScore(score: Score): string[] {
     if (lt(m.at, ZERO)) problems.push(`Das Taktzeichen "${m.kind}" beginnt vor dem Anfang.`);
     if (seenMarks.has(key)) problems.push(`Das Taktzeichen "${m.kind}" steht doppelt.`);
     seenMarks.add(key);
+  }
+  const grouped = new Set<string>();
+  for (const g of score.groups ?? []) {
+    const at = g.parts.map((id) => score.parts.findIndex((p) => p.id === id));
+    if (g.symbol !== 'bracket' && g.symbol !== 'brace') problems.push(`Die Gruppierung "${String(g.symbol)}" gibt es nicht.`);
+    if (g.parts.length < 2 || at.some((i) => i < 0) || at.some((i, k) => k > 0 && i !== at[k - 1]! + 1)) problems.push('Eine Klammer fasst mindestens zwei Zeilen zusammen, die direkt untereinander stehen.');
+    for (const id of g.parts) {
+      if (grouped.has(id)) problems.push(`Die Zeile ${id} steht in zwei Klammern.`);
+      grouped.add(id);
+    }
   }
   let lastChord: Fraction | null = null;
   for (const c of score.chords ?? []) {

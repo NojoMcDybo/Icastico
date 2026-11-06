@@ -12,8 +12,8 @@
  */
 import { type Fraction, ZERO, add, compare, eq, frac, gt, isDyadic, le, lt, sub } from '../time';
 import { STEPS, keyAlteration, midiOf, type Pitch } from '../pitch';
-import { type BarSign, BAR_SIGNS, NOTE_SYMBOLS, barSign, toggleNoteSymbol } from '../symbols';
-import { type BarMark, type ChordSymbol, type Link, type LinkKind, type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, measuresOf } from '../model';
+import { type BarSign, BAR_SIGNS, GROUP_SIGNS, NOTE_SYMBOLS, barSign, toggleNoteSymbol } from '../symbols';
+import { type BarMark, type StaffGroup, type ChordSymbol, type Link, type LinkKind, type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, measuresOf } from '../model';
 import { decomposeNote, writtenValue } from '../notation/notate';
 import { emptyScore } from '../templates';
 import {
@@ -32,6 +32,8 @@ import {
   voiceEnd,
 } from './state';
 import { applyRollEdit } from './rollEdits';
+import { deleteRange, extendRange, rangeSpan, selectAllNotes } from './range';
+import { toggleTabAnywhere, translateToTab } from './tabOps';
 import { freshLinkId, linksOf, withLinks, withValidLinks } from './linkOps';
 import { clearRange, insertSorted, makeRoom } from './voiceOps';
 
@@ -201,9 +203,14 @@ function focusBar(s: EditorState) {
 }
 
 /** The signs on the selected note and on its bar – what the palette lights. */
-export function signsAtFocus(s: EditorState): { note: readonly string[]; bar: readonly string[] } {
+export function signsAtFocus(s: EditorState): { note: readonly string[]; bar: readonly string[]; group: readonly string[] } {
   const bar = focusBar(s);
-  return { note: target(s)?.event.marks ?? [], bar: (s.score.marks ?? []).filter((m) => eq(m.at, bar.start)).map((m) => m.kind) };
+  const ref = s.selection ?? s.caret;
+  return {
+    note: target(s)?.event.marks ?? [],
+    bar: (s.score.marks ?? []).filter((m) => eq(m.at, bar.start)).map((m) => m.kind),
+    group: ref ? (s.score.groups ?? []).filter((g) => g.parts.includes(ref.partId)).map((g) => g.symbol) : [],
+  };
 }
 
 /** The score with this bar sign put on the bar starting at `at` (replacing its exclusive neighbours) or taken off. */
@@ -248,6 +255,29 @@ export function dropNoteSign(s: EditorState, id: string, to: { ref: VoiceRef; ev
   return { ...s, score, selection: selectEvent(to.ref, event), message: `${symbol.label}: ${from ? 'verschoben' : 'gesetzt'}` };
 }
 
+/** Takes a note sign off a note (a placed sign selected in the score + Backspace). */
+export function eraseNoteSign(s: EditorState, id: string, at: { ref: VoiceRef; eventId: string }): EditorState {
+  const symbol = NOTE_SYMBOLS.find((x) => x.id === id);
+  const event = symbol && findEvent(s.score, at.ref, at.eventId);
+  if (!symbol || !event?.marks?.includes(id)) return s;
+  const score = updateEvents(s.score, at.ref, (events) =>
+    events.map((e) => {
+      if (e.id !== at.eventId) return e;
+      const marks = (e.marks ?? []).filter((x) => x !== id);
+      const { marks: _old, ...rest } = e;
+      return marks.length ? { ...rest, marks } : rest;
+    }),
+  );
+  return { ...s, score, message: `${symbol.label}: entfernt` };
+}
+
+/** Takes a bar sign off the bar starting at `at`. */
+export function eraseBarSign(s: EditorState, kind: string, at: Fraction): EditorState {
+  const sign = barSign(kind);
+  if (!sign || !(s.score.marks ?? []).some((m) => m.kind === kind && eq(m.at, at))) return s;
+  return { ...s, score: withBarSign(s.score, sign, at, false), message: `${sign.label}: entfernt` };
+}
+
 /** Drag and drop of a bar sign onto the bar starting at `to`; `from` is the bar it is moved away from. */
 export function dropBarSign(s: EditorState, kind: string, to: Fraction, from?: Fraction): EditorState {
   const sign = barSign(kind);
@@ -260,18 +290,39 @@ export function dropBarSign(s: EditorState, kind: string, to: Fraction, from?: F
   return { ...s, score, message: `${sign.label}${where}: ${from ? 'verschoben' : 'gesetzt'}` };
 }
 
+/** Bracket or brace around the selected part and the one below it; the same sign again takes the lower part out of the group. */
+function toggleGroup(s: EditorState, index: number): EditorState {
+  const sign = GROUP_SIGNS[index];
+  const ref = s.selection ?? s.caret;
+  if (!sign || !ref) return say(s, 'Erst eine Note der Zeile wählen, die mit der nächsten zusammengefasst werden soll.');
+  const order = s.score.parts.map((p) => p.id);
+  const at = order.indexOf(ref.partId);
+  const below = order[at + 1];
+  if (at < 0 || below === undefined) return say(s, 'Unter dieser Zeile gibt es keine weitere, die dazugehören könnte.');
+  const groups = s.score.groups ?? [];
+  const mine = groups.find((g) => g.parts.includes(ref.partId));
+  let next: StaffGroup[];
+  if (mine && mine.parts.includes(below) && mine.symbol === sign.id) {
+    // Taking the lower part out (a group of two disappears).
+    const rest = mine.parts.filter((id) => id !== below);
+    next = groups.flatMap((g) => (g !== mine ? [g] : rest.length >= 2 ? [{ ...g, parts: rest }] : []));
+  } else if (mine) {
+    // Same group (possibly another symbol) extended by the part below.
+    const parts = mine.parts.includes(below) ? mine.parts : [...mine.parts, below].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    next = groups.filter((g) => g === mine || !g.parts.includes(below)).map((g) => (g === mine ? { symbol: sign.id, parts } : g));
+  } else {
+    const other = groups.find((g) => g.parts.includes(below));
+    next = [...groups.filter((g) => g !== other), { symbol: sign.id, parts: other ? [ref.partId, ...other.parts] : [ref.partId, below] }];
+  }
+  next.sort((a, b) => order.indexOf(a.parts[0]!) - order.indexOf(b.parts[0]!));
+  const { groups: _old, ...rest } = s.score;
+  const on = next.some((g) => g.parts.includes(ref.partId) && g.parts.includes(below) && g.symbol === sign.id);
+  return { ...s, score: next.length ? { ...rest, groups: next } : rest, message: `${sign.id === 'bracket' ? 'Klammer' : 'Akkolade'}: ${on ? 'gesetzt' : 'gelöst'}` };
+}
+
 /** Tablature staff on/off for the guitar part of the selected note / caret (ADR 0022). */
 function toggleTab(s: EditorState): EditorState {
-  const ref = s.caret ?? s.selection ?? allVoiceRefs(s.score).find((r) => s.score.parts.find((p) => p.id === r.partId)?.instrument === 'guitar');
-  const part = ref && s.score.parts.find((p) => p.id === ref.partId);
-  if (!part || part.instrument !== 'guitar') return say(s, 'Tabulatur gibt es nur für Gitarre – erst eine Gitarrenzeile wählen.');
-  const on = !part.tab;
-  const parts = s.score.parts.map((p) => {
-    if (p.id !== part.id) return p;
-    const { tab: _old, ...rest } = p;
-    return on ? { ...rest, tab: true } : rest;
-  });
-  return { ...s, score: { ...s.score, parts }, message: on ? 'Tabulatur eingeschaltet' : 'Tabulatur ausgeschaltet' };
+  return toggleTabAnywhere(s);
 }
 
 /** Tuplet mode on/off: the next notes become triplets (3), quintuplets (5) or septuplets (7). */
@@ -576,6 +627,7 @@ function toggleInput(s: EditorState): EditorState {
 
 function escape(s: EditorState): EditorState {
   if (s.caret) return { ...s, caret: null, input: { ...s.input, pendingTie: false, chord: false, chordEvent: null, tuplet: 0, ghost: null }, message: null };
+  if (rangeSpan(s)) return { ...s, range: null, message: null }; // the first Esc only unmarks the passage
   return { ...s, selection: null, message: null };
 }
 
@@ -594,6 +646,7 @@ function toRest(s: EditorState): EditorState {
 
 /** Delete: a selected single tone of a chord goes alone, otherwise the whole note becomes a rest. */
 function deleteNote(s: EditorState): EditorState {
+  if (rangeSpan(s)) return deleteRange(s); // a marked passage goes as a whole
   const t = target(s);
   const toneId = s.selection?.kind === 'event' ? s.selection.toneId : undefined;
   if (t && toneId && t.event.tones.length > 1) {
@@ -667,6 +720,7 @@ function detachTone(s: EditorState): EditorState {
 }
 
 function backspace(s: EditorState): EditorState {
+  if (rangeSpan(s)) return deleteRange(s);
   const caret = s.caret;
   if (!caret) return toRest(s);
   const prev = getVoice(s.score, caret).voice.events.find((e) => eq(eventEnd(e), caret.time));
@@ -930,6 +984,8 @@ export const COMMANDS = {
   'input.midi': { title: 'Note vom MIDI-Keyboard eingeben', run: enterMidi },
   'input.midiAdd': { title: 'Weiteren Ton vom MIDI-Keyboard zum Akkord', run: addMidi },
   'mark.toggle': { title: 'Zeichen an der Note (Dynamik, Artikulation, Verzierung)', run: toggleMark },
+  'edit.tabTranslate': { title: 'Auswahl in Gitarren-Tabulatur übersetzen', run: translateToTab },
+  'mark.group': { title: 'Klammer / Akkolade um Zeilen', run: toggleGroup },
   'mark.bar': { title: 'Zeichen am Takt (Wiederholung, Klammer, Segno, Coda, Sprung)', run: toggleBarSign },
   'edit.tab': { title: 'Tabulatur an/aus', run: toggleTab },
   'input.tuplet': { title: 'Triolen / Quintolen / Septolen', run: toggleTuplet },
@@ -942,6 +998,8 @@ export const COMMANDS = {
   'input.chordMode': { title: 'Akkordmodus an/aus', run: toggleChordMode },
   'input.rest': { title: 'Pause eingeben', run: enterRest },
   'input.insertMode': { title: 'Einfügen / Überschreiben', run: toggleInsert },
+  'range.extend': { title: 'Bereich markieren: um eine Note erweitern', run: extendRange },
+  'range.all': { title: 'Alle Noten der Stimme markieren', run: selectAllNotes },
   'edit.escape': { title: 'Eingabe beenden / Auswahl aufheben', run: escape },
   'edit.toRest': { title: 'Note in Pause umwandeln', run: toRest },
   'edit.delete': { title: 'Note löschen', run: deleteNote },

@@ -6,7 +6,7 @@
  * Everything the signs mean – drawing, sound, MusicXML – is looked up here or derived from these tables.
  */
 
-export type NoteSymbolGroup = 'dynamic' | 'hairpin' | 'articulation' | 'ornament' | 'fermata';
+export type NoteSymbolGroup = 'dynamic' | 'hairpin' | 'articulation' | 'ornament' | 'fermata' | 'phrase';
 
 export interface NoteSymbol {
   /** Stored in the file – never change an id. */
@@ -48,6 +48,9 @@ export const NOTE_SYMBOLS: readonly NoteSymbol[] = [
   { id: 'prall', group: 'ornament', label: 'Pralltriller', glyph: 'pr', exclusive: 'ornament' },
   { id: 'turn', group: 'ornament', label: 'Doppelschlag', glyph: '∞', exclusive: 'ornament' },
   { id: 'fermata', group: 'fermata', label: 'Fermate (Halt)', glyph: '𝄐' },
+  { id: 'breath', group: 'phrase', label: 'Atemzeichen', glyph: '𝄒' },
+  { id: 'caesura', group: 'phrase', label: 'Zäsur (kurze Pause im Fluss)', glyph: '𝄓' },
+  { id: 'arpeggio', group: 'phrase', label: 'Arpeggio (Akkord gebrochen, von unten nach oben)', glyph: 'arp.' },
 ];
 
 export const NOTE_SYMBOL_IDS: readonly string[] = NOTE_SYMBOLS.map((s) => s.id);
@@ -81,33 +84,54 @@ export type BarSignKind =
   | 'dcCoda'
   | 'ds'
   | 'dsFine'
-  | 'dsCoda';
+  | 'dsCoda'
+  | 'doubleBar'
+  | 'finalBar'
+  | 'ritard'
+  | 'accel'
+  | 'aTempo';
+
+/** Which section of the palette a bar sign belongs to. */
+export type BarSignCategory = 'barline' | 'volta' | 'jump' | 'tempo';
 
 export interface BarSign {
   readonly id: BarSignKind;
   readonly label: string;
   readonly glyph: string;
+  readonly category: BarSignCategory;
   readonly exclusive?: string;
   /** Text printed above the bar for signs that are words. */
   readonly text?: string;
 }
 
 export const BAR_SIGNS: readonly BarSign[] = [
-  { id: 'repeatStart', label: 'Wiederholung beginnt (𝄆)', glyph: '𝄆' },
-  { id: 'repeatEnd', label: 'Wiederholung endet (𝄇)', glyph: '𝄇' },
-  { id: 'volta1', label: '1. Klammer', glyph: '1.', exclusive: 'volta' },
-  { id: 'volta2', label: '2. Klammer', glyph: '2.', exclusive: 'volta' },
-  { id: 'volta3', label: '3. Klammer', glyph: '3.', exclusive: 'volta' },
-  { id: 'segno', label: 'Segno (Zeichen)', glyph: '𝄉' },
-  { id: 'coda', label: 'Coda (Schlussteil beginnt)', glyph: '𝄌' },
-  { id: 'toCoda', label: 'Zur Coda springen', glyph: 'To Coda', text: 'To Coda' },
-  { id: 'fine', label: 'Fine (Ende)', glyph: 'Fine', text: 'Fine' },
-  { id: 'dc', label: 'D.C. (zurück zum Anfang)', glyph: 'D.C.', exclusive: 'jump', text: 'D.C.' },
-  { id: 'dcFine', label: 'D.C. al Fine', glyph: 'D.C. al Fine', exclusive: 'jump', text: 'D.C. al Fine' },
-  { id: 'dcCoda', label: 'D.C. al Coda', glyph: 'D.C. al Coda', exclusive: 'jump', text: 'D.C. al Coda' },
-  { id: 'ds', label: 'D.S. (zurück zum Segno)', glyph: 'D.S.', exclusive: 'jump', text: 'D.S.' },
-  { id: 'dsFine', label: 'D.S. al Fine', glyph: 'D.S. al Fine', exclusive: 'jump', text: 'D.S. al Fine' },
-  { id: 'dsCoda', label: 'D.S. al Coda', glyph: 'D.S. al Coda', exclusive: 'jump', text: 'D.S. al Coda' },
+  { id: 'repeatStart', label: 'Wiederholung beginnt (𝄆)', glyph: '𝄆', category: 'barline' },
+  { id: 'repeatEnd', label: 'Wiederholung endet (𝄇)', glyph: '𝄇', category: 'barline', exclusive: 'rightbar' },
+  { id: 'doubleBar', label: 'Doppelstrich (Abschnitt endet)', glyph: '𝄁', category: 'barline', exclusive: 'rightbar' },
+  { id: 'finalBar', label: 'Schlussstrich (Stück endet)', glyph: '𝄂', category: 'barline', exclusive: 'rightbar' },
+  { id: 'volta1', label: '1. Klammer', glyph: '1.', category: 'volta', exclusive: 'volta' },
+  { id: 'volta2', label: '2. Klammer', glyph: '2.', category: 'volta', exclusive: 'volta' },
+  { id: 'volta3', label: '3. Klammer', glyph: '3.', category: 'volta', exclusive: 'volta' },
+  { id: 'segno', label: 'Segno (Zeichen)', glyph: '𝄉', category: 'jump' },
+  { id: 'coda', label: 'Coda (Schlussteil beginnt)', glyph: '𝄌', category: 'jump' },
+  { id: 'toCoda', label: 'Zur Coda springen', glyph: 'To Coda', category: 'jump', text: 'To Coda' },
+  { id: 'fine', label: 'Fine (Ende)', glyph: 'Fine', category: 'jump', text: 'Fine' },
+  { id: 'dc', label: 'D.C. (zurück zum Anfang)', glyph: 'D.C.', category: 'jump', exclusive: 'jump', text: 'D.C.' },
+  { id: 'dcFine', label: 'D.C. al Fine', glyph: 'D.C. al Fine', category: 'jump', exclusive: 'jump', text: 'D.C. al Fine' },
+  { id: 'dcCoda', label: 'D.C. al Coda', glyph: 'D.C. al Coda', category: 'jump', exclusive: 'jump', text: 'D.C. al Coda' },
+  { id: 'ds', label: 'D.S. (zurück zum Segno)', glyph: 'D.S.', category: 'jump', exclusive: 'jump', text: 'D.S.' },
+  { id: 'dsFine', label: 'D.S. al Fine', glyph: 'D.S. al Fine', category: 'jump', exclusive: 'jump', text: 'D.S. al Fine' },
+  { id: 'dsCoda', label: 'D.S. al Coda', glyph: 'D.S. al Coda', category: 'jump', exclusive: 'jump', text: 'D.S. al Coda' },
+  { id: 'ritard', label: 'rit. (langsamer werden)', glyph: 'rit.', category: 'tempo', exclusive: 'tempoword', text: 'rit.' },
+  { id: 'accel', label: 'accel. (schneller werden)', glyph: 'accel.', category: 'tempo', exclusive: 'tempoword', text: 'accel.' },
+  { id: 'aTempo', label: 'a tempo (wieder im alten Tempo)', glyph: 'a tempo', category: 'tempo', exclusive: 'tempoword', text: 'a tempo' },
+];
+
+/** Signs that tie staves together on the left (the bracket / brace of a group of parts). */
+export type GroupSymbol = 'bracket' | 'brace';
+export const GROUP_SIGNS: readonly { readonly id: GroupSymbol; readonly label: string; readonly glyph: string }[] = [
+  { id: 'bracket', label: 'Klammer um die gewählte und die nächste Zeile (noch einmal: lösen)', glyph: '[' },
+  { id: 'brace', label: 'Akkolade um die gewählte und die nächste Zeile (noch einmal: lösen)', glyph: '{' },
 ];
 
 export const BAR_SIGN_IDS: readonly string[] = BAR_SIGNS.map((s) => s.id);

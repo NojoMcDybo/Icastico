@@ -300,6 +300,19 @@ try {
   await type('F1');
   await page.click('[data-preset="finale"]');
   await type('Escape');
+  // Suchleiste in der Tastenbelegung
+  await type('F1');
+  const helpRows = () => page.locator('.help__box dt:not([hidden])').count();
+  const allRows = await helpRows();
+  await page.fill('.help__search', 'oktave');
+  const found = await helpRows();
+  check(found >= 1 && found < allRows && (await page.locator('.help__box dt:not([hidden])').first().isVisible()), 'Tastenhilfe: die Suchleiste zeigt nur die Funktionen zum Suchwort');
+  await page.fill('.help__search', 'xyzqq');
+  check((await helpRows()) === 0 && (await page.locator('.help__none').isVisible()), 'Tastenhilfe: ohne Treffer steht dort „Dazu gibt es keine Taste“');
+  await page.fill('.help__search', '?');
+  check(await page.locator('.help').isVisible(), 'Tastenhilfe: ein „?“ im Suchfeld schließt die Hilfe nicht');
+  await type('Escape');
+  check(await page.locator('.help').isHidden(), 'Tastenhilfe: Esc schließt sie auch aus dem Suchfeld');
 
   // ── Piano-Roll: zweite Ansicht derselben Töne ──
   await type('Control+Shift+P');
@@ -533,8 +546,9 @@ try {
   // Quintenzirkel statt Einstellungsmenü
   await page.click('.lcd__cell:has-text("TONART")');
   await page.waitForSelector('.keypicker');
-  check(!(await page.locator('.modal').count()) && (await page.locator('.keypicker__key--major').count()) >= 12 && (await page.locator('.keypicker__key.is-current').first().getAttribute('title'))?.startsWith('C-Dur'), 'Tonart: ein Klick öffnet den Quintenzirkel (kein Einstellungsmenü), C-Dur ist markiert');
-  await page.click('.keypicker__key--major[title^="D-Dur"]');
+  await page.screenshot({ path: join(outDir, 'quintenzirkel.png'), clip: { x: 500, y: 0, width: 460, height: 400 } });
+  check(!(await page.locator('.modal').count()) && (await page.locator('.keypicker__seg--major').count()) >= 12 && (await page.locator('.keypicker__seg--minor').count()) >= 12 && (await page.locator('.keypicker__seg.is-current title').first().textContent())?.startsWith('C-Dur'), 'Tonart: ein Klick öffnet den Quintenzirkel (kein Einstellungsmenü), C-Dur ist markiert');
+  await page.click('.keypicker__seg--major:has(title:text-is("D-Dur / h-Moll (2 ♯)"))');
   await page.waitForFunction(() => document.querySelectorAll('.lcd__value')[4]?.textContent === 'Dmaj');
   check((await page.locator('.keypicker').count()) === 0, 'Tonart: ein Klick auf D im Quintenzirkel setzt D-Dur und schließt ihn');
   await type('Control+z');
@@ -743,7 +757,7 @@ try {
   await type('Escape');
   await saved();
   const shaped = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Verlauf-Test.icastico'))[1].contents;
-  check(/"version": 9/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 9)');
+  check(/"version": 10/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 10)');
   await type('Control+Enter');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true', null, { timeout: 30000 });
   await page.waitForTimeout(1500);
@@ -857,6 +871,72 @@ try {
   await press(72);
   check((await notes()) === 3, 'Aufnahme aus: das Keyboard gibt keine Noten mehr ein');
   await type('Escape');
+
+  // ── Transponieren: Schalter chromatisch / diatonisch und ein Rad mit den Intervallen ──
+  await newScore('Transpo-Test');
+  await type('5', 'c', 'd', 'e', 'Escape');
+  await page.locator('.page g.note').first().click({ force: true });
+  await type('Control+Shift+t');
+  await page.waitForSelector('.transpose .wheel');
+  check((await page.locator('.wheel__item').count()) === 27 && (await page.locator('.wheel__item.is-chosen').textContent()) === 'Prim' && /Ganze/.test(await page.locator('.transpose__scope').textContent()), 'Transponieren: das Rad zeigt die Intervalle von der Oktave abwärts bis aufwärts, die Prim in der Mitte');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.waitForFunction(() => /große Sekunde|kleine Terz/.test(document.querySelector('.wheel__item.is-chosen')?.textContent ?? ''));
+  const chosen = await page.locator('.wheel__item.is-chosen').textContent();
+  check(/aufwärts/.test(chosen) && /Beispiel: C → /.test(await page.locator('.transpose__example').textContent()), `Transponieren: ↓ dreht das Rad zum nächsten Intervall (${chosen}), darunter steht ein Beispiel`);
+  const wheelBox = await page.locator('.wheel').boundingBox();
+  await page.mouse.move(wheelBox.x + wheelBox.width / 2, wheelBox.y + wheelBox.height / 2);
+  await page.mouse.wheel(0, 76);
+  await page.waitForFunction((before) => document.querySelector('.wheel__item.is-chosen')?.textContent !== before, chosen);
+  check(true, 'Transponieren: das Mausrad dreht das Rad (wie der iPhone-Timer), die Zeile rastet in der Mitte ein');
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: join(outDir, 'transponieren.png') });
+  await page.click('.transpose__toggle button:has-text("Diatonisch")');
+  check((await page.locator('.wheel__item').count()) === 15, 'Transponieren: der Schalter „Diatonisch“ zeigt die Stufen (Sekunde bis Oktave)');
+  await page.keyboard.press('Escape');
+  check((await page.locator('.transpose').count()) === 0, 'Transponieren: Esc schließt den Dialog, nichts ändert sich');
+  await type('Control+Shift+t');
+  await page.waitForSelector('.transpose .wheel');
+  await page.click('.transpose__toggle button:has-text("Chromatisch")');
+  await page.waitForFunction(() => document.querySelectorAll('.wheel__item').length === 27);
+  await page.locator('.wheel__item:text-is("reine Quinte aufwärts")').click({ force: true });
+  await page.waitForFunction(() => /Quinte aufwärts/.test(document.querySelector('.wheel__item.is-chosen')?.textContent ?? ''));
+  await page.keyboard.press('Enter');
+  check(/Töne transponiert/.test(await status()) && (await page.locator('.transpose').count()) === 0, 'Transponieren: Enter transponiert um die gewählte Quinte, die Statuszeile meldet es');
+  await type('Control+z');
+  check(!/Töne transponiert/.test(await status()), 'Transponieren: Strg+Z nimmt es in einem Schritt zurück');
+
+  // ── Bereich markieren: löschen, kopieren, einfügen, in Schleife abspielen ──
+  await newScore('Bereich-Test');
+  await type('5', 'c', 'd', 'e', 'f', 'g', 'Escape');
+  check((await notes()) === 5, 'Bereich: fünf Noten stehen in der Notenschrift');
+  await page.locator('.page g.note').first().click({ force: true });
+  await type('Alt+Shift+ArrowRight', 'Alt+Shift+ArrowRight');
+  check((await page.locator('.page g.is-range').count()) >= 3 && /3 Noten markiert/.test(await status()), 'Bereich: Alt+Umschalt+→ markiert die gewählte und die nächsten Noten (blau)');
+  await type('Control+c');
+  await page.locator('.page g.note').nth(4).click({ force: true });
+  await type('Control+v');
+  check((await notes()) === 7, 'Bereich: Strg+C und Strg+V fügen die drei Noten an der gewählten Stelle ein');
+  await page.locator('.page g.note').first().click({ force: true });
+  await type('Alt+Shift+ArrowRight', 'Delete');
+  check((await notes()) === 5, 'Bereich: Entf löscht die markierten Noten (sie werden zu Pausen)');
+  await type('Control+z');
+  await page.locator('.page g.note').first().click({ force: true });
+  await page.keyboard.down('Shift');
+  await page.locator('.page g.note').nth(2).click({ force: true });
+  await page.keyboard.up('Shift');
+  check((await page.locator('.page g.is-range').count()) >= 3, 'Bereich: Umschalt + Klick markiert von der gewählten bis zur angeklickten Note');
+  await type('Control+x');
+  check((await notes()) === 4, 'Bereich: Strg+X schneidet den Bereich aus (3 Noten weg, eine Pause bleibt als Lücke)');
+  await type('Control+z');
+  await page.locator('.page g.note').first().click({ force: true });
+  await type('Alt+Shift+ArrowRight', 'Control+l');
+  await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true', null, { timeout: 30000 });
+  await page.waitForTimeout(2500);
+  check((await page.locator('.transport__play').getAttribute('aria-pressed')) === 'true', 'Bereich: Strg+L spielt den markierten Bereich in Schleife (läuft auch nach seinem Ende weiter)');
+  await page.click('.transport__stop');
+  await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'false');
 
   // ── Noten diktieren: Notennamen per Sprache ──
   await newScore('Diktat-Test');
@@ -1013,7 +1093,7 @@ try {
   await page.screenshot({ path: join(outDir, 'zeichen.png') });
   await saved();
   const signsFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Zeichen-Test.icastico'))[1].contents;
-  check(/"version": 9/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 9)');
+  check(/"version": 10/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 10)');
   await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
   await page.click('.transport__play');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');
@@ -1048,6 +1128,90 @@ try {
   await page.click('#symbols-button');
   await page.waitForSelector('.symbols', { state: 'hidden' });
   await page.setViewportSize({ width: 1400, height: 900 });
+
+  // ── Zeichen: Taktstriche, Klammer um Zeilen, anklicken + Rücktaste löscht ──
+  await page.setViewportSize({ width: 1400, height: 1100 });
+  await openLibrary();
+  await page.click('.tile-item:has-text("Zeichen-Test")');
+  await page.waitForSelector('#library', { state: 'hidden' });
+  await page.waitForSelector('.page svg');
+  if (await page.locator('.symbols').isHidden()) await page.click('#symbols-button');
+  check((await page.locator('.symbols h3').allTextContents()).join('|').includes('Taktstriche') && (await page.locator('.symbols__btn[aria-label^="Doppelstrich"]').count()) === 1 && (await page.locator('.symbols__btn[aria-label^="Schlussstrich"]').count()) === 1 && (await page.locator('.symbols__btn[aria-label^="Klammer um"]').count()) === 1, 'Zeichen: die Rubrik „Taktstriche“ hat Doppelstrich, Schlussstrich und die Klammer um Zeilen');
+  check((await page.locator('.symbols__btn[aria-label^="Atemzeichen"]').count()) === 1 && (await page.locator('.symbols__btn[aria-label^="rit."]').count()) === 1, 'Zeichen: Atemzeichen, Zäsur, Arpeggio und Tempo-Anweisungen (rit., accel., a tempo) sind dazugekommen');
+  await page.locator('.page g.note').first().click({ force: true });
+  await page.dblclick('.symbols__btn[aria-label^="Klammer um"]');
+  await page.waitForFunction(() => document.querySelectorAll('.page g.grpSym').length >= 1);
+  check(true, 'Zeichen: die Klammer fasst die gewählte Zeile mit der nächsten zusammen (und wird gezeichnet)');
+  await page.screenshot({ path: join(outDir, 'zeichen-rubriken.png') });
+  await page.dblclick('.symbols__btn[aria-label^="Klammer um"]');
+  await page.waitForFunction(() => document.querySelectorAll('.page g.grpSym').length === 0);
+  check(true, 'Zeichen: dieselbe Taste noch einmal löst die Klammer wieder');
+  await page.locator('.page g.note').nth(2).click({ force: true });
+  await page.dblclick('.symbols__btn[aria-label^="Doppelstrich"]');
+  check(/Doppelstrich.*gesetzt/.test(await status()), 'Zeichen: der Doppelstrich wird am Takt der gewählten Note gesetzt');
+  await page.dblclick('.symbols__btn[aria-label^="Schlussstrich"]');
+  const finalBarStatus = await status();
+  const finalBarMeasure = /Takt ([0-9]+)/.exec(finalBarStatus)?.[1] ?? '1';
+  check(/Schlussstrich.*gesetzt/.test(finalBarStatus), 'Zeichen: ein Schlussstrich ersetzt den Doppelstrich im selben Takt');
+  // Ein gesetztes Zeichen anklicken und mit der Rücktaste löschen
+  const fermataBox = await boxOf('.page g.fermata');
+  const fermatasBefore = await page.locator('.page g.fermata').count();
+  await page.mouse.click(fermataBox.x + fermataBox.width / 2, fermataBox.y + fermataBox.height / 2);
+  check((await page.locator('.page .is-sign-selected').count()) >= 1, 'Zeichen: ein Klick auf ein gesetztes Zeichen (Fermate) wählt es aus (blau)');
+  await type('Backspace');
+  check((await page.locator('.page g.fermata').count()) === fermatasBefore - 1 && /entfernt/.test(await status()), 'Zeichen: die Rücktaste löscht das gewählte Zeichen');
+  await type('Control+z');
+  check((await page.locator('.page g.fermata').count()) === fermatasBefore, 'Zeichen: Strg+Z holt es zurück');
+  // Taktstriche sind ebenso wählbar: der Schlussstrich am Ende von Takt 1
+  const lines = page.locator(`.page #m${finalBarMeasure} > g.barLine`);
+  const lastLine = await lines.last().boundingBox();
+  await page.mouse.click(lastLine.x + lastLine.width / 2, lastLine.y + lastLine.height / 2);
+  check((await page.locator('.page .is-sign-selected').count()) >= 1, 'Zeichen: auch ein Taktstrich lässt sich anklicken und wählen');
+  await type('Backspace');
+  check(/entfernt/.test(await status()), 'Zeichen: Rücktaste löscht den gewählten Taktstrich');
+  await type('Control+z');
+  await page.click('#symbols-button');
+  await page.setViewportSize({ width: 1400, height: 900 });
+
+  // ── Tabulatur: später hinzufügen, Bereich in Tabulatur übersetzen ──
+  await newScore('Tabulatur-Neu');
+  await type('5', 'c', 'd', 'e', 'f', 'Escape');
+  await page.locator('.page g.note').first().click({ force: true });
+  await type('Alt+Shift+ArrowRight', 'Alt+Shift+ArrowRight');
+  const staffsBefore = await page.locator('.page g.staff').count();
+  await type('Control+Shift+b');
+  await page.waitForFunction((n) => document.querySelectorAll('.page g.staff').length > n, staffsBefore);
+  check(/in die Gitarrenzeile übersetzt/.test(await status()), 'Tabulatur: „Auswahl übersetzen“ (Strg+Umschalt+B) legt die Gitarrenzeile an und übersetzt die markierten Noten');
+  check((await page.locator('.page g.tabGrp, .page text, .page tspan').filter({ hasText: /^[0-9]+$/ }).count()) >= 1, 'Tabulatur: die übersetzten Noten erscheinen als Bundzahlen in der Tabulatur');
+  await type('Control+z');
+  check((await page.locator('.page g.staff').count()) === staffsBefore, 'Tabulatur: Strg+Z nimmt Zeile und Tabulatur in einem Schritt zurück');
+
+  // Exportieren-Untermenü in der Bibliothek (Menü mit den drei Punkten)
+  await openLibrary();
+  await page.locator('.tile__more').first().click();
+  await page.click('.menu button:has-text("Exportieren")');
+  check((await page.locator('.menu button').allTextContents()).some((t) => t.includes('MIDI')) && (await page.locator('.menu button').allTextContents()).some((t) => t.includes('MusicXML')) && (await page.locator('.menu button').allTextContents()).some((t) => t.includes('PDF')), 'Bibliothek: „Exportieren“ im Drei-Punkte-Menü öffnet ein Untermenü mit der Dateiart');
+  const midiDownload = page.waitForEvent('download');
+  await page.click('.menu button:has-text("MIDI")');
+  const midiName = (await midiDownload).suggestedFilename();
+  check(/.mid$/.test(midiName), 'Bibliothek: die Dateiart MIDI speichert eine .mid-Datei (' + midiName + ')');
+  await openLibrary();
+  await page.locator('.tile__more').first().click();
+  await page.click('.menu button:has-text("Exportieren")');
+  await page.click('.menu button:has-text("Zurück")');
+  check((await page.locator('.menu button').allTextContents()).some((t) => t.includes('Duplizieren')), 'Bibliothek: im Untermenü führt „Zurück“ zum Menü');
+  await type('Escape');
+  // Neuigkeiten nach einem Update: Popup mit den neuen Funktionen, nur einmal
+  await page.evaluate(() => localStorage.setItem('icastico.seenVersion', '0.15.0'));
+  await page.reload();
+  await page.waitForSelector('.patchnotes', { timeout: 30000 });
+  check((await page.locator('.patchnotes li').count()) >= 2 && /Version 0.17.0/.test(await page.locator('.patchnotes').textContent()), 'Update: ein Popup listet die neuen Funktionen der Versionen seit dem letzten Start');
+  await page.click('.patchnotes button:has-text("Verstanden")');
+  await page.waitForSelector('.patchnotes', { state: 'detached' });
+  check((await page.evaluate(() => localStorage.getItem('icastico.seenVersion'))) !== '0.15.0', 'Update: die Version wird gemerkt, das Popup kommt nicht noch einmal');
+  await page.reload();
+  await page.waitForSelector('.page svg, #library:not([hidden])', { timeout: 30000 });
+  check((await page.locator('.patchnotes').count()) === 0, 'Update: beim nächsten Start ohne Update gibt es kein Popup');
 
   check(errors.length === 0, `Keine Fehler in der Konsole${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   console.log(`\nAlle ${step} Prüfungen bestanden. Screenshots: ${outDir}`);

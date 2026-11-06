@@ -45,7 +45,7 @@ describe('signs on notes', () => {
 
   it('the palette is told which signs are on', () => {
     const s = run(run(eight(), 'mark.toggle', note('mf')), 'mark.bar', bar('repeatEnd'));
-    expect(signsAtFocus(s)).toEqual({ note: ['mf'], bar: ['repeatEnd'] });
+    expect(signsAtFocus(s)).toMatchObject({ note: ['mf'], bar: ['repeatEnd'] });
   });
 });
 
@@ -98,5 +98,41 @@ describe('drag and drop of signs', () => {
     t = dropBarSign(t, 'repeatStart', frac(1, 1), frac(0, 1));
     expect(t.score.marks).toEqual([{ at: frac(1, 1), kind: 'repeatStart' }]);
     expect(validateScore(t.score)).toEqual([]);
+  });
+});
+
+describe('brackets and braces around parts', () => {
+  const selectPart = (s: EditorState, partId: string): EditorState => ({ ...s, caret: null, selection: { kind: 'event', partId, voiceId: `${partId}-v1`, eventId: 'x' } });
+  const group = (s: EditorState, id: 'bracket' | 'brace') => runCommand(s, 'mark.group', id === 'bracket' ? 0 : 1);
+
+  it('a bracket joins the selected line with the one below, the same sign again takes it out', () => {
+    let s = selectPart(eight(), 'voice');
+    s = group(s, 'bracket');
+    expect(s.score.groups).toEqual([{ symbol: 'bracket', parts: ['voice', 'guitar'] }]);
+    expect(validateScore(s.score)).toEqual([]);
+    expect(signsAtFocus(s).group).toEqual(['bracket']);
+    s = group(s, 'bracket');
+    expect(s.score.groups).toBeUndefined();
+  });
+
+  it('another symbol changes it, a third line extends it, and the last line has nothing below', () => {
+    let s = group(selectPart(eight(), 'voice'), 'bracket');
+    s = group(s, 'brace');
+    expect(s.score.groups).toEqual([{ symbol: 'brace', parts: ['voice', 'guitar'] }]);
+    s = group(selectPart(s, 'guitar'), 'brace');
+    expect(s.score.groups![0]!.parts).toEqual(['voice', 'guitar', 'piano']);
+    const last = group(selectPart(eight(), 'piano'), 'bracket');
+    expect(last.message).toMatch(/keine weitere/);
+    expect(last.score.groups).toBeUndefined();
+  });
+
+  it('double bar and final bar replace each other and a repeat end (one right barline per bar)', () => {
+    const idx = (id: string) => BAR_SIGNS.findIndex((b) => b.id === id);
+    let s = eight();
+    s = run(s, 'mark.bar', idx('doubleBar'));
+    s = run(s, 'mark.bar', idx('finalBar'));
+    expect(s.score.marks!.map((m) => m.kind)).toEqual(['finalBar']);
+    s = run(s, 'mark.bar', idx('repeatEnd'));
+    expect(s.score.marks!.map((m) => m.kind)).toEqual(['repeatEnd']);
   });
 });

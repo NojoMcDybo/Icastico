@@ -431,6 +431,12 @@ button {
 }
 
 /* Selection on the paper: Verovio draws with currentColor. */
+.page g.is-range {
+  color: var(--accent-ink);
+  fill: var(--accent-ink);
+  opacity: 0.8;
+}
+
 .page g.is-selected,
 .page g.is-playing {
   color: var(--accent-ink);
@@ -1076,6 +1082,27 @@ body.is-dragging-note * {
   color: var(--dim);
 }
 
+.menu__arrow {
+  float: right;
+  color: var(--dim);
+}
+
+.help__search {
+  width: 100%;
+  margin: 14px 0 0;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.08);
+  color: var(--ink);
+  font: inherit;
+}
+
+.help__none {
+  margin: 20px 0 0;
+  color: var(--dim);
+}
+
 .help__box h2 {
   margin: 0;
   font-size: 18px;
@@ -1323,6 +1350,11 @@ body.is-dragging-note * {
 .roll__bar.is-selected {
   fill: var(--accent);
   fill-opacity: 1;
+}
+
+.roll__bar.is-range {
+  fill: var(--accent);
+  fill-opacity: 0.7;
 }
 
 .roll__bar.is-secondary {
@@ -1723,78 +1755,95 @@ button.lcd__cell:nth-child(3) {
   animation: symbols-in 0.32s var(--spring);
 }
 
-.keypicker__key {
-  position: absolute;
-  display: grid;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  place-items: center;
-  align-content: center;
-  border: 0;
-  border-radius: 50%;
-  background: rgb(255 255 255 / 0.1);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);
-  color: var(--ink);
-  font-weight: 600;
-  line-height: 1;
-  transform: translate(-50%, -50%);
-  transition: background 0.2s var(--ease), transform 0.3s var(--spring);
+.keypicker__svg {
+  display: block;
 }
 
-.keypicker__key small {
-  margin-top: 2px;
-  color: rgb(255 255 255 / 0.6);
-  font-size: 9px;
-  font-weight: 500;
+.keypicker__seg {
+  cursor: pointer;
+  outline: none;
 }
 
-.keypicker__key--minor {
-  width: 34px;
-  height: 34px;
-  background: rgb(255 255 255 / 0.05);
+.keypicker__seg path {
+  stroke: rgb(255 255 255 / 0.22);
+  stroke-width: 1;
+  transition: fill 0.2s var(--ease);
+}
+
+.keypicker__seg--major path {
+  fill: rgb(255 255 255 / 0.13);
+}
+
+.keypicker__seg--minor path {
+  fill: rgb(255 255 255 / 0.06);
+}
+
+.keypicker__seg:hover path,
+.keypicker__seg:focus-visible path {
+  fill: rgb(255 255 255 / 0.26);
+}
+
+.keypicker__seg.is-current path {
+  fill: var(--accent);
+}
+
+.keypicker__name {
+  fill: var(--ink);
+  font: 600 15px var(--font);
+  pointer-events: none;
+}
+
+.keypicker__seg--minor .keypicker__name {
   font-size: 12px;
   font-weight: 500;
 }
 
-.keypicker__key:hover {
-  background: rgb(255 255 255 / 0.22);
+.keypicker__count {
+  fill: rgb(255 255 255 / 0.55);
+  font: 500 9px var(--font);
+  pointer-events: none;
 }
 
-.keypicker__key:active {
-  transform: translate(-50%, -50%) scale(0.93);
+.keypicker__seg.is-current .keypicker__name,
+.keypicker__seg.is-current .keypicker__count {
+  fill: #0c1a2b;
 }
 
-.keypicker__key.is-current {
-  background: var(--accent);
-  color: #0c1a2b;
+.keypicker__hub {
+  fill: rgb(0 0 0 / 0.22);
+  stroke: rgb(255 255 255 / 0.22);
 }
 
-.keypicker__key.is-current small {
-  color: rgb(12 26 43 / 0.7);
+.keypicker__hubname {
+  fill: var(--ink);
+  font: 650 22px var(--font);
+}
+
+.keypicker__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 12px;
+}
+
+.keypicker__foot span {
+  flex: 1;
+  color: rgb(255 255 255 / 0.55);
+  font-size: 11px;
 }
 
 .keypicker__rare {
-  position: absolute;
-  right: 12px;
-  bottom: 10px;
-  display: flex;
-  gap: 6px;
-}
-
-.keypicker__rare .keypicker__key {
-  position: static;
-  width: 40px;
-  height: 40px;
-  transform: none;
-}
-
-.keypicker__hint {
-  position: absolute;
-  bottom: 14px;
-  left: 16px;
-  color: rgb(255 255 255 / 0.55);
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.1);
+  color: var(--ink);
   font-size: 11px;
+}
+
+.keypicker__rare.is-current {
+  background: var(--accent);
+  color: #0c1a2b;
 }
 
 /* The preview note of Finale's numpad typing: a ghost where Enter will put the note */
@@ -1820,6 +1869,132 @@ button.lcd__cell:nth-child(3) {
   color: var(--accent-ink);
   opacity: 0.8;
   white-space: nowrap;
+}
+
+/* The interval wheel (like the iPhone timer) */
+.wheel {
+  position: relative;
+}
+
+/* The band the chosen row sits in, behind the rows. */
+.wheel__band {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.1);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.wheel__scroll {
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 32%, #000 68%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 32%, #000 68%, transparent);
+  outline: none;
+}
+
+.wheel__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.wheel__scroll:active {
+  cursor: grabbing;
+}
+
+.wheel__scroll:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 14px;
+}
+
+.wheel__item {
+  display: grid;
+  place-items: center;
+  scroll-snap-align: center;
+  font-size: 19px;
+  font-weight: 500;
+  transition: opacity 0.08s linear, transform 0.08s linear;
+  will-change: transform, opacity;
+}
+
+.wheel__item.is-chosen {
+  font-weight: 650;
+}
+
+.transpose {
+  width: min(380px, calc(100vw - 32px));
+}
+
+.transpose__scope {
+  margin: 2px 0 12px;
+  color: var(--dim);
+}
+
+.transpose__toggle {
+  display: flex;
+  margin-bottom: 8px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.08);
+}
+
+.transpose__toggle button {
+  flex: 1;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--dim);
+  transition: background 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.transpose__toggle button[aria-pressed='true'] {
+  background: var(--ink);
+  color: #111;
+}
+
+.transpose__example {
+  margin: 10px 0 4px;
+  color: var(--dim);
+  text-align: center;
+}
+
+.transpose__key {
+  margin: 4px 0;
+  text-align: center;
+}
+
+/* "Neu in Icastico" after an update */
+.patchnotes {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100vh - 80px);
+  overflow: auto;
+}
+
+.patchnotes h3 {
+  margin: 14px 0 4px;
+  color: var(--dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.patchnotes ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.patchnotes li {
+  margin: 4px 0;
 }
 
 /* The voice test dialog */
@@ -1979,6 +2154,13 @@ button.lcd__cell:nth-child(3) {
   font-size: 16px;
   pointer-events: none;
   text-align: center;
+}
+
+.page .is-sign-selected,
+.page .is-sign-selected * {
+  color: var(--accent-ink);
+  fill: var(--accent-ink);
+  stroke: var(--accent-ink);
 }
 
 .is-sign-target {

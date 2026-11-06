@@ -233,6 +233,19 @@ export function planFrom(plan: PlaybackPlan, seconds: number): PlaybackPlan {
   return { notes, length: plan.length };
 }
 
+/** The plan as far as `to` seconds: later notes drop out, a note that is still running ends there. */
+export function planUntil(plan: PlaybackPlan, to: number): PlaybackPlan {
+  const notes = plan.notes
+    .filter((n) => n.start < to)
+    .map((n): SoundNote => {
+      if (n.end <= to) return n;
+      const path = [...n.path.filter((p) => p.t < to), { t: to, midi: pitchAt(n.path, to) }];
+      const gain = n.gain && [...n.gain.filter((p) => p.t < to), { t: to, level: levelAt(n.gain, to) }];
+      return { ...n, end: to, path, ...(gain ? { gain } : {}) };
+    });
+  return { notes, length: Math.min(plan.length, to) };
+}
+
 /** Bar (0 = upbeat) and beat (1-based) shown in the transport display for a time. */
 export function barBeat(score: Score, t: Fraction): { bar: number; beat: number } {
   const measures = measuresOf(score, 1, t);

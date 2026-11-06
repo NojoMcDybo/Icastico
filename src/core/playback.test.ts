@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { frac } from './time';
 import { withTempo, type Score } from './model';
 import { emptyScore } from './templates';
-import { keyName, barBeat, levelAt, pitchAt, planFrom, planPlayback, secondsOf, timeAt } from './playback';
+import { keyName, barBeat, levelAt, pitchAt, planFrom, planPlayback, planUntil, secondsOf, timeAt } from './playback';
 import { runCommand } from './editor/commands';
 import { applyRollEdit } from './editor/rollEdits';
 import { createEditorState, getVoice, type EditorState, type VoiceRef } from './editor/state';
@@ -90,6 +90,16 @@ describe('playback plan', () => {
     // two end exactly when the target starts (1 s at 120 bpm: a quarter rest after the chord), at the target's pitch; one goes on to the target's end
     expect(ends.filter(([end]) => end === 1.0)).toEqual([[1, 74], [1, 74]]);
     expect(ends.filter(([end]) => end! > 1.0)).toHaveLength(1);
+  });
+
+  it('a plan cut at a time: later notes drop out, a running one ends right there', () => {
+    const plan = planPlayback(melody().score); // quarters at 120 bpm: C 0–0.5, C 0.5–1, D 1.5–2
+    const cut = planUntil(plan, 0.75);
+    expect(cut.notes).toHaveLength(2);
+    expect(cut.length).toBe(0.75);
+    expect(cut.notes[1]!.end).toBe(0.75);
+    expect(cut.notes[1]!.path[cut.notes[1]!.path.length - 1]).toEqual({ t: 0.75, midi: 72 });
+    expect(planUntil(plan, 99)).toEqual(plan);
   });
 
   it('an empty score plans nothing', () => {

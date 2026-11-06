@@ -336,26 +336,45 @@
           "logic": { "keys": ["Mod+Shift+Z"], "source": "doku" }
         },
         {
+          "id": "range.extend",
+          "title": "Bereich markieren: von der gewählten Note nach rechts / links erweitern (auch Umschalt + Klick); Entf löscht ihn, Strg+C / X / V, Esc hebt auf",
+          "command": "range.extend",
+          "args": { "1": "weiter nach rechts", "-1": "weiter nach links" },
+          "finale": { "keys": { "1": ["Alt+Shift+ArrowRight"], "-1": ["Alt+Shift+ArrowLeft"] }, "source": "icastico" },
+          "logic": { "keys": { "1": ["Alt+Shift+ArrowRight"], "-1": ["Alt+Shift+ArrowLeft"] }, "source": "icastico" }
+        },
+        {
+          "id": "edit.transpose",
+          "title": "Transponieren: um ein Intervall, chromatisch oder diatonisch (Rad zum Auswählen); gilt für den markierten Bereich, die gewählte Zeile oder die ganze Partitur",
+          "command": "edit.transpose",
+          "finale": { "keys": ["Mod+Shift+T"], "source": "icastico" },
+          "logic": { "keys": ["Mod+Shift+T"], "source": "icastico" }
+        },
+        {
           "id": "edit.copy",
-          "title": "Kopieren",
+          "title": "Kopieren (den markierten Bereich oder die gewählte Note)",
+          "command": "edit.copy",
           "finale": { "keys": ["Mod+C"], "source": "doku" },
           "logic": { "keys": ["Mod+C"], "source": "doku" }
         },
         {
           "id": "edit.paste",
-          "title": "Einfügen",
+          "title": "Einfügen (an der Schreibmarke oder der gewählten Note)",
+          "command": "edit.paste",
           "finale": { "keys": ["Mod+V"], "source": "doku" },
           "logic": { "keys": ["Mod+V"], "source": "doku" }
         },
         {
           "id": "edit.cut",
-          "title": "Ausschneiden",
+          "title": "Ausschneiden (den markierten Bereich oder die gewählte Note)",
+          "command": "edit.cut",
           "finale": { "keys": ["Mod+X"], "source": "doku" },
           "logic": { "keys": ["Mod+X"], "source": "doku" }
         },
         {
           "id": "edit.selectAll",
-          "title": "Alles auswählen",
+          "title": "Alle Noten der Stimme markieren",
+          "command": "range.all",
           "finale": { "keys": ["Mod+A"], "source": "doku" },
           "logic": { "keys": ["Mod+A"], "source": "doku" }
         },
@@ -473,8 +492,22 @@
           "logic": { "keys": ["Mod+Shift+E"], "source": "icastico" }
         },
         {
+          "id": "edit.tabTranslate",
+          "title": "Tabulatur: den markierten Bereich (oder die ganze gewählte Zeile) in die Gitarrenzeile übersetzen; die Gitarrenzeile wird angelegt, wenn es sie noch nicht gibt",
+          "command": "edit.tabTranslate",
+          "finale": { "keys": ["Mod+Shift+B"], "source": "icastico" },
+          "logic": { "keys": ["Mod+Shift+B"], "source": "icastico" }
+        },
+        {
+          "id": "file.exportMidi",
+          "title": "Als MIDI-Datei exportieren (zum Abspielen und für Klangprogramme)",
+          "command": "file.exportMidi",
+          "finale": { "keys": ["Mod+Shift+M"], "source": "icastico" },
+          "logic": { "keys": ["Mod+Shift+M"], "source": "icastico" }
+        },
+        {
           "id": "edit.tab",
-          "title": "Tabulatur unter der Gitarrenzeile an/aus",
+          "title": "Tabulatur unter der Gitarrenzeile an/aus (gibt es noch keine Gitarrenzeile, wird sie hinzugefügt)",
           "command": "edit.tab",
           "finale": { "keys": ["Mod+T"], "source": "icastico" },
           "logic": { "keys": ["Mod+T"], "source": "icastico" }
@@ -525,6 +558,13 @@
           "command": "play.toggle",
           "finale": { "keys": ["Mod+Enter", "Space"], "source": "doku", "note": "Wie bei Finale startet und stoppt die Leertaste. Während der Wiedergabe stoppt sie in jeder Belegung." },
           "logic": { "keys": ["Mod+Enter"], "source": "icastico", "note": "In Logic startet die Leertaste die Wiedergabe; hier ist sie die Pause der Schritteingabe – nur während der Wiedergabe stoppt sie." }
+        },
+        {
+          "id": "play.loopRange",
+          "title": "Den markierten Bereich in Schleife abspielen (noch einmal: Schleife aus)",
+          "command": "play.loopRange",
+          "finale": { "keys": ["Mod+L"], "source": "icastico" },
+          "logic": { "keys": ["Mod+L"], "source": "icastico" }
         },
         {
           "id": "play.record",

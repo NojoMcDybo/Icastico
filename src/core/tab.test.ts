@@ -30,3 +30,52 @@ describe('guitar fingering', () => {
     expect(fingering('C2:1/4 C7:1/4')).toEqual(['-', '-']);
   });
 });
+
+import { newScoreState, runCommand } from './editor/commands';
+import { extendRange } from './editor/range';
+import { getVoice, type EditorState } from './editor/state';
+import { pitchToString } from './pitch';
+import { addGuitarPart } from './editor/tabOps';
+import { createScore, DEFAULT_SETUP } from './templates';
+
+describe('tablature added later and passages translated (ADR 0022)', () => {
+  const melody = (): EditorState => {
+    let s = runCommand(newScoreState(), 'input.duration', 5);
+    for (const key of [60, 64, 67, 72, 36]) s = runCommand(s, 'input.midi', key); // C4 E4 G4 C5 and a C2 below the guitar
+    return s;
+  };
+  const guitar = (s: EditorState) => s.score.parts.find((p) => p.instrument === 'guitar')!;
+  const select = (s: EditorState, i: number): EditorState => ({ ...s, caret: null, selection: { kind: 'event', partId: 'voice', voiceId: 'voice-v1', eventId: getVoice(s.score, { partId: 'voice', voiceId: 'voice-v1' }).voice.events[i]!.id } });
+
+  it('Strg+T on a line that is not a guitar adds a guitar line with tablature; again it switches the tablature', () => {
+    const noGuitar = { ...newScoreState(), score: createScore({ ...DEFAULT_SETUP, instruments: ['voice'] }) };
+    const added = runCommand({ ...noGuitar, selection: { kind: 'gap', partId: 'voice', voiceId: 'voice-v1', time: { n: 0, d: 1 } } }, 'edit.tab');
+    expect(guitar(added).tab).toBe(true);
+    expect(added.message).toMatch(/hinzugefügt/);
+    expect(runCommand(added, 'edit.tab').score.parts.find((p) => p.instrument === 'guitar')!.tab).toBeUndefined();
+    expect(addGuitarPart(added.score).partId).toBe('guitar-2');
+  });
+
+  it('translating a marked passage copies it into the guitar line at the same time and shows the tablature', () => {
+    const marked = extendRange(select(melody(), 1), 1); // E4 G4
+    const t = runCommand(marked, 'edit.tabTranslate');
+    const g = getVoice(t.score, { partId: 'guitar', voiceId: 'guitar-v1' }).voice.events;
+    expect(g.map((e) => e.tones.map((x) => pitchToString(x.pitch)).join('+'))).toEqual(['E4', 'G4']);
+    expect(g[0]!.onset).toEqual({ n: 1, d: 4 });
+    expect(guitar(t).tab).toBe(true);
+    expect(t.message).toMatch(/2 Töne/);
+  });
+
+  it('without a marked passage the whole line goes; tones below the guitar are left out and counted', () => {
+    const t = runCommand(select(melody(), 0), 'edit.tabTranslate');
+    const g = getVoice(t.score, { partId: 'guitar', voiceId: 'guitar-v1' }).voice.events;
+    expect(g).toHaveLength(4);
+    expect(t.message).toMatch(/1 außerhalb der Gitarre/);
+  });
+
+  it('on the guitar line itself there is nothing to translate', () => {
+    const s = melody();
+    const guitarState = { ...s, selection: { kind: 'gap' as const, partId: 'guitar', voiceId: 'guitar-v1', time: { n: 0, d: 1 } } };
+    expect(runCommand(guitarState, 'edit.tabTranslate').message).toMatch(/schon die Gitarrenzeile/);
+  });
+});

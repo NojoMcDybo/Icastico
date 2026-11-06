@@ -12,6 +12,7 @@ import version5File from './fixtures/version5.icastico?raw';
 import version6File from './fixtures/version6.icastico?raw';
 import version7File from './fixtures/version7.icastico?raw';
 import version8File from './fixtures/version8.icastico?raw';
+import version9File from './fixtures/version9.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -347,5 +348,25 @@ describe('format version 9: several glides into one tone', () => {
     expect(parseScoreFile(serializeScore(score, '0')).links).toEqual(slides);
     const bad = { ...score, links: [...slides, { id: 'link-3', kind: 'tie' as const, from: tones[2]!, to: target }] };
     expect(() => parseScoreFile(serializeScore(bad, '0'))).toThrow();
+  });
+});
+
+describe('format version 10: groups and more signs', () => {
+  it('opens files saved by Icastico 0.17.0 (format version 9) and saves them as the current version', () => {
+    const score = parseScoreFile(version9File);
+    expect(fileVersion(version9File)).toBe(9);
+    expect(score.groups).toBeUndefined();
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  it('keeps a bracket exactly, and refuses one that does not hold together', () => {
+    const base = emptyScore();
+    const [a, b] = base.parts.map((p) => p.id);
+    const score: Score = { ...base, groups: [{ symbol: 'brace', parts: [a!, b!] }] };
+    expect(parseScoreFile(serializeScore(score, '0')).groups).toEqual(score.groups);
+    expect(() => parseScoreFile(serializeScore({ ...score, groups: [{ symbol: 'brace', parts: [a!] }] }, '0'))).toThrow(/mindestens zwei/);
+    expect(() => parseScoreFile(serializeScore({ ...score, groups: [{ symbol: 'bracket' as never, parts: ['nope', a!] }] }, '0'))).toThrow(/mindestens zwei/);
   });
 });

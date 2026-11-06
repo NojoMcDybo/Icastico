@@ -13,6 +13,7 @@ import { type Fraction, ZERO, add, compare, eq, frac, le, lt, sub } from '../tim
 import { type Pitch, STEPS, midiOf, spellMidi } from '../pitch';
 import { type InstrumentId, getInstrument } from '../instruments';
 import {
+  type StaffGroup,
   type BarMark,
   type ChordSymbol,
   type KeyChange,
@@ -129,7 +130,7 @@ interface Raw {
   readonly marks: string[];
 }
 
-const ARTICULATIONS: Record<string, string> = { staccato: 'stacc', staccatissimo: 'stacciss', tenuto: 'ten', accent: 'acc', 'strong-accent': 'marc' };
+const ARTICULATIONS: Record<string, string> = { staccato: 'stacc', staccatissimo: 'stacciss', tenuto: 'ten', accent: 'acc', 'strong-accent': 'marc', 'breath-mark': 'breath', caesura: 'caesura' };
 const ORNAMENTS: Record<string, string> = { 'trill-mark': 'trill', mordent: 'mord', 'inverted-mordent': 'prall', turn: 'turn' };
 
 /** The signs of a note's <notations>; what the library does not know is counted in `unknown`. */
@@ -144,6 +145,7 @@ function notationMarks(note: XmlElement, unknown: () => void): string[] {
       }
     }
     if (child(n, 'fermata')) out.push('fermata');
+    if (child(n, 'arpeggiate')) out.push('arpeggio');
   }
   return out;
 }
@@ -205,6 +207,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
   const starts: Fraction[] = [];
 
   const parts: Part[] = [];
+  const partOfSource = new Map<string, string>();
   const chordSymbols = new Map<string, ChordSymbol>();
   const barMarks = new Map<string, BarMark>();
   const links: Link[] = [];
@@ -363,6 +366,11 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
         } else if (el.name === 'barline') {
           const repeat = child(el, 'repeat');
           if (repeat) addBar(repeat.attrs.direction === 'forward' ? 'repeatStart' : 'repeatEnd');
+          else if (el.attrs.location !== 'left') {
+            const style = childText(el, 'bar-style');
+            if (style === 'light-light') addBar('doubleBar');
+            else if (style === 'light-heavy') addBar('finalBar');
+          }
           const ending = child(el, 'ending');
           if (ending?.attrs.type === 'start') voltaOpen = Math.min(3, Math.max(1, parseInt(ending.attrs.number ?? '1', 10) || 1));
           else if (ending) voltaClose = true;
@@ -433,7 +441,28 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
     }
     voices.sort((a, b) => a.staff - b.staff);
     parts.push({ id: partId, name: info.name || def.name, instrument, voices });
+    partOfSource.set(sourceId, partId);
   });
+
+  // Brackets and braces of the part list: the parts between a part-group start and its stop.
+  const groups: StaffGroup[] = [];
+  const listed: string[] = [];
+  const openGroups = new Map<string, { symbol: StaffGroup['symbol']; from: number }>();
+  for (const el of partList?.children ?? []) {
+    if (el.name === 'score-part') listed.push(el.attrs.id ?? '');
+    else if (el.name === 'part-group') {
+      const number = el.attrs.number ?? '1';
+      if (el.attrs.type === 'start') {
+        const symbol = childText(el, 'group-symbol');
+        if (symbol === 'bracket' || symbol === 'brace' || symbol === 'square') openGroups.set(number, { symbol: symbol === 'brace' ? 'brace' : 'bracket', from: listed.length });
+      } else if (el.attrs.type === 'stop') {
+        const open = openGroups.get(number);
+        openGroups.delete(number);
+        const ids = open ? listed.slice(open.from).flatMap((id) => (partOfSource.get(id) ? [partOfSource.get(id)!] : [])) : [];
+        if (open && ids.length >= 2 && !ids.some((id) => groups.some((g) => g.parts.includes(id)))) groups.push({ symbol: open.symbol, parts: ids });
+      }
+    }
+  }
 
   if (meter.length === 0) meter.push({ at: ZERO, sig: { count: 4, unit: 4 } });
   if (keys.length === 0) keys.push({ at: ZERO, fifths: 0 });
@@ -450,6 +479,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
     ...(pickup ? { pickup } : {}),
     ...(tempo !== undefined && tempo !== DEFAULT_TEMPO ? { tempo } : {}),
     ...(links.length ? { links } : {}),
+    ...(groups.length ? { groups } : {}),
     ...(barMarks.size ? { marks: [...barMarks.values()].sort((a, b) => compare(a.at, b.at) || BAR_SIGNS.findIndex((x) => x.id === a.kind) - BAR_SIGNS.findIndex((x) => x.id === b.kind)) } : {}),
     ...(chordSymbols.size ? { chords: [...chordSymbols.values()].sort((a, b) => compare(a.at, b.at)) } : {}),
     parts,

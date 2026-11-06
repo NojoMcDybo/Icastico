@@ -3,7 +3,7 @@
  * workstation where the music is, until it ends (or loops) or the user stops it.
  */
 import type { Score } from '../core/model';
-import { type PlaybackPlan, planFrom, planPlayback } from '../core/playback';
+import { type PlaybackPlan, planFrom, planPlayback, planUntil } from '../core/playback';
 import type { Playing } from '../audio/engine';
 import { Synth } from '../audio/synth';
 
@@ -24,6 +24,8 @@ export class Player {
   private playing: Playing | null = null;
   private plan: PlaybackPlan | null = null;
   private loop = false;
+  /** Looping just a passage: from / to in seconds. */
+  private range: { readonly from: number; readonly to: number } | null = null;
   private raf = 0;
   /** Guards against a second start while the first is still waiting for the audio device. */
   private starting = false;
@@ -39,15 +41,17 @@ export class Player {
     return this.playing !== null || this.starting;
   }
 
-  async start(score: Score, fromSeconds: number, loop: boolean): Promise<void> {
+  /** `range`: only this passage (seconds) is played – over and over if `loop`. */
+  async start(score: Score, fromSeconds: number, loop: boolean, range?: { readonly from: number; readonly to: number }): Promise<void> {
     if (this.active) return;
     this.starting = true;
     this.cancelled = false;
     this.loop = loop;
-    this.plan = planPlayback(score);
+    this.range = range ?? null;
+    this.plan = range ? planUntil(planPlayback(score), range.to) : planPlayback(score);
     try {
       if (this.plan.length === 0) throw new Error('Es gibt noch nichts zu hören – erst Noten eingeben.');
-      const from = fromSeconds >= this.plan.length ? 0 : fromSeconds;
+      const from = range ? range.from : fromSeconds >= this.plan.length ? 0 : fromSeconds;
       const playing = await this.synth.play(planFrom(this.plan, from), from);
       if (this.cancelled) return playing.stop(); // stopped while the sounds were loading
       this.playing = playing;
@@ -83,7 +87,7 @@ export class Player {
     const plan = this.plan;
     if (!playing || !plan) return;
     const seconds = playing.position();
-    if (seconds >= plan.length + TAIL) {
+    if (seconds >= plan.length + (this.range ? 0.05 : TAIL)) {
       if (this.loop) {
         playing.stop();
         void this.restart(plan);
@@ -101,7 +105,8 @@ export class Player {
     this.starting = true;
     this.cancelled = false;
     try {
-      const playing = await this.synth.play(plan, 0);
+      const startAt = this.range?.from ?? 0;
+      const playing = await this.synth.play(planFrom(plan, startAt), startAt);
       if (this.cancelled) return playing.stop();
       this.playing = playing;
       this.tick();

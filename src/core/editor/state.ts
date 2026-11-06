@@ -8,6 +8,7 @@ import { type Fraction, ZERO, add, frac } from '../time';
 import { type NoteEvent, type Part, type Score, type Voice, eventEnd } from '../model';
 import { getInstrument } from '../instruments';
 import type { Pitch } from '../pitch';
+import type { RangeSel } from './range';
 
 export interface VoiceRef {
   readonly partId: string;
@@ -47,6 +48,8 @@ export interface InputSettings {
 
 export interface EditorState {
   readonly score: Score;
+  /** A marked passage (see `rangeSpan`: it only counts while its anchor note is the selected one). */
+  readonly range?: RangeSel | null;
   readonly caret: Caret | null;
   readonly selection: Selection | null;
   readonly input: InputSettings;

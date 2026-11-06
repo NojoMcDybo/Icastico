@@ -160,10 +160,24 @@ interface StaffSlot {
 
 function staffGrpXml(score: Score, slots: StaffSlot[]): string {
   const lines: string[] = ['      <staffGrp>'];
+  // A bracket or brace the user put around neighbouring parts (the first part of a group opens it, its last closes it).
+  const groupOf = (id: string) => (score.groups ?? []).find((g) => g.parts.includes(id));
+  let open: string | null = null;
+  const lastOfGroup = (part: Part): boolean => {
+    const g = groupOf(part.id);
+    if (!g) return false;
+    const shown = g.parts.filter((id) => slots.some((s) => s.part.id === id));
+    return shown[shown.length - 1] === part.id;
+  };
   for (const part of score.parts) {
     const def = getInstrument(part.instrument);
     const own = slots.filter((s) => s.part === part);
     if (own.length === 0) continue;
+    const group = groupOf(part.id);
+    if (group && open === null && group.parts.filter((id) => slots.some((s) => s.part.id === id)).length > 1) {
+      lines.push(`        <staffGrp symbol="${group.symbol}" bar.thru="true">`);
+      open = part.id;
+    }
     const staffDef = (s: StaffSlot, withLabel: boolean, ind: string) =>
       s.tab
         ? `${ind}<staffDef n="${s.n}" lines="${GUITAR_STRINGS.length}" keysig.visible="false" meter.visible="false"><label>Tab</label><labelAbbr>Tab</labelAbbr></staffDef>`
@@ -177,6 +191,10 @@ function staffGrpXml(score: Score, slots: StaffSlot[]): string {
       lines.push('        </staffGrp>');
     } else {
       lines.push(staffDef(own[0]!, true, '        '));
+    }
+    if (open !== null && lastOfGroup(part)) {
+      lines.push('        </staffGrp>');
+      open = null;
     }
   }
   lines.push('      </staffGrp>');
@@ -304,6 +322,12 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
           else if (mark === 'mord') list.push(`<mordent xml:id="mor-${ev.id}" ${at} form="lower" place="above"/>`);
           else if (mark === 'prall') list.push(`<mordent xml:id="pra-${ev.id}" ${at} form="upper" place="above"/>`);
           else if (mark === 'turn') list.push(`<turn xml:id="trn-${ev.id}" ${at} place="above"/>`);
+          else if (mark === 'breath') list.push(`<breath xml:id="brt-${ev.id}" ${at} place="above"/>`);
+          else if (mark === 'caesura') list.push(`<caesura xml:id="cae-${ev.id}" ${at} place="above"/>`);
+          else if (mark === 'arpeggio' && ev.tones.length > 1) {
+            const notes = ev.tones.map((t) => '#' + (first.first.tones.length > 1 ? chordNoteId(first.first, t) : first.first.id));
+            list.push(`<arpeg xml:id="arp-${ev.id}" staff="${ref.staffN}" plist="${notes.join(' ')}" order="up"/>`);
+          }
           else if (mark === 'cresc' || mark === 'dim') {
             // The hairpin runs to the next note with a dynamic (else to the last note of the voice).
             const later = voice.events.filter((e) => compare(e.onset, ev.onset) > 0);
@@ -378,7 +402,7 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
     const joinedLeft = hasKind(mi, 'repeatStart') && mi > 0 && hasKind(mi - 1, 'repeatEnd');
     const joinedRight = hasKind(mi, 'repeatEnd') && hasKind(mi + 1, 'repeatStart');
     const left = hasKind(mi, 'repeatStart') && !joinedLeft ? ' left="rptstart"' : '';
-    const right = joinedRight ? ' right="rptboth"' : hasKind(mi, 'repeatEnd') ? ' right="rptend"' : '';
+    const right = joinedRight ? ' right="rptboth"' : hasKind(mi, 'repeatEnd') ? ' right="rptend"' : hasKind(mi, 'finalBar') ? ' right="end"' : hasKind(mi, 'doubleBar') ? ' right="dbl"' : '';
     body.push(`      <measure xml:id="m${m.number}" n="${m.number}"${metcon}${left}${right}>`);
     for (const slot of slots) {
       body.push(`        <staff xml:id="${staffElementId(m.number, slot.n)}" n="${slot.n}">`);

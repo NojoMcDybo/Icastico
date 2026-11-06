@@ -26,7 +26,7 @@ export const FILE_EXTENSION = 'icastico';
  * 8 = optional `marks` per note (special signs) and per score (bar signs: repeats, endings, jumps; ADR 0024),
  * 7 = optional `lyric` per note, `chords` (chord symbols) per score (ADR 0019), `tab` per part (ADR 0022).
  */
-export const FORMAT_VERSION = 9;
+export const FORMAT_VERSION = 10;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -47,6 +47,7 @@ function scoreToJson(score: Score): unknown {
     ...(score.pickup ? { pickup: fracToString(score.pickup) } : {}),
     ...(score.tempo !== undefined ? { tempo: score.tempo } : {}),
     ...(score.marks?.length ? { marks: score.marks.map((m) => ({ at: fracToString(m.at), kind: m.kind })) } : {}),
+    ...(score.groups?.length ? { groups: score.groups.map((g) => ({ symbol: g.symbol, parts: [...g.parts] })) } : {}),
     ...(score.chords?.length ? { chords: score.chords.map((c) => ({ at: fracToString(c.at), text: c.text })) } : {}),
     ...(score.links?.length ? { links: score.links.map((l) => ({ id: l.id, kind: l.kind, from: l.from, to: l.to, ...(l.curve ? { curve: curveToJson(l.curve) } : {}) })) } : {}),
     parts: score.parts.map((p) => ({
@@ -254,6 +255,14 @@ function readScore(v: unknown): Score {
             .sort((a, b) => compare(a.at, b.at)),
         }
       : {}),
+    ...(o.groups !== undefined && arr(o.groups, 'Klammern').length > 0
+      ? {
+          groups: arr(o.groups, 'Klammern').map((g, i) => {
+            const e = obj(g, `Klammer ${i + 1}`);
+            return { symbol: str(e.symbol, `Klammer ${i + 1}`) as 'bracket' | 'brace', parts: arr(e.parts, `Klammer ${i + 1}`).map((id, k) => str(id, `Klammer ${i + 1}, Zeile ${k + 1}`)) };
+          }),
+        }
+      : {}),
     ...(o.chords !== undefined && arr(o.chords, 'Akkordsymbole').length > 0
       ? {
           chords: arr(o.chords, 'Akkordsymbole')
@@ -290,6 +299,8 @@ const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
   7: (doc) => ({ ...doc, version: 8 }),
   // 8 → 9: several glides may end in one tone. Older files simply have fewer connections.
   8: (doc) => ({ ...doc, version: 9 }),
+  // 9 → 10: adds the optional "groups" (brackets / braces around parts) and more signs (ids of the library). Version-9 files have none.
+  9: (doc) => ({ ...doc, version: 10 }),
 };
 
 /** Applies `fn` to every event object of a (still unvalidated) score; anything unexpected is left for the reader to reject. */

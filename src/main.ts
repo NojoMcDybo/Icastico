@@ -7,7 +7,8 @@ import { loadKeymapPreset } from './ui/preferences';
 import { Workstation } from './ui/workstation';
 import { currentPlatform } from './platform/files';
 import { APP_VERSION } from './version';
-import { loadLastOpened } from './ui/preferences';
+import { loadLastOpened, loadSeenVersion, saveSeenVersion } from './ui/preferences';
+import { announceUpdate } from './ui/patchNotes';
 import { currentUpdater } from './platform/updater';
 import { UpdateChecker } from './ui/updates';
 
@@ -60,6 +61,7 @@ async function start(): Promise<void> {
   flush = () => workstation.flush();
   await workstation.openInitial(loadLastOpened());
   updates?.scheduleQuietCheck();
+  void announceUpdate(loadSeenVersion(), saveSeenVersion);
   if (!store) $('status').textContent = 'Bibliothek nicht verfügbar – Speichern nur über „Speichern unter“.';
 }
 

@@ -15,6 +15,7 @@ export type UiCommandId =
   | 'file.open'
   | 'file.import'
   | 'file.exportXml'
+  | 'file.exportMidi'
   | 'file.exportPdf'
   | 'file.extractPart'
   | 'view.symbols'
@@ -27,7 +28,12 @@ export type UiCommandId =
   | 'text.lyrics'
   | 'text.chord'
   | 'view.voiceTest'
-  | 'play.record';
+  | 'play.record'
+  | 'play.loopRange'
+  | 'edit.copy'
+  | 'edit.cut'
+  | 'edit.paste'
+  | 'edit.transpose';
 
 /** Functions handled by the mouse, listed for the help only. */
 export const MOUSE_COMMANDS = new Set([
@@ -54,6 +60,7 @@ export const UI_COMMANDS: ReadonlySet<string> = new Set<UiCommandId>([
   'file.open',
   'file.import',
   'file.exportXml',
+  'file.exportMidi',
   'file.exportPdf',
   'file.extractPart',
   'view.symbols',
@@ -67,6 +74,11 @@ export const UI_COMMANDS: ReadonlySet<string> = new Set<UiCommandId>([
   'text.chord',
   'view.voiceTest',
   'play.record',
+  'play.loopRange',
+  'edit.copy',
+  'edit.cut',
+  'edit.paste',
+  'edit.transpose',
 ]);
 
 export type PresetId = 'finale' | 'logic' | 'speedy';

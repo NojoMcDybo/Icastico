@@ -117,6 +117,25 @@ const VIEWS_KEY = 'icastico.views';
 const MAX_VIEWS = 60;
 
 /** Which views (notation / piano roll per staff) a score was last shown with; keyed by file path. */
+const SEEN_VERSION_KEY = 'icastico.seenVersion';
+
+/** The program version that was running when it was last started (null = never). */
+export function loadSeenVersion(): string | null {
+  try {
+    return localStorage.getItem(SEEN_VERSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function saveSeenVersion(version: string): void {
+  try {
+    localStorage.setItem(SEEN_VERSION_KEY, version);
+  } catch {
+    // Storage unavailable – the news may show again next time.
+  }
+}
+
 const ROLL_SYNTH_KEY = 'icastico.rollSynth';
 
 /** Whether the piano roll's synthesizer sound (nothing dies away) is on. */

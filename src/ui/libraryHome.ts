@@ -20,6 +20,9 @@ import { APP_VERSION } from '../version';
 import { ask, inform, promptText } from './dialog';
 import type { Thumbnails } from './thumbnails';
 
+/** The file kinds of the export submenu. */
+export type ExportChoice = 'pdf' | 'musicxml' | 'midi' | 'icastico';
+
 export type LibraryView = { kind: 'all' } | { kind: 'collection'; name: string } | { kind: 'trash' };
 
 export interface LibraryActions {
@@ -34,6 +37,8 @@ export interface LibraryActions {
   importFile(): Promise<void>;
   /** Saves these scores as one PDF. */
   exportPdf(scores: readonly Score[], title: string): Promise<void>;
+  /** Saves one score as a file of the chosen kind (the "Exportieren" submenu). */
+  exportScore(score: Score, kind: ExportChoice): Promise<void>;
   /** A file or folder moved: `from` → `to` (the editor follows its document). */
   relocated(from: string, to: string): void;
   /** The open document went to the trash. */
@@ -46,6 +51,8 @@ interface MenuEntry {
   readonly label: string;
   readonly hint?: string;
   readonly danger?: boolean;
+  /** Entries of a submenu: the menu is replaced by them (with a way back). */
+  readonly submenu?: readonly MenuEntry[];
   readonly run: () => Promise<void>;
 }
 
@@ -381,6 +388,7 @@ export class LibraryHome {
     return [
       { label: 'Öffnen', run: () => this.activate(item) },
       { label: 'Duplizieren', hint: 'Kopie in derselben Sammlung', run: () => this.run(() => this.store.duplicate(item).then(() => undefined)) },
+      ...(item.score ? [this.exportEntry(item.score)] : []),
       ...targets,
       {
         label: 'Speicherort öffnen',
@@ -389,6 +397,22 @@ export class LibraryHome {
       },
       { label: 'In den Papierkorb', hint: 'Lässt sich wiederherstellen', danger: true, run: () => this.trash(item) },
     ];
+  }
+
+  /** "Exportieren ▸": the kind of file is chosen in a submenu. */
+  private exportEntry(score: Score): MenuEntry {
+    const kind = (label: string, hint: string, choice: ExportChoice): MenuEntry => ({ label, hint, run: () => this.actions.exportScore(score, choice) });
+    return {
+      label: 'Exportieren',
+      hint: 'Dateiart wählen',
+      submenu: [
+        kind('PDF', 'Notenblatt zum Drucken und Weitergeben', 'pdf'),
+        kind('MusicXML', 'Für Finale, MuseScore, Dorico und andere', 'musicxml'),
+        kind('MIDI', 'Zum Abspielen und für Klangprogramme', 'midi'),
+        kind('Icastico-Datei', 'Eine Kopie der Partitur speichern', 'icastico'),
+      ],
+      run: async () => undefined,
+    };
   }
 
   private collectionActions(name: string): MenuEntry[] {
@@ -523,8 +547,18 @@ export class LibraryHome {
         ...(entry.hint ? [el('span', { textContent: entry.hint })] : []),
       );
       b.setAttribute('role', 'menuitem');
+      if (entry.submenu) {
+        b.setAttribute('aria-haspopup', 'menu');
+        b.append(el('span', { className: 'menu__arrow', textContent: '›' }));
+      }
       b.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (entry.submenu) {
+          // Drill down: the same place, the kinds of file, and a way back.
+          const back: MenuEntry = { label: '‹ Zurück', run: async () => this.openMenu(entries, at) };
+          this.openMenu([back, ...entry.submenu], at);
+          return;
+        }
         this.closeMenu();
         void entry.run();
       });
@@ -539,7 +573,10 @@ export class LibraryHome {
     this.menu = menu;
     if (at instanceof HTMLElement) at.setAttribute('aria-expanded', 'true');
     menu.querySelector('button')?.focus();
-    setTimeout(() => document.addEventListener('click', this.closeMenuOnOutside, { once: true }));
+    // Registered after the opening click has passed; removed again when the menu closes (a stale listener would close the next menu at once).
+    setTimeout(() => {
+      if (this.menu === menu) document.addEventListener('click', this.closeMenuOnOutside);
+    });
     menu.addEventListener('keydown', (e) => this.onMenuKey(e));
   }
 
@@ -548,6 +585,7 @@ export class LibraryHome {
   };
 
   private closeMenu(): void {
+    document.removeEventListener('click', this.closeMenuOnOutside);
     const hadFocus = this.menu?.contains(document.activeElement) ?? false;
     this.menu?.remove();
     this.menu = null;

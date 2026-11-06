@@ -8,6 +8,7 @@
  * A drag is one gesture: previews while dragging, one undo step at the end.
  */
 import { type EditorState, type Selection, type VoiceRef, getVoice, inputLength } from '../core/editor/state';
+import { rangeSpan } from '../core/editor/range';
 import { type RollEdit } from '../core/editor/rollEdits';
 import { curveAt, volumeMark, DEFAULT_VOLUME } from '../core/curve';
 import type { ShapeTarget } from './curvePopup';
@@ -266,6 +267,7 @@ export class PianoRoll {
     const measures = measuresOf(s.score);
     const measureNo = (t: Fraction) => measures.find((m) => !lt(t, m.start) && lt(t, m.end))?.number ?? measures[measures.length - 1]!.number;
     const sel = s.selection?.kind === 'event' && s.selection.partId === ref.partId ? s.selection : null;
+    const span = rangeSpan(s);
     let selected: SVGRectElement | null = null;
     const allMidis: number[] = [];
     /** Where each tone's bar starts, ends and sits vertically – the ends of ties and glides. */
@@ -283,6 +285,7 @@ export class PianoRoll {
             ev.tones.length > 1 ? 'is-chord' : '',
             voiceIndex > 0 ? 'is-secondary' : '',
             inEvent ? 'is-event-selected' : '',
+            span && ref.partId === span.partId && !lt(ev.onset, span.from) && lt(ev.onset, span.to) ? 'is-range' : '',
             inEvent && sel?.toneId === tone.id ? 'is-selected' : '',
           ]
             .filter(Boolean)

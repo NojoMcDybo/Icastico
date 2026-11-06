@@ -1,0 +1,118 @@
+/**
+ * "Neu in dieser Version": after an update a small pane lists what is new – short, in musicians' words.
+ * The list is data; every release adds an entry at the top.
+ */
+import { APP_VERSION } from '../version';
+
+export interface PatchNote {
+  readonly version: string;
+  readonly items: readonly string[];
+}
+
+/** Newest first. Keep each line to one short sentence. */
+export const PATCH_NOTES: readonly PatchNote[] = [
+  {
+    version: '0.18.0',
+    items: [
+      'Transponieren (Strg+Umschalt+T): um ein Intervall, chromatisch oder diatonisch – das Intervall wählst du an einem Rad wie beim iPhone-Timer.',
+      'Bereiche markieren (Alt+Umschalt+Pfeil oder Umschalt + Klick): löschen, ausschneiden, kopieren, einfügen oder mit Strg+L als Schleife abspielen.',
+      'Zeichen: neue Rubrik Taktstriche mit Doppelstrich, Schlussstrich und Klammer / Akkolade um Zeilen; dazu Atemzeichen, Zäsur, Arpeggio und rit., accel., a tempo.',
+      'Gesetzte Zeichen anklicken, frei verschieben und mit der Rücktaste löschen – auch Taktstriche und Wiederholungsklammern.',
+      'Tabulatur jederzeit hinzufügen (Strg+T) und den markierten Bereich in die Tabulatur übersetzen (Strg+Umschalt+B).',
+      'Quintenzirkel mit zwei Ringen, Suche in der Tastenhilfe, Export-Untermenü (PDF, MusicXML, MIDI, Icastico-Datei) im Bibliotheks-Menü und diese Neuigkeiten.',
+    ],
+  },
+  {
+    version: '0.17.0',
+    items: [
+      'Piano-Roll mit Klaviatur links, Synth-Klang-Schalter und mehreren Noten, die in eine Note gleiten.',
+      'Die klingende Note wird beim Abspielen blau; jede neue oder geänderte Note klingt kurz an.',
+      'Akkord-Notenköpfe einzeln mit Pfeiltasten änderbar; Tempo wie bei Logic ziehen; Tonart per Quintenzirkel.',
+    ],
+  },
+  {
+    version: '0.16.0',
+    items: ['Noten diktieren: Notennamen sprechen (Aufnahmeknopf oder Taste R), eine Note pro Atemzug.'],
+  },
+  {
+    version: '0.15.0',
+    items: ['Aufnahmeknopf: hört auf Sprache und ein MIDI-Keyboard – gespielte Tasten werden zu Noten.'],
+  },
+];
+
+const parts = (version: string): number[] => version.split('.').map((n) => Number.parseInt(n, 10) || 0);
+
+/** True when version `a` is older than `b` (numbers compared part by part). */
+export function isOlder(a: string, b: string): boolean {
+  const x = parts(a);
+  const y = parts(b);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] ?? 0) - (y[i] ?? 0);
+    if (d !== 0) return d < 0;
+  }
+  return false;
+}
+
+/** The entries newer than `seen` up to `current`, newest first; at most the last three versions. */
+export function notesSince(seen: string, current: string = APP_VERSION): readonly PatchNote[] {
+  return PATCH_NOTES.filter((n) => isOlder(seen, n.version) && !isOlder(current, n.version)).slice(0, 3);
+}
+
+/** Opens the pane. Resolves when it was closed. */
+export function showPatchNotes(notes: readonly PatchNote[]): Promise<void> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    const box = document.createElement('div');
+    box.className = 'modal__box patchnotes';
+    const title = document.createElement('h2');
+    title.textContent = 'Neu in Icastico';
+    box.append(title);
+    for (const note of notes) {
+      const h = document.createElement('h3');
+      h.textContent = `Version ${note.version}`;
+      const list = document.createElement('ul');
+      for (const item of note.items) {
+        const li = document.createElement('li');
+        li.textContent = item;
+        list.append(li);
+      }
+      box.append(h, list);
+    }
+    const row = document.createElement('div');
+    row.className = 'modal__buttons';
+    const ok = document.createElement('button');
+    ok.type = 'button';
+    ok.className = 'is-primary';
+    ok.textContent = 'Verstanden';
+    row.append(ok);
+    box.append(row);
+    overlay.append(box);
+    const close = () => {
+      window.removeEventListener('keydown', onKey, true);
+      overlay.remove();
+      resolve();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+      }
+    };
+    ok.addEventListener('click', close);
+    window.addEventListener('keydown', onKey, true);
+    document.body.append(overlay);
+    ok.focus();
+  });
+}
+
+/** At start: show what is new if the program was updated since it was last started; remember the version. */
+export async function announceUpdate(seen: string | null, remember: (version: string) => void): Promise<void> {
+  remember(APP_VERSION);
+  if (seen === null || !isOlder(seen, APP_VERSION)) return; // first start, or nothing new
+  const notes = notesSince(seen);
+  if (notes.length > 0) await showPatchNotes(notes);
+}

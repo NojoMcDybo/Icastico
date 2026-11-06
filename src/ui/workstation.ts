@@ -4,21 +4,26 @@
  *
  * Rendering is skipped when only caret/selection changed (decorate only).
  */
-import { type CommandId, chordSymbolText, dropBarSign, dropNoteSign, ghostPitches, signsAtFocus, lyricsText, newScoreState, runCommand, setChordSymbol, setLyrics } from '../core/editor/commands';
+import { type CommandId, chordSymbolText, dropBarSign, dropNoteSign, eraseBarSign, eraseNoteSign, ghostPitches, signsAtFocus, lyricsText, newScoreState, runCommand, setChordSymbol, setLyrics } from '../core/editor/commands';
 import { demoScore } from '../core/demo';
 import { History } from '../core/editor/history';
 import { type EditorState, type VoiceRef, allVoiceRefs, createEditorState, getVoice, inputLength, staffCenter } from '../core/editor/state';
 import { applyRollEdit } from '../core/editor/rollEdits';
-import { FileFormatError, parseScoreFile, serializeScore } from '../core/file/format';
+import { transposeScope, transposeSelection } from '../core/editor/transposeState';
+import { transposeDialog } from './transposeDialog';
+import { type Clip, copyClip, cutClip, pasteClip, rangeSpan, rangeTo } from '../core/editor/range';
+import { FILE_EXTENSION, FileFormatError, parseScoreFile, serializeScore } from '../core/file/format';
 import { musicXmlText } from '../core/import/container';
 import { type ImportResult, ImportError, importMusicXml } from '../core/import/musicxml';
 import { extractPart } from '../core/extract';
 import { pdfDialog } from './pdfDialog';
-import { SymbolPalette } from './symbolPalette';
-import { BAR_SIGNS, NOTE_SYMBOLS, barSign, noteSymbol } from '../core/symbols';
+import { type PaletteKind, SymbolPalette } from './symbolPalette';
+import { BAR_SIGNS, NOTE_SYMBOLS, barSign, noteSymbol, voltaNumber } from '../core/symbols';
 import { type PlayMap, playMapOf } from '../core/playOrder';
 import { scoresToPdf } from './pdfExport';
 import { exportMusicXml, type ExportResult } from '../core/export/musicxml';
+import { exportMidi } from '../core/export/midi';
+import type { ExportChoice } from './libraryHome';
 import { getInstrument } from '../core/instruments';
 import { type Score, keyAt, measuresOf, meterAt, withTempo } from '../core/model';
 import { secondsOf, tempoOf, timeAt } from '../core/playback';
@@ -119,6 +124,9 @@ const isInside = (root: string, path: string): boolean => {
 const SCALE = 55;
 /** Clicks this close (px) to a symbol still hit it, e.g. inside a hollow notehead. */
 const HIT_TOLERANCE = 10;
+/** Lower case without accents, so "Oktave" finds "oktaVe" and "ue" is not needed for "ü". */
+const foldForSearch = (text: string): string => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/ß/g, 'ss').trim();
+
 /** MIDI keys pressed within this time after the first one count as one chord. */
 const CHORD_WINDOW_MS = 60;
 /** A redraw that takes longer than this (ms) makes the following ones wait (see `update`). */
@@ -128,8 +136,8 @@ const SIGN_TOLERANCE = 6;
 
 /** A sign of the library being dragged: from the palette (no `from`) or picked up from where it sits in the score. */
 type SignDrag =
-  | { kind: 'note'; id: string; glyph: string; from?: { ref: VoiceRef; eventId: string } }
-  | { kind: 'bar'; id: string; glyph: string; from?: Fraction };
+  | { kind: 'note'; id: string; glyph: string; from?: { ref: VoiceRef; eventId: string }; where?: undefined }
+  | { kind: 'bar'; id: string; glyph: string; from?: Fraction; /** The measure (and side of its barline) the sign was seen at. */ where?: { measure: number; side?: 'left' | 'right' } };
 const HINT = 'Enter: Eingabe · Strg+N: neu · Strg+O: Bibliothek · F1: alle Tasten';
 const EMPTY_HINT = 'Strg+N: neue Partitur · Strg+O: Bibliothek · F1: alle Tasten';
 
@@ -196,6 +204,12 @@ export class Workstation {
   private lastRedrawMs = 0;
   private lastRedrawEnd = 0;
   private redrawTimer = 0;
+  /** What Strg+C / Strg+X took (kept here, not in the undo history). */
+  private clip: Clip | null = null;
+  /** The marked passage is being played in a loop. */
+  private loopingRange = false;
+  /** A placed sign that was clicked: Backspace takes it away, dragging moves it. */
+  private selectedSign: SignDrag | null = null;
   private litEvents = new Set<string>();
   private eventNodes: { readonly result: MeiResult; readonly nodes: Map<string, Element[]> } | null = null;
   private readonly spanCache = new WeakMap<Score, { readonly id: string; readonly a: number; readonly b: number }[]>();
@@ -245,6 +259,7 @@ export class Workstation {
           openExternal: () => this.fileOpen(),
           importFile: () => this.fileImport(),
           exportPdf: (scores, title) => this.exportPdf(scores, title),
+          exportScore: (score, kind) => this.exportScoreAs(score, kind),
           relocated: (from, to) => this.relocated(from, to),
           closedByTrash: () => this.closeDocument(),
           ...(updates ? { checkForUpdates: () => updates.checkNow() } : {}),
@@ -260,7 +275,10 @@ export class Workstation {
         this.playPos = this.playMap.toScore(timeAt(this.state.score, seconds));
         this.renderPlayhead();
       },
-      stopped: () => this.update(),
+      stopped: () => {
+        this.loopingRange = false;
+        this.update();
+      },
       error: (message) => this.history.apply({ ...this.state, message }),
       notice: (message) => {
         this.history.apply({ ...this.state, message });
@@ -405,6 +423,18 @@ export class Workstation {
     }
     const helpOpen = !this.el.help.hidden;
     const combo = comboOf(e);
+    if (this.selectedSign && !helpOpen && !this.library?.isOpen) {
+      if (combo === 'Backspace' || combo === 'Delete') {
+        e.preventDefault();
+        return this.removeSelectedSign();
+      }
+      if (combo === 'Escape') {
+        e.preventDefault();
+        this.selectedSign = null;
+        return this.update();
+      }
+      if (combo) this.selectedSign = null; // any other key lets go of the sign: Backspace then works on notes again
+    }
     if (this.library?.isOpen) {
       // The drawer handles its own keys (search, arrows, Enter, Esc).
       if (combo === 'Escape') {
@@ -421,6 +451,8 @@ export class Workstation {
       return;
     }
     if (helpOpen) {
+      // Typing in the search field (also "?") is not a command.
+      if (e.target instanceof HTMLInputElement && combo !== 'Escape' && combo !== 'F1') return;
       if (combo === 'Escape' || combo === 'F1' || combo === '?') {
         e.preventDefault();
         this.el.help.hidden = true;
@@ -454,6 +486,7 @@ export class Workstation {
         break;
       case 'view.help':
         this.el.help.hidden = false;
+        this.el.help.querySelector<HTMLInputElement>('.help__search')?.focus();
         return;
       case 'view.roll':
         this.toggleRoll();
@@ -467,6 +500,32 @@ export class Workstation {
       case 'play.record':
         void this.toggleRecord();
         return;
+      case 'play.loopRange':
+        this.toggleRangeLoop();
+        return;
+      case 'edit.transpose':
+        void this.transpose();
+        return;
+      case 'edit.copy': {
+        const clip = copyClip(this.state);
+        if (!clip) return this.say('Erst eine Note oder einen Bereich markieren, dann kopieren.');
+        this.clip = clip;
+        const notes = clip.voices.reduce((n, v) => n + v.length, 0);
+        return this.say(`${notes} ${notes === 1 ? 'Note' : 'Noten'} kopiert – mit Strg+V einfügen.`);
+      }
+      case 'edit.cut': {
+        const cut = cutClip(this.state);
+        if (!cut) return this.say('Erst eine Note oder einen Bereich markieren, dann ausschneiden.');
+        this.clip = cut.clip;
+        this.history.apply({ ...cut.state, message: 'Ausgeschnitten – mit Strg+V einfügen.' });
+        this.update();
+        return;
+      }
+      case 'edit.paste':
+        if (!this.clip) return this.say('Die Zwischenablage ist leer – erst kopieren oder ausschneiden.');
+        this.history.apply(pasteClip(this.state, this.clip));
+        this.update();
+        return;
       case 'view.voiceTest':
         void import('./voice/voiceTest').then(({ voiceTestDialog }) => voiceTestDialog(this.platform));
         return;
@@ -476,6 +535,9 @@ export class Workstation {
         return;
       case 'file.extractPart':
         void this.fileExtractPart();
+        return;
+      case 'file.exportMidi':
+        void this.exportScoreAs(this.history.committed.score, 'midi');
         return;
       case 'file.exportPdf':
         void this.exportPdf([this.history.committed.score], this.history.committed.score.title);
@@ -789,10 +851,30 @@ export class Workstation {
     this.update();
   }
 
+  /** One score as a file of the kind chosen in the library's export menu. */
+  async exportScoreAs(score: Score, kind: ExportChoice): Promise<void> {
+    if (kind === 'pdf') return this.exportPdf([score], score.title);
+    if (kind === 'musicxml') return this.exportXmlOf(score);
+    const base = preferredFileName(score.title).replace(/[.][^.]+$/, '');
+    try {
+      const saved =
+        kind === 'midi'
+          ? await this.withBusy(() => this.platform.exportFile(exportMidi(score), base, { name: 'MIDI', extension: 'mid', mime: 'audio/midi' }), 'MIDI konnte nicht gespeichert werden')
+          : await this.withBusy(() => this.platform.exportFile(serializeScore(score, APP_VERSION), base, { name: 'Icastico-Partitur', extension: FILE_EXTENSION, mime: 'application/x-icastico' }), 'Datei konnte nicht gespeichert werden');
+      if (saved) this.history.apply({ ...this.state, message: 'Exportiert: ' + saved.name });
+    } catch (err) {
+      await inform('Export nicht möglich', errorText(err));
+    }
+    this.update();
+  }
+
   /** The open score as a MusicXML file (ADR 0021). */
   async fileExportXml(): Promise<void> {
     if (this.empty) return;
-    const score = this.history.committed.score;
+    return this.exportXmlOf(this.history.committed.score);
+  }
+
+  private async exportXmlOf(score: Score): Promise<void> {
     let result: ExportResult;
     try {
       result = exportMusicXml(score, APP_VERSION);
@@ -978,6 +1060,7 @@ export class Workstation {
   private onPointerDown(e: PointerEvent): void {
     if (e.button !== 0 || this.empty || this.drag) return;
     if (this.spaceHeld) return this.playFromClick(e);
+    if (e.shiftKey) return; // Shift + click marks a passage (see onClick), it does not pick a note up
     const sign = this.signUnder(e);
     if (sign) return this.beginSignDrag(sign, e); // a placed sign is picked up, not the note next to it
     const ref = this.hitTest(e);
@@ -1010,8 +1093,9 @@ export class Workstation {
   // ── Special signs: double click and drag and drop (ADR 0024) ──────────────
 
   /** Double click in the palette: the sign goes on the selected note / its bar, unless it is there already. */
-  private insertSign(kind: 'note' | 'bar', index: number): void {
+  private insertSign(kind: PaletteKind, index: number): void {
     if (this.empty) return;
+    if (kind === 'group') return this.run('mark.group', index); // the same button again takes the bracket off
     const id = kind === 'note' ? NOTE_SYMBOLS[index]!.id : BAR_SIGNS[index]!.id;
     const at = signsAtFocus(this.state);
     if ((kind === 'note' ? at.note : at.bar).includes(id)) {
@@ -1023,14 +1107,14 @@ export class Workstation {
 
   /** The sign of the library under the pointer in the score, with where it sits (so it can be moved), or null. */
   private signUnder(e: PointerEvent): SignDrag | null {
-    const direct = this.signOf(e.target as Element | null);
+    const direct = this.signOf(e.target as Element | null, e.clientX);
     if (direct) return direct;
     // Signs are small and mostly hollow (a fermata is an arc): a pointer just beside one still picks it up – unless it is on a note.
     const elements = this.result?.elements;
     for (let n = e.target as Element | null; n && n !== this.el.pages; n = n.parentElement) if (elements?.has(n.id)) return null;
     let best: Element | null = null;
     let bestDistance = SIGN_TOLERANCE;
-    for (const candidate of this.el.pages.querySelectorAll('g.dynam, g.hairpin, g.fermata, g.trill, g.mordent, g.turn, g.dir')) {
+    for (const candidate of this.el.pages.querySelectorAll('g.dynam, g.hairpin, g.fermata, g.trill, g.mordent, g.turn, g.dir, g.breath, g.caesura, g.arpeg, g.barLine, g.voltaBracket')) {
       const r = candidate.getBoundingClientRect();
       const d = Math.hypot(Math.max(r.left - e.clientX, 0, e.clientX - r.right), Math.max(r.top - e.clientY, 0, e.clientY - r.bottom));
       if (d <= bestDistance) {
@@ -1038,11 +1122,78 @@ export class Workstation {
         bestDistance = d;
       }
     }
-    return this.signOf(best);
+    return this.signOf(best, e.clientX);
+  }
+
+  /** The bar sign a barline or a volta bracket stands for (only barlines that carry a sign count). */
+  private barlineSign(el: Element, clientX: number): SignDrag | null {
+    const score = this.state.score;
+    const measureEl = el.closest('.measure') ?? [...this.el.pages.querySelectorAll('.measure')].find((m) => {
+      const r = m.getBoundingClientRect();
+      return clientX >= r.left && clientX <= r.right;
+    });
+    const number = /^m(\d+)$/.exec(measureEl?.id ?? '')?.[1];
+    const bar = number === undefined ? undefined : measuresOf(score, 1).find((b) => b.number === Number(number));
+    if (!measureEl || !bar) return null;
+    const kinds = (score.marks ?? []).filter((m) => eq(m.at, bar.start)).map((m) => m.kind as string);
+    let kind: string | undefined;
+    let side: 'left' | 'right' | undefined;
+    if (el.classList.contains('voltaBracket')) {
+      kind = kinds.find((k) => voltaNumber(k) > 0);
+    } else {
+      const box = measureEl.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      side = (r.left + r.right) / 2 < (box.left + box.right) / 2 ? 'left' : 'right';
+      kind = side === 'left' ? kinds.find((k) => k === 'repeatStart') : kinds.find((k) => barSign(k)?.exclusive === 'rightbar');
+    }
+    const def = kind ? barSign(kind) : undefined;
+    return kind && def ? { kind: 'bar', id: kind, glyph: def.glyph, from: bar.start, where: { measure: bar.number, ...(side ? { side } : {}) } } : null;
+  }
+
+  /** The drawn element of a placed sign (after a redraw), so it can be shown as selected. */
+  private signNode(sign: SignDrag): Element | null {
+    const page = this.el.pages;
+    if (sign.kind === 'note') {
+      const eventId = sign.from?.eventId;
+      const prefix = { dynamic: 'dyn', hairpin: 'hp', fermata: 'fer', trill: 'trl', mord: 'mor', prall: 'pra', turn: 'trn', breath: 'brt', caesura: 'cae', arpeggio: 'arp' } as Record<string, string>;
+      const symbol = noteSymbol(sign.id);
+      const key = symbol && (symbol.group === 'dynamic' || symbol.group === 'hairpin' ? symbol.group : sign.id);
+      if (eventId && key && prefix[key]) return document.getElementById(`${prefix[key]}-${eventId}`);
+      if (eventId && symbol?.group === 'articulation') {
+        const events = this.state.score.parts.flatMap((p) => p.voices.flatMap((v) => v.events));
+        const marks = (events.find((e) => e.id === eventId)?.marks ?? []).filter((m) => noteSymbol(m)?.group === 'articulation');
+        const ids = [...(this.result?.elements ?? [])].filter(([, r]) => r.eventId === eventId && r.kind !== 'chordNote').map(([id]) => id);
+        const note = ids.map((id) => document.getElementById(id)).find((n) => n?.querySelector('.artic'));
+        return note ? (note.querySelectorAll('.artic')[marks.indexOf(sign.id)] ?? null) : null;
+      }
+      return null;
+    }
+    const measures = measuresOf(this.state.score, 1);
+    const mi = measures.findIndex((m) => sign.from !== undefined && eq(m.start, sign.from as Fraction));
+    if (sign.id === 'segno' || sign.id === 'coda') return document.getElementById(`${sign.id}-${mi}`);
+    if (barSign(sign.id)?.text) return document.getElementById(`dir-${sign.id}-${mi}`);
+    const measure = sign.where ? page.querySelector(`#m${sign.where.measure}`) : null;
+    if (!measure) return null;
+    if (voltaNumber(sign.id) > 0) {
+      const box = measure.getBoundingClientRect();
+      return [...page.querySelectorAll('.voltaBracket')].find((v) => { const r = v.getBoundingClientRect(); return r.left <= box.right && r.right >= box.left; }) ?? null;
+    }
+    const lines = [...measure.querySelectorAll(':scope > .barLine')];
+    return sign.where?.side === 'left' ? lines[0] ?? null : lines[lines.length - 1] ?? null;
+  }
+
+  /** Backspace / Delete on a selected placed sign. */
+  private removeSelectedSign(): void {
+    const sign = this.selectedSign;
+    if (!sign) return;
+    this.selectedSign = null;
+    if (sign.kind === 'note' && sign.from) this.history.apply(eraseNoteSign(this.state, sign.id, sign.from));
+    else if (sign.kind === 'bar' && sign.from) this.history.apply(eraseBarSign(this.state, sign.id, sign.from as Fraction));
+    this.update();
   }
 
   /** The sign that `start` (an SVG element, or one inside it) draws, if it is one. */
-  private signOf(start: Element | null): SignDrag | null {
+  private signOf(start: Element | null, clientX = 0): SignDrag | null {
     const score = this.state.score;
     const noteSign = (eventId: string, pick: (marks: readonly string[]) => string | undefined): SignDrag | null => {
       for (const ref of allVoiceRefs(score)) {
@@ -1053,9 +1204,13 @@ export class Workstation {
       return null;
     };
     for (let n = start; n && n !== this.el.pages; n = n.parentElement) {
-      const hit = /^(dyn|fer|trl|mor|pra|trn|hp)-(.+)$/.exec(n.id);
+      if (n.classList.contains('barLine') || n.classList.contains('voltaBracket')) {
+        const found = this.barlineSign(n, clientX);
+        if (found) return found;
+      }
+      const hit = /^(dyn|fer|trl|mor|pra|trn|hp|brt|cae|arp)-(.+)$/.exec(n.id);
       if (hit) {
-        const wanted = { dyn: 'dynamic', hp: 'hairpin', fer: 'fermata', trl: 'trill', mor: 'mord', pra: 'prall', trn: 'turn' }[hit[1] as 'dyn'];
+        const wanted = { dyn: 'dynamic', hp: 'hairpin', fer: 'fermata', trl: 'trill', mor: 'mord', pra: 'prall', trn: 'turn', brt: 'breath', cae: 'caesura', arp: 'arpeggio' }[hit[1] as 'dyn'];
         return noteSign(hit[2]!, (marks) => marks.find((m) => noteSymbol(m)?.group === wanted || m === wanted));
       }
       const bar = /^(?:(segno|coda)|dir-(\w+))-(\d+)$/.exec(n.id);
@@ -1105,7 +1260,17 @@ export class Workstation {
       window.removeEventListener('pointerup', end);
       window.removeEventListener('pointercancel', cancel);
       light(null);
-      if (!ghost) return; // never moved: it was just a click
+      if (!ghost) {
+        // Never moved: a click on a placed sign selects it (Backspace takes it away) – the note beside it stays as it was.
+        if (sign.from !== undefined && up) {
+          this.selectedSign = sign;
+          this.swallowClick = true;
+          window.setTimeout(() => (this.swallowClick = false), 80);
+          this.update();
+        }
+        return;
+      }
+      this.selectedSign = null;
       ghost.remove();
       this.swallowClick = true;
       window.setTimeout(() => (this.swallowClick = false), 80);
@@ -1209,6 +1374,9 @@ export class Workstation {
       this.swallowClick = false;
       return;
     }
+    if (this.selectedSign) {
+      this.selectedSign = null; // a click elsewhere lets go of the sign
+    }
     const ref = this.hitTest(e);
     const s = this.state;
     if (!ref) {
@@ -1217,6 +1385,12 @@ export class Workstation {
       return;
     }
     const voice = { partId: ref.partId, voiceId: ref.voiceId };
+    if (e.shiftKey && ref.eventId && s.selection?.kind === 'event') {
+      // Shift + click: mark everything from the selected note to this one.
+      this.history.apply(rangeTo(s, voice, ref.eventId));
+      this.update();
+      return;
+    }
     const selection = ref.eventId
       ? { kind: 'event' as const, ...voice, eventId: ref.eventId, ...(ref.toneId ? { toneId: ref.toneId } : {}) }
       : { kind: 'gap' as const, ...voice, time: ref.onset };
@@ -1303,7 +1477,7 @@ export class Workstation {
     this.el.symbolsButton.setAttribute('aria-pressed', String(this.symbols.isOpen));
     if (this.symbols.isOpen) {
       const at = signsAtFocus(this.state);
-      this.symbols.refresh(at.note, at.bar);
+      this.symbols.refresh(at.note, at.bar, at.group);
     }
   }
 
@@ -1550,6 +1724,31 @@ export class Workstation {
 
   // ── Playback ─────────────────────────────────────────────────────────────
 
+  /** The "Transponieren" dialog: toggle chromatic / diatonic, interval wheel; an undoable change. */
+  private async transpose(): Promise<void> {
+    if (this.empty) return;
+    const scope = transposeScope(this.state);
+    const spec = await transposeDialog({ scope: scope.label, wholePiece: scope.wholePiece });
+    if (spec) this.history.apply(transposeSelection(this.state, spec));
+    this.update();
+  }
+
+  /** Plays the marked passage in a loop; a second press (or Stop) ends it. */
+  private toggleRangeLoop(): void {
+    if (this.player.active && this.loopingRange) {
+      this.player.stop();
+      return;
+    }
+    const span = rangeSpan(this.state);
+    if (!span) return this.say('Erst einen Bereich markieren (Alt+Umschalt+Pfeil oder Umschalt + Klick), dann Strg+L.');
+    if (this.player.active) this.player.stop();
+    const score = this.state.score;
+    this.playMap = { score, fromScore: (t) => t, toScore: (t) => t };
+    this.loopingRange = true;
+    this.playPos = span.from;
+    void this.player.start(score, 0, true, { from: secondsOf(score, span.from), to: secondsOf(score, span.to) }).then(() => this.renderTransport());
+  }
+
   private togglePlay(): void {
     if (this.empty) return;
     if (this.player.active) {
@@ -1770,7 +1969,8 @@ export class Workstation {
   private decorate(): void {
     const s = this.state;
     const elements = this.result?.elements;
-    this.el.pages.querySelectorAll('.is-selected').forEach((n) => n.classList.remove('is-selected'));
+    this.el.pages.querySelectorAll('.is-selected, .is-range, .is-sign-selected').forEach((n) => n.classList.remove('is-selected', 'is-range', 'is-sign-selected'));
+    if (this.selectedSign) this.signNode(this.selectedSign)?.classList.add('is-sign-selected');
     this.el.pages.querySelectorAll('.caret, .ghost').forEach((n) => n.remove());
     if (!elements) {
       this.el.pages.querySelectorAll('.staff-mode').forEach((n) => n.remove());
@@ -1785,6 +1985,12 @@ export class Workstation {
           sel.kind === 'event' ? ref.eventId === sel.eventId : ref.kind !== 'note' && eq(ref.onset, sel.time);
         if (hit) document.getElementById(id)?.classList.add('is-selected');
         if (hit && sel.kind === 'gap') break;
+      }
+    }
+    const span = rangeSpan(s);
+    if (span) {
+      for (const [id, ref] of elements) {
+        if (ref.partId === span.partId && ref.kind !== 'chordNote' && le(span.from, ref.onset) && lt(ref.onset, span.to)) document.getElementById(id)?.classList.add('is-range');
       }
     }
     if (s.caret) this.drawCaret(elements);
@@ -2042,20 +2248,53 @@ export class Workstation {
     const desc = document.createElement('p');
     desc.className = 'help__desc';
     desc.textContent = this.keymap.description;
-    box.append(head, desc);
+    const search = document.createElement('input');
+    search.type = 'search';
+    search.className = 'help__search';
+    search.placeholder = 'Suchen: Taste oder Funktion …';
+    search.setAttribute('aria-label', 'Tastenbelegung durchsuchen');
+    const none = document.createElement('p');
+    none.className = 'help__none';
+    none.textContent = 'Dazu gibt es keine Taste.';
+    none.hidden = true;
+    box.append(head, desc, search);
+    const groups: { section: HTMLElement; rows: { dt: HTMLElement; dd: HTMLElement; text: string }[] }[] = [];
     for (const group of this.keymap.help) {
+      const section = document.createElement('section');
+      section.className = 'help__group';
       const h = document.createElement('h3');
       h.textContent = group.title;
       const dl = document.createElement('dl');
+      const rows: { dt: HTMLElement; dd: HTMLElement; text: string }[] = [];
       for (const entry of group.entries) {
         const dt = document.createElement('dt');
         dt.textContent = entry.keys;
         const dd = document.createElement('dd');
         dd.textContent = entry.text;
         dl.append(dt, dd);
+        rows.push({ dt, dd, text: foldForSearch(`${entry.keys} ${entry.text} ${group.title}`) });
       }
-      box.append(h, dl);
+      section.append(h, dl);
+      groups.push({ section, rows });
+      box.append(section);
     }
+    box.append(none);
+    // Every word typed must appear (in the key, the text or the group name); umlauts and case do not matter.
+    search.addEventListener('input', () => {
+      const words = foldForSearch(search.value).split(' ').filter(Boolean);
+      let shown = 0;
+      for (const { section, rows } of groups) {
+        let any = false;
+        for (const row of rows) {
+          const hit = words.every((w) => row.text.includes(w));
+          row.dt.hidden = row.dd.hidden = !hit;
+          any ||= hit;
+          if (hit) shown++;
+        }
+        section.hidden = !any;
+      }
+      none.hidden = shown > 0;
+    });
     const close = document.createElement('p');
     close.className = 'help__close';
     close.textContent = 'Esc schließt';

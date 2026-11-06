@@ -132,3 +132,30 @@ describe('MusicXML export (round trip through the importer)', () => {
     expect(() => exportMusicXml({ ...base, meter: [] })).toThrow(/ungültig/);
   });
 });
+
+describe('barlines, breath signs and groups survive the MusicXML round trip (ADR 0027)', () => {
+  it('double bar, final bar, tempo words, breath, caesura, arpeggio and a bracket', () => {
+    const base = emptyScore();
+    const voice = base.parts[0]!.voices[0]!;
+    const events = parseLine('C5:1/4 D5:1/4 E5:1/4 [C4,E4,G4]:1/4 F5:1/4 G5:1/4 A5:1/4 B5:1/4', 'e').map((e, i) => (i === 1 ? { ...e, marks: ['breath'] } : i === 2 ? { ...e, marks: ['caesura'] } : i === 3 ? { ...e, marks: ['arpeggio'] } : e));
+    const score: Score = {
+      ...base,
+      marks: [{ at: frac(0), kind: 'doubleBar' }, { at: frac(1), kind: 'finalBar' }, { at: frac(1), kind: 'ritard' }],
+      groups: [{ symbol: 'bracket', parts: [base.parts[0]!.id, base.parts[1]!.id] }],
+      parts: base.parts.map((p, i) => (i === 0 ? { ...p, voices: [{ ...voice, events }] } : p)),
+    };
+    const { xml, notes } = exportMusicXml(score);
+    expect(notes).toEqual([]);
+    expect(xml).toContain('<bar-style>light-light</bar-style>');
+    expect(xml).toContain('<bar-style>light-heavy</bar-style>');
+    expect(xml).toContain('<group-symbol>bracket</group-symbol>');
+    expect(xml).toContain('<breath-mark/>');
+    expect(xml).toContain('<arpeggiate/>');
+    const back = importMusicXml(xml);
+    expect(back.notes).toEqual([]);
+    expect(back.score.marks).toEqual(score.marks);
+    expect(back.score.groups).toEqual([{ symbol: 'bracket', parts: back.score.parts.slice(0, 2).map((p) => p.id) }]);
+    expect(back.score.parts[0]!.voices[0]!.events.map((e) => e.marks ?? [])).toEqual(events.map((e) => e.marks ?? []));
+    expect(validateScore(back.score)).toEqual([]);
+  });
+});
