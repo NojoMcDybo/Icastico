@@ -49,7 +49,7 @@ export interface Platform {
   /** Lets the user pick a file; null if cancelled. */
   pickAndRead(): Promise<OpenedFile | null>;
   read(path: string): Promise<OpenedFile>;
-  /** Lets the user pick a MusicXML file (.musicxml, .xml, .mxl); null if cancelled. */
+  /** Lets the user pick a file to import (MusicXML, MIDI, a recording); null if cancelled. */
   pickImport(): Promise<ImportedFile | null>;
   /** Saves an export (MusicXML, PDF …) after asking where. Null if cancelled. */
   exportFile(data: string | Uint8Array, suggestedName: string, kind: ExportKind): Promise<SavedFile | null>;
@@ -66,7 +66,7 @@ export interface Platform {
 }
 
 const FILTERS = [{ name: 'Icastico-Partitur', extensions: [FILE_EXTENSION] }];
-const IMPORT_EXTENSIONS = ['musicxml', 'xml', 'mxl'];
+const IMPORT_EXTENSIONS = ['musicxml', 'xml', 'mxl', 'mid', 'midi', 'wav', 'aif', 'aiff', 'mp3', 'm4a', 'flac', 'ogg'];
 
 export const baseName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
 
@@ -104,8 +104,8 @@ const desktop: Platform = {
     const path = await open({
       multiple: false,
       directory: false,
-      filters: [{ name: 'MusicXML (z. B. aus Finale)', extensions: IMPORT_EXTENSIONS }],
-      title: 'MusicXML importieren',
+      filters: [{ name: 'MusicXML, MIDI oder Aufnahme (z. B. aus Finale oder Logic)', extensions: IMPORT_EXTENSIONS }],
+      title: 'Importieren',
     });
     if (!path) return null;
     const data = await invoke<ArrayBuffer>('read_file_bytes', { path });

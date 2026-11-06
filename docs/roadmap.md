@@ -14,7 +14,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Verovio-Rendering, Klick auf Note → Modell-Event (mit Toleranz)
 - [x] Demo-Partitur „Erste Skizze“
 
-## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.18.1)
+## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.19.0)
 
 - [x] Command-System (reine Funktionen) mit Undo/Redo
 - [x] Eingabe-Cursor (blinkend; gestrichelt im Einfügemodus), springt hinter Schlüssel/Taktart
@@ -103,13 +103,15 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Zeichen: Rubrik Taktstriche (Doppelstrich, Schlussstrich), Klammer/Akkolade um Zeilen, Atemzeichen, Zäsur, Arpeggio, Tempoanweisungen; gesetzte Zeichen wählen, ziehen, mit Rücktaste löschen; Dateiformat 10
 - [x] Tabulatur nachträglich hinzufügen (Strg+T) und Bereich in Tabulatur übersetzen (Strg+Umschalt+B)
 - [x] Export-Untermenü im Bibliotheks-Menü (PDF, MusicXML, MIDI, Icastico-Datei), MIDI-Export; Patch-Notes-Popup nach Updates; Suche in der Tastenhilfe; Quintenzirkel mit zwei Ringen
+- [x] Import aus Logic: MIDI-Datei (Spuren, Tempo, Taktart, Tonart) und Einzelstimmen-Aufnahme (WAV, AIFF, MP3, M4A) → Partitur; gemeinsame Quantisierung (Raster, Triolen, Stimmen, Handtrennung), Import-Fenster, Tonhöhenerkennung YIN (ADR 0028)
 - [ ] Finale-Dateien (`.musx`) direkt lesen – verschlüsseltes Binärformat, bewusst zurückgestellt (ADR 0021)
 - [ ] Seitenlayout von Hand (Umbrüche, Systemabstand, Kopf-/Fußzeile), mehrere Strophen, Tabulatur-Spieltechniken
 
 ## Schritt 4 – Audio→Noten
 
 - [ ] Aufnahme zum Klick
-- [ ] Einstimmig (Gesang) → Noten
+- [x] Einstimmig (Gesang) → Noten: erste Fassung als Datei-Import (ADR 0028), ohne Korrekturansicht
+- [ ] Korrekturansicht für erkannte Töne (verschieben, löschen, Aufnahme anhören)
 - [ ] Mehrstimmig (Klavier, Gitarre) → Noten (experimentell)
 
 ## Später

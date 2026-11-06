@@ -34,7 +34,7 @@ export interface LibraryActions {
   open(path: string): Promise<void>;
   newScore(collection: string | null): Promise<void>;
   openExternal(): Promise<void>;
-  /** Imports a MusicXML file as a new score. */
+  /** Imports a MusicXML file, a MIDI file or a recording as a new score. */
   importFile(): Promise<void>;
   /** Saves these scores as one PDF. */
   exportPdf(scores: readonly Score[], title: string): Promise<void>;
@@ -353,7 +353,7 @@ export class LibraryHome {
         this.root.hidden = true;
         void this.actions.openExternal();
       }),
-      link('MusicXML importieren …', 'Eine MusicXML-Datei (z. B. aus Finale exportiert) als neue Partitur', () => {
+      link('Importieren …', 'MusicXML (Finale), MIDI-Datei oder Einzelstimmen-Aufnahme (Logic) als neue Partitur', () => {
         this.root.hidden = true;
         void this.actions.importFile();
       }),

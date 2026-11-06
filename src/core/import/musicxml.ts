@@ -29,7 +29,7 @@ import {
   measureLength,
   validateScore,
 } from '../model';
-import { decomposeTuplet } from '../notation/notate';
+import { placeable, writable } from './grid';
 import { BAR_SIGNS, noteSymbol, toggleNoteSymbol, type BarSignKind } from '../symbols';
 import { type XmlElement, XmlError, child, childText, childrenNamed, parseXml } from './xml';
 
@@ -82,28 +82,6 @@ function syllableOf(note: XmlElement): string | null {
   if (!verse || !text) return null;
   const syllabic = childText(verse, 'syllabic');
   return syllabic === 'begin' || syllabic === 'middle' ? `${text}-` : text;
-}
-
-/** Positions Icastico can place: a 1/64 grid, or the same with a factor 3, 5 or 7 (triplets, quintuplets, septuplets; ADR 0020). */
-function placeable(t: Fraction): boolean {
-  let d = t.d;
-  let twos = 0;
-  while (d % 2 === 0) {
-    d /= 2;
-    twos++;
-  }
-  return (d === 1 || d === 3 || d === 5 || d === 7) && 2 ** twos <= 256;
-}
-
-/** A length the notation can write (power of two ≥ 1/64, or a supported tuplet). */
-function writable(length: Fraction): boolean {
-  if (!lt(ZERO, length)) return false;
-  try {
-    decomposeTuplet(length);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 const snap = (t: Fraction): Fraction => frac(Math.round((t.n * 64) / t.d), 64);

@@ -14,8 +14,8 @@ import { transposeDialog } from './transposeDialog';
 import { latestNotes, showPatchNotes } from './patchNotes';
 import { type Clip, copyClip, cutClip, markFromTo, pasteClip, rangeSpan, rangeTo } from '../core/editor/range';
 import { FILE_EXTENSION, FileFormatError, parseScoreFile, serializeScore } from '../core/file/format';
-import { musicXmlText } from '../core/import/container';
-import { type ImportResult, ImportError, importMusicXml } from '../core/import/musicxml';
+import { type ImportResult, ImportError } from '../core/import/musicxml';
+import { convertImport } from './importFile';
 import { extractPart } from '../core/extract';
 import { pdfDialog } from './pdfDialog';
 import { type PaletteKind, SymbolPalette } from './symbolPalette';
@@ -777,19 +777,20 @@ export class Workstation {
     );
   }
 
-  /** MusicXML → a new score in the library (ADR 0017); what could not be taken over is listed. */
+  /** MusicXML, MIDI or a recording → a new score in the library (ADR 0017, 0028); what could not be taken over is listed. */
   async fileImport(): Promise<void> {
     if (!(await this.confirmDiscard())) return this.update();
     const file = await this.withBusy(() => this.platform.pickImport(), 'Datei konnte nicht geöffnet werden');
     if (!file) return this.update();
-    let result: ImportResult;
+    let result: ImportResult | null;
     try {
-      result = importMusicXml(musicXmlText(file.bytes), file.name);
+      result = await convertImport(file);
     } catch (err) {
       const reason = err instanceof ImportError ? err.message : 'Unerwarteter Fehler: ' + errorText(err);
       await inform('„' + file.name + '“ konnte nicht importiert werden', reason);
       return this.update();
     }
+    if (!result) return this.update();
     this.library?.hide();
     const collection = this.library?.isOpen ? this.library.collection : this.currentCollection;
     let location: DocumentLocation | null = null;

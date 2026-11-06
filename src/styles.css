@@ -2295,3 +2295,16 @@ button.lcd__cell:nth-child(3) {
   color: var(--dim);
   box-shadow: inset 0 0 0 1px var(--line);
 }
+
+/* Import window: the track list has no numbers, the name takes the room */
+.import__tracks li span::before {
+  content: none;
+}
+
+.import__tracks li select {
+  flex: none;
+}
+
+.import__name small {
+  color: var(--dim);
+}

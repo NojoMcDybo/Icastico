@@ -805,6 +805,54 @@ try {
   check(/keine MusicXML-Partitur/.test(await page.locator('.modal').textContent()), 'Eine Datei, die kein MusicXML ist, wird mit klarer Meldung abgelehnt');
   await page.click('.modal button:text("OK")');
 
+  // ── MIDI aus Logic und Einzelstimmen-Aufnahmen importieren (ADR 0028) ──
+  const varLen = (n) => { const b = [n & 0x7f]; for (let r = n >>> 7; r > 0; r >>>= 7) b.unshift((r & 0x7f) | 0x80); return b; };
+  const midiTrack = (events) => { const body = events.flatMap(([d, bytes]) => [...varLen(d), ...bytes]).concat([0, 0xff, 0x2f, 0]); return [0x4d, 0x54, 0x72, 0x6b, (body.length >>> 24) & 255, (body.length >> 16) & 255, (body.length >> 8) & 255, body.length & 255, ...body]; };
+  const name = 'Melodie';
+  const midiEvents = [[0, [0xff, 0x03, name.length, ...Buffer.from(name)]], [0, [0xff, 0x51, 3, 0x07, 0xa1, 0x20]], [0, [0xff, 0x58, 4, 4, 2, 24, 8]]];
+  let lastTick = 0;
+  [60, 62, 64, 65].forEach((key, i) => { const on = i * 480 + [0, 12, -8, 10][i]; midiEvents.push([Math.max(0, on - lastTick), [0x90, key, 90]], [430, [0x80, key, 0]]); lastTick = on + 430; });
+  const midiBytes = Buffer.from([0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, 0x01, 0xe0, ...midiTrack(midiEvents)]);
+  const midiChooser = page.waitForEvent('filechooser');
+  await type('Control+Shift+I');
+  await (await midiChooser).setFiles({ name: 'logic-spur.mid', mimeType: 'audio/midi', buffer: midiBytes });
+  await page.waitForSelector('.modal h2:text("MIDI importieren")');
+  check((await page.inputValue('#imp-tempo')) === '120' && /Melodie/.test(await page.locator('.import__tracks').textContent()) && (await page.inputValue('#imp-meter')) === '4/4', 'MIDI-Import: das Fenster zeigt Spur, Taktart und das Tempo aus der Datei');
+  await page.screenshot({ path: join(outDir, 'import-midi-fenster.png') });
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction(() => document.querySelector('#doc-title')?.textContent === 'logic-spur');
+  check((await page.locator('.page g.note').count()) === 4 && (await lcd('TEMPO').textContent()) === '120', 'MIDI-Import: vier Noten stehen auf dem Raster, Tempo 120');
+  await saved();
+
+  const sampleRate = 22050;
+  const frames = [];
+  [67, 69, 71, 72].forEach((midi, i) => { const f = 440 * 2 ** ((midi - 69) / 12); for (let k = 0; k < sampleRate * 0.54; k++) { const t = k / sampleRate; const edge = Math.min(1, t / 0.01, (0.54 - t) / 0.01); frames.push(0.3 * edge * (Math.sin(2 * Math.PI * f * t) + 0.4 * Math.sin(4 * Math.PI * f * t))); } for (let k = 0; k < sampleRate * 0.06; k++) frames.push(0); });
+  const pcm = Buffer.alloc(frames.length * 2);
+  frames.forEach((v, i) => pcm.writeInt16LE(Math.round(v * 32767), i * 2));
+  const wavHeader = Buffer.alloc(44);
+  wavHeader.write('RIFF', 0); wavHeader.writeUInt32LE(36 + pcm.length, 4); wavHeader.write('WAVEfmt ', 8); wavHeader.writeUInt32LE(16, 16); wavHeader.writeUInt16LE(1, 20); wavHeader.writeUInt16LE(1, 22); wavHeader.writeUInt32LE(sampleRate, 24); wavHeader.writeUInt32LE(sampleRate * 2, 28); wavHeader.writeUInt16LE(2, 32); wavHeader.writeUInt16LE(16, 34); wavHeader.write('data', 36); wavHeader.writeUInt32LE(pcm.length, 40);
+  const wavChooser = page.waitForEvent('filechooser');
+  await type('Control+Shift+I');
+  await (await wavChooser).setFiles({ name: 'gesang.wav', mimeType: 'audio/wav', buffer: Buffer.concat([wavHeader, pcm]) });
+  await page.waitForSelector('.modal h2:text("Aufnahme in Noten umwandeln")');
+  check(/4 Töne erkannt/.test(await page.locator('.modal').textContent()), 'Aufnahme-Import: die Aufnahme wird ausgewertet, vier Töne werden gefunden');
+  await page.fill('#imp-tempo', '100');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForSelector('.modal h2:text("Import abgeschlossen")');
+  check(/4 Töne aus der Aufnahme erkannt/.test(await page.locator('.modal').textContent()), 'Aufnahme-Import: ein Hinweis bittet, Tonhöhen und Rhythmus durchzusehen');
+  await page.click('.modal button:text("OK")');
+  await page.waitForFunction(() => document.querySelector('#doc-title')?.textContent === 'gesang');
+  check((await page.locator('.page g.note').count()) === 4, 'Aufnahme-Import: vier Noten in der Partitur');
+  await page.screenshot({ path: join(outDir, 'import-aufnahme.png') });
+  await saved();
+
+  const badAudio = page.waitForEvent('filechooser');
+  await type('Control+Shift+I');
+  await (await badAudio).setFiles({ name: 'kaputt.mp3', mimeType: 'audio/mpeg', buffer: Buffer.from('das ist keine Musik') });
+  await page.waitForSelector('.modal h2:text-matches("konnte nicht importiert werden")');
+  check(/WAV oder AIFF/.test(await page.locator('.modal').textContent()), 'Eine kaputte Audiodatei wird mit klarer Meldung abgelehnt (Hinweis auf WAV / AIFF)');
+  await page.click('.modal button:text("OK")');
+
   // ── Finale-Ziffernblock: Enter wiederholt, Ziffernblock = Notenwert, Zahlenreihe = Intervall ──
   await type('F1');
   await page.click('[data-preset="speedy"]');
@@ -1250,7 +1298,7 @@ try {
   await page.evaluate(() => localStorage.setItem('icastico.seenVersion', '0.15.0'));
   await page.reload();
   await page.waitForSelector('.patchnotes', { timeout: 30000 });
-  check((await page.locator('.patchnotes li').count()) >= 2 && /Version 0.17.0/.test(await page.locator('.patchnotes').textContent()), 'Update: ein Popup listet die neuen Funktionen der Versionen seit dem letzten Start');
+  check((await page.locator('.patchnotes li').count()) >= 2 && /Version 0.19.0/.test(await page.locator('.patchnotes').textContent()), 'Update: ein Popup listet die neuen Funktionen der Versionen seit dem letzten Start');
   await page.click('.patchnotes button:has-text("Verstanden")');
   await page.waitForSelector('.patchnotes', { state: 'detached' });
   check((await page.evaluate(() => localStorage.getItem('icastico.seenVersion'))) !== '0.15.0', 'Update: die Version wird gemerkt, das Popup kommt nicht noch einmal');

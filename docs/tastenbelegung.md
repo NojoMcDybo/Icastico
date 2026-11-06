@@ -88,7 +88,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Neue Partitur | `Strg+N` | `Strg+N` | (wie Finale) | ✓ |
 | Bibliothek | `Strg+O` *(Icastico)* – In Finale/Logic: Öffnen. | `Strg+O` *(Icastico)* – In Finale/Logic: Öffnen. | (wie Finale) | ✓ |
 | Datei von außerhalb der Bibliothek öffnen | `Strg+Umschalt+O` *(Icastico)* | `Strg+Umschalt+O` *(Icastico)* | (wie Finale) | ✓ |
-| MusicXML importieren (z. B. aus Finale) | `Strg+Umschalt+I` *(Icastico)* | `Strg+Umschalt+I` *(Icastico)* | (wie Finale) | ✓ |
+| Importieren: MusicXML (Finale), MIDI-Datei oder Einzelstimmen-Aufnahme (Logic) | `Strg+Umschalt+I` *(Icastico)* | `Strg+Umschalt+I` *(Icastico)* | (wie Finale) | ✓ |
 | Speichern (Bibliothek speichert auch selbst) | `Strg+S` | `Strg+S` | (wie Finale) | ✓ |
 | Kopie speichern unter … | `Strg+Umschalt+S` | `Strg+Umschalt+S` | (wie Finale) | ✓ |
 | Partitur-Einstellungen (Titel, Tonart, Taktart, Auftakt) | `Strg+,` *(Icastico)* | `Strg+,` *(Icastico)* | (wie Finale) | ✓ |

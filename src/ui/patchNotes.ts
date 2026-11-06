@@ -12,6 +12,14 @@ export interface PatchNote {
 /** Newest first. Keep each line to one short sentence. */
 export const PATCH_NOTES: readonly PatchNote[] = [
   {
+    version: '0.19.0',
+    items: [
+      'Import aus Logic: MIDI-Dateien werden zur Partitur – du wählst Spuren, Instrument, Taktart, Tempo und Tonart, die Noten werden auf Notenwerte gerundet (auch Triolen).',
+      'Einzelstimmen-Aufnahmen (WAV, AIFF, MP3, M4A) werden in Noten umgewandelt; das Tempo ist geschätzt, am besten trägst du das Projekttempo ein.',
+      'Beides unter „⋯ → Importieren …“ in der Bibliothek (Strg+Umschalt+I). Bei Aufnahmen bitte Tonhöhen und Rhythmus danach durchsehen.',
+    ],
+  },
+  {
     version: '0.18.1',
     items: [
       'Neuigkeiten erscheinen jetzt auch beim ersten Start nach einem Update von älteren Versionen; „Neuigkeiten“ in der Tastenhilfe und in der Bibliothek zeigt sie jederzeit.',

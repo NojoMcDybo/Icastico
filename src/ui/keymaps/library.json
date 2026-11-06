@@ -445,7 +445,7 @@
         },
         {
           "id": "file.import",
-          "title": "MusicXML importieren (z. B. aus Finale)",
+          "title": "Importieren: MusicXML (Finale), MIDI-Datei oder Einzelstimmen-Aufnahme (Logic)",
           "command": "file.import",
           "finale": { "keys": ["Mod+Shift+I"], "source": "icastico" },
           "logic": { "keys": ["Mod+Shift+I"], "source": "icastico" }
