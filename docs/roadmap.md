@@ -2,6 +2,8 @@
 
 Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 
+> **Vorschlag zur Neuordnung aller Funktionen:** [plans/gesamtplan.md](plans/gesamtplan.md) (10 Phasen, nicht freigegeben). Bis zur Freigabe gilt diese Roadmap.
+
 ## Schritt 0 – Fundament ✅
 
 - [x] Repo, Lizenz (GPL-3.0-or-later), Doku, Entscheidungen
