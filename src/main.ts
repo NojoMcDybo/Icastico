@@ -19,6 +19,8 @@ async function start(): Promise<void> {
   const engraver = await Engraver.create();
   $('meta').textContent = `Icastico ${APP_VERSION} · Verovio ${engraver.version.split('-')[0]}`;
   const platform = currentPlatform();
+  // The version last started. Nothing saved but a library already used before: an update from a version that did not remember it yet.
+  const seenVersion = loadSeenVersion() ?? (loadLastOpened() ? '0.0.0' : null);
 
   // The library folder (Documents/Icastico). On the very first start the
   // demo score is saved there as an example.
@@ -61,7 +63,7 @@ async function start(): Promise<void> {
   flush = () => workstation.flush();
   await workstation.openInitial(loadLastOpened());
   updates?.scheduleQuietCheck();
-  void announceUpdate(loadSeenVersion(), saveSeenVersion);
+  void announceUpdate(seenVersion, saveSeenVersion);
   if (!store) $('status').textContent = 'Bibliothek nicht verfügbar – Speichern nur über „Speichern unter“.';
 }
 

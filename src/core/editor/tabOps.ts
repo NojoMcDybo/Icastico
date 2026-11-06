@@ -2,8 +2,8 @@
  * Tablature from the editor: add a guitar line later (with its tab), and translate a passage of another line into
  * the guitar line so it shows as notes and as tablature (ADR 0022).
  */
-import { getInstrument } from '../instruments';
-import { type NoteEvent, type Part, type Score } from '../model';
+import { type NoteEvent, type Score } from '../model';
+import { addInstrument } from '../templates';
 import { GUITAR_STRINGS, MAX_FRET } from '../tab';
 import { midiOf } from '../pitch';
 import { type Fraction, ZERO, add, le, lt } from '../time';
@@ -18,12 +18,7 @@ const say = (s: EditorState, message: string): EditorState => ({ ...s, message }
 
 /** A new, empty guitar line at the bottom of the score (with the tablature on). */
 export function addGuitarPart(score: Score): { score: Score; partId: string } {
-  const def = getInstrument('guitar');
-  let n = 1;
-  while (score.parts.some((p) => p.id === (n === 1 ? 'guitar' : `guitar-${n}`))) n++;
-  const id = n === 1 ? 'guitar' : `guitar-${n}`;
-  const part: Part = { id, name: n === 1 ? def.name : `${def.name} ${n}`, instrument: 'guitar', tab: true, voices: [{ id: `${id}-v1`, staff: 0, events: [] }] };
-  return { score: { ...score, parts: [...score.parts, part] }, partId: id };
+  return addInstrument(score, 'guitar', true);
 }
 
 /** Tab on / off for the guitar line; with no guitar line yet, one is added – the tablature can be put in at any time. */

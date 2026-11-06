@@ -28,6 +28,11 @@
 - **Export** (Menü „⋯“ einer Partitur in der Bibliothek): Untermenü mit PDF, MusicXML, MIDI (Standard-MIDI-Datei, Format 1,
   aus dem Abspielplan – Wiederholungen, Bindungen, Lautstärke; Gleiten ohne Tonhöhenbogen) und Icastico-Datei.
 - **Neuigkeiten** (`ui/patchNotes.ts`): nach einem Update ein Popup mit den neuen Funktionen (Daten, je Version ein Eintrag).
+  Wer noch keine „zuletzt gesehene Version“ gespeichert hat, aber schon Partituren öffnete, gilt als Update-Nutzer (sieht die Neuigkeiten);
+  erst ein ganz neuer Start zeigt sie nicht.
+- **Nachbesserung 0.18.1**: Mehrfachauswahl auch mit Umschalt+Pfeil, einem Rahmen über leerem Papier und Doppelklick auf einen Takt;
+  Instrumente und Gitarren-Tabulatur lassen sich in den Partitur-Einstellungen nachträglich ergänzen (Entfernen noch nicht);
+  „Transponieren …“ liegt unter dem Quintenzirkel der Tonart.
 - **Tastenhilfe** mit Suchleiste, **Quintenzirkel** aus zwei sich berührenden Ringen.
 
 ## Nicht enthalten

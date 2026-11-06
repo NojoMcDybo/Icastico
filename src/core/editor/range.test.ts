@@ -100,3 +100,15 @@ describe('deleting, cutting, copying and pasting a passage', () => {
     expect(copyClip({ ...eight(), selection: null })).toBeNull();
   });
 });
+
+describe('marking by frame or by bar', () => {
+  it('markFromTo marks the notes between two notes of a voice and selects the first', async () => {
+    const { markFromTo } = await import('./range');
+    const s = eight();
+    const ev = events(s);
+    const marked = markFromTo(s, VOICE, ev[2]!.id, ev[4]!.id);
+    expect(rangeSpan(marked)).toMatchObject({ from: frac(2, 4), to: frac(5, 4), notes: 3 });
+    expect(marked.selection).toMatchObject({ eventId: ev[2]!.id });
+    expect(markFromTo(s, VOICE, 'nope', ev[1]!.id)).toBe(s);
+  });
+});

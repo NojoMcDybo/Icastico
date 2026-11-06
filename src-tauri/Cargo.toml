@@ -1,6 +1,6 @@
 [package]
 name = "icastico"
-version = "0.18.0"
+version = "0.18.1"
 description = "Icastico – Notensatz als individuelle Workstation"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/NojoMcDybo/Icastico"

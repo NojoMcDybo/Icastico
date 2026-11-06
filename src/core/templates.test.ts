@@ -153,3 +153,29 @@ describe('keyName', () => {
     expect(keyName(-6)).toBe('Ges-Dur / es-Moll (6 ♭)');
   });
 });
+
+describe('adding instruments to an existing score', () => {
+  it('appends empty lines with fresh ids and names, a guitar can come with its tablature', () => {
+    const base = createScore({ ...DEFAULT_SETUP, instruments: ['voice'] });
+    const r = applyScoreChanges(base, { addInstruments: [{ instrument: 'guitar', tab: true }, { instrument: 'guitar' }, { instrument: 'piano' }] });
+    if ('error' in r) throw new Error(r.error);
+    expect(r.score.parts.map((p) => [p.id, p.name, p.tab === true])).toEqual([
+      ['voice', 'Gesang', false],
+      ['guitar', 'Gitarre', true],
+      ['guitar-2', 'Gitarre 2', false],
+      ['piano', 'Klavier', false],
+    ]);
+    expect(r.score.parts[3]!.voices.map((v) => v.id)).toEqual(['piano-s1', 'piano-s2']);
+    expect(r.score.parts.every((p) => p.voices.every((v) => v.events.length === 0))).toBe(true);
+  });
+
+  it('switches the tablature of a guitar line later, and ignores it for other instruments', () => {
+    const base = createScore({ ...DEFAULT_SETUP, instruments: ['voice', 'guitar'] });
+    const on = applyScoreChanges(base, { tab: { guitar: true, voice: true } });
+    if ('error' in on) throw new Error(on.error);
+    expect(on.score.parts.map((p) => p.tab === true)).toEqual([false, true]);
+    const off = applyScoreChanges(on.score, { tab: { guitar: false } });
+    if ('error' in off) throw new Error(off.error);
+    expect(off.score.parts[1]!.tab).toBeUndefined();
+  });
+});

@@ -18,6 +18,7 @@ import type { Score } from '../core/model';
 import type { LibraryStore } from '../library/store';
 import { APP_VERSION } from '../version';
 import { ask, inform, promptText } from './dialog';
+import { latestNotes, showPatchNotes } from './patchNotes';
 import type { Thumbnails } from './thumbnails';
 
 /** The file kinds of the export submenu. */
@@ -364,6 +365,7 @@ export class LibraryHome {
         void this.actions.exportPdf(scores, name);
       }),
     ];
+    parts.push(link('Neuigkeiten', 'Was in den letzten Versionen neu ist', () => void showPatchNotes(latestNotes())));
     if (this.actions.checkForUpdates) {
       parts.push(link(`Nach Updates suchen · Version ${APP_VERSION}`, '', () => void this.actions.checkForUpdates?.()));
     }

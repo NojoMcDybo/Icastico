@@ -69,6 +69,20 @@ export function rangeTo(s: EditorState, ref: VoiceRef, eventId: string): EditorS
   return { ...next, message: span ? `${span.notes} Noten markiert` : null };
 }
 
+/** Marks the notes from `firstId` to `lastId` of a voice and selects the first (a frame drawn over the notes, a double click on a bar). */
+export function markFromTo(s: EditorState, ref: VoiceRef, firstId: string, lastId: string): EditorState {
+  const events = getVoice(s.score, ref).voice.events;
+  if (!events.some((e) => e.id === firstId) || !events.some((e) => e.id === lastId)) return s;
+  const next: EditorState = {
+    ...s,
+    caret: null,
+    selection: { kind: 'event', partId: ref.partId, voiceId: ref.voiceId, eventId: firstId },
+    range: { partId: ref.partId, voiceId: ref.voiceId, anchor: firstId, head: lastId },
+  };
+  const span = rangeSpan(next);
+  return { ...next, message: span ? `${span.notes} ${span.notes === 1 ? 'Note' : 'Noten'} markiert` : null };
+}
+
 /** Marks the whole voice of the selected note (Strg+A). */
 export function selectAllNotes(s: EditorState): EditorState {
   const sel = s.selection;

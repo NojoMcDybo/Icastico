@@ -12,6 +12,15 @@ export interface PatchNote {
 /** Newest first. Keep each line to one short sentence. */
 export const PATCH_NOTES: readonly PatchNote[] = [
   {
+    version: '0.18.1',
+    items: [
+      'Neuigkeiten erscheinen jetzt auch beim ersten Start nach einem Update von älteren Versionen; „Neuigkeiten“ in der Tastenhilfe und in der Bibliothek zeigt sie jederzeit.',
+      'Partitur-Einstellungen: Instrumente und Tabulatur nachträglich hinzufügen.',
+      'Mehrere Noten und Takte markieren: Umschalt + Pfeil, Umschalt + Klick, einen Rahmen aufziehen oder auf einen Takt doppelklicken.',
+      'Transponieren steht jetzt im Fenster der Tonart (Klick auf die Tonart oben); das Menü der drei Punkte hat keine Leerzeile mehr.',
+    ],
+  },
+  {
     version: '0.18.0',
     items: [
       'Transponieren (Strg+Umschalt+T): um ein Intervall, chromatisch oder diatonisch – das Intervall wählst du an einem Rad wie beim iPhone-Timer.',
@@ -108,6 +117,9 @@ export function showPatchNotes(notes: readonly PatchNote[]): Promise<void> {
     ok.focus();
   });
 }
+
+/** The notes of the latest versions, for the "Neuigkeiten" buttons. */
+export const latestNotes = (): readonly PatchNote[] => PATCH_NOTES.slice(0, 3);
 
 /** At start: show what is new if the program was updated since it was last started; remember the version. */
 export async function announceUpdate(seen: string | null, remember: (version: string) => void): Promise<void> {

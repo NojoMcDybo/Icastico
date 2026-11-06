@@ -234,8 +234,8 @@
           "title": "Note verlängern / verkürzen (um den gewählten Notenwert)",
           "command": "edit.resize",
           "args": { "1": "länger", "-1": "kürzer" },
-          "finale": { "keys": { "1": ["Shift+ArrowRight"], "-1": ["Shift+ArrowLeft"] }, "source": "icastico" },
-          "logic": { "keys": { "1": ["Shift+ArrowRight"], "-1": ["Shift+ArrowLeft"] }, "source": "icastico" }
+          "finale": { "keys": { "1": ["Mod+Shift+ArrowRight"], "-1": ["Mod+Shift+ArrowLeft"] }, "source": "icastico", "note": "Umschalt+Pfeil markiert einen Bereich, deshalb liegt das Verlängern auf Strg+Umschalt+Pfeil." },
+          "logic": { "keys": { "1": ["Mod+Shift+ArrowRight"], "-1": ["Mod+Shift+ArrowLeft"] }, "source": "icastico", "note": "Umschalt+Pfeil markiert einen Bereich, deshalb liegt das Verlängern auf Strg+Umschalt+Pfeil." }
         },
         {
           "id": "edit.drag",
@@ -337,11 +337,11 @@
         },
         {
           "id": "range.extend",
-          "title": "Bereich markieren: von der gewählten Note nach rechts / links erweitern (auch Umschalt + Klick); Entf löscht ihn, Strg+C / X / V, Esc hebt auf",
+          "title": "Mehrere Noten / Takte markieren: von der gewählten Note nach rechts / links erweitern (auch Umschalt + Klick, einen Rahmen aufziehen oder Doppelklick auf einen Takt); Entf löscht, Strg+C / X / V, Esc hebt auf",
           "command": "range.extend",
           "args": { "1": "weiter nach rechts", "-1": "weiter nach links" },
-          "finale": { "keys": { "1": ["Alt+Shift+ArrowRight"], "-1": ["Alt+Shift+ArrowLeft"] }, "source": "icastico" },
-          "logic": { "keys": { "1": ["Alt+Shift+ArrowRight"], "-1": ["Alt+Shift+ArrowLeft"] }, "source": "icastico" }
+          "finale": { "keys": { "1": ["Shift+ArrowRight", "Alt+Shift+ArrowRight"], "-1": ["Shift+ArrowLeft", "Alt+Shift+ArrowLeft"] }, "source": "icastico" },
+          "logic": { "keys": { "1": ["Shift+ArrowRight", "Alt+Shift+ArrowRight"], "-1": ["Shift+ArrowLeft", "Alt+Shift+ArrowLeft"] }, "source": "icastico" }
         },
         {
           "id": "edit.transpose",

@@ -466,7 +466,7 @@ try {
   await type('Control+Shift+D');
   check((await page.locator('.roll__bar.is-secondary').count()) === 1 && (await page.locator('.roll__bar.is-secondary.is-selected').count()) === 1, 'T7: Der angeklickte Akkordton liegt in einer eigenen Stimme (gestrichelter Balken)');
   check((await page.locator('.page g.layer').count()) >= 2, 'T7: Die Notenschrift zeigt jetzt zwei Stimmen auf der Zeile');
-  await type('Shift+ArrowRight'); // lengthen the lone G by the chosen value (a quarter)
+  await type('Control+Shift+ArrowRight'); // lengthen the lone G by the chosen value (a quarter)
   const lone = await page.locator('.roll__bar.is-secondary title').textContent();
   check(Math.abs((await barWidth(0)) - chordLowBefore) < 1 && /Halbe/.test(lone), 'T7: Der gelöste Ton wird länger, das C im Akkord bleibt gleich lang');
   await type('Control+z', 'Control+z');
@@ -872,6 +872,47 @@ try {
   check((await notes()) === 3, 'Aufnahme aus: das Keyboard gibt keine Noten mehr ein');
   await type('Escape');
 
+  // ── Mehrere Noten und Takte markieren: Umschalt+Pfeil, Rahmen aufziehen, Doppelklick auf einen Takt ──
+  await newScore('Auswahl-Test');
+  await type('5', 'c', 'd', 'e', 'f', 'g', 'a', 'b', 'c', 'Escape');
+  await page.locator('.page g.note').nth(1).click({ force: true });
+  await type('Shift+ArrowRight', 'Shift+ArrowRight');
+  check((await page.locator('.page g.is-range').count()) >= 3 && /3 Noten markiert/.test(await status()), 'Auswahl: Umschalt + Pfeil nach rechts markiert mehrere Noten');
+  await type('Escape', 'Escape');
+  const firstBox = await page.locator('.page g.note').first().boundingBox();
+  const lastNoteBox = await page.locator('.page g.note').nth(3).boundingBox();
+  const frameBox = await page.locator('.page').first().boundingBox();
+  await page.mouse.move(firstBox.x - 8, frameBox.y + frameBox.height - 12);
+  await page.mouse.down();
+  await page.mouse.move(lastNoteBox.x + lastNoteBox.width + 8, firstBox.y - 6, { steps: 8 });
+  check((await page.locator('.frame-select').count()) === 1, 'Auswahl: ein Rahmen über leerem Papier aufziehen zeigt einen blauen Rahmen');
+  await page.mouse.up();
+  check((await page.locator('.page g.is-range').count()) >= 4 && /Noten markiert/.test(await status()), 'Auswahl: die Noten im Rahmen sind markiert');
+  await type('Escape', 'Escape');
+  const barNote = await page.locator('.page g.note').nth(5).boundingBox();
+  await page.mouse.dblclick(barNote.x + barNote.width / 2, barNote.y + barNote.height / 2);
+  check((await page.locator('.page g.is-range').count()) >= 3 && /Noten markiert/.test(await status()), 'Auswahl: ein Doppelklick auf einen Takt markiert alle seine Noten');
+  await type('Escape', 'Escape');
+
+  // ── Partitur-Einstellungen: Instrumente und Tabulatur nachträglich ──
+  await page.click('#doc-title');
+  await page.waitForSelector('.modal h2:text("Partitur-Einstellungen")');
+  await page.click('.modal [data-instrument="guitar"]');
+  check((await page.locator('.instruments--new li').count()) === 1 && (await page.locator('.instruments--new input[type="checkbox"]').isChecked()), 'Einstellungen: „+ Gitarre“ fügt eine neue Zeile hinzu, die Tabulatur ist gleich mit an');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction(() => document.querySelectorAll('.page g.staff').length >= 3);
+  check((await page.locator('.page text, .page tspan').filter({ hasText: /^Tab$/ }).count()) >= 1 || (await page.locator('.page g.staff').count()) >= 3, 'Einstellungen: die neue Gitarrenzeile mit Tabulatur steht in der Partitur');
+  await type('Control+z');
+
+  // ── Tonart-Fenster: Transponieren steht darunter ──
+  await page.click('.lcd__cell:has-text("TONART")');
+  await page.waitForSelector('.keypicker');
+  await page.click('.keypicker__transpose');
+  await page.waitForSelector('.transpose .wheel');
+  check((await page.locator('.keypicker').count()) === 0, 'Tonart: der Knopf „Transponieren …“ unter dem Quintenzirkel öffnet das Transponieren-Fenster');
+  await page.click('.transpose button:has-text("Abbrechen")');
+  await page.waitForSelector('.transpose', { state: 'detached' });
+
   // ── Transponieren: Schalter chromatisch / diatonisch und ein Rad mit den Intervallen ──
   await newScore('Transpo-Test');
   await type('5', 'c', 'd', 'e', 'Escape');
@@ -883,6 +924,7 @@ try {
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown');
   await page.waitForFunction(() => /große Sekunde|kleine Terz/.test(document.querySelector('.wheel__item.is-chosen')?.textContent ?? ''));
+  await page.waitForFunction(() => /^Beispiel: C → /.test(document.querySelector('.transpose__example')?.textContent ?? ''));
   const chosen = await page.locator('.wheel__item.is-chosen').textContent();
   check(/aufwärts/.test(chosen) && /Beispiel: C → /.test(await page.locator('.transpose__example').textContent()), `Transponieren: ↓ dreht das Rad zum nächsten Intervall (${chosen}), darunter steht ein Beispiel`);
   const wheelBox = await page.locator('.wheel').boundingBox();
@@ -1189,8 +1231,11 @@ try {
   // Exportieren-Untermenü in der Bibliothek (Menü mit den drei Punkten)
   await openLibrary();
   await page.locator('.tile__more').first().click();
+  const menuHeights = await page.locator('.menu button').evaluateAll((bs) => bs.map((b) => Math.round(b.getBoundingClientRect().height)));
+  check(Math.max(...menuHeights) <= 62, 'Bibliothek: kein Eintrag des Drei-Punkte-Menüs hat eine Leerzeile (Höhen ' + menuHeights.join('/') + ')');
   await page.click('.menu button:has-text("Exportieren")');
   check((await page.locator('.menu button').allTextContents()).some((t) => t.includes('MIDI')) && (await page.locator('.menu button').allTextContents()).some((t) => t.includes('MusicXML')) && (await page.locator('.menu button').allTextContents()).some((t) => t.includes('PDF')), 'Bibliothek: „Exportieren“ im Drei-Punkte-Menü öffnet ein Untermenü mit der Dateiart');
+  await page.screenshot({ path: join(outDir, 'menue.png'), clip: { x: 0, y: 150, width: 1400, height: 500 } });
   const midiDownload = page.waitForEvent('download');
   await page.click('.menu button:has-text("MIDI")');
   const midiName = (await midiDownload).suggestedFilename();

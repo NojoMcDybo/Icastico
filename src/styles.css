@@ -808,6 +808,7 @@ body.is-dragging-note * {
 }
 
 .menu button {
+  position: relative;
   width: 100%;
   padding: 11px 12px;
   border: 0;
@@ -1082,9 +1083,20 @@ body.is-dragging-note * {
   color: var(--dim);
 }
 
-.menu__arrow {
-  float: right;
+.instruments__tab {
+  margin-left: auto;
   color: var(--dim);
+  font-size: 12px;
+}
+
+.menu button .menu__arrow {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  margin: 0;
+  color: var(--dim);
+  font-size: 18px;
+  transform: translateY(-50%);
 }
 
 .help__search {
@@ -1832,6 +1844,27 @@ button.lcd__cell:nth-child(3) {
   font-size: 11px;
 }
 
+.keypicker__transpose {
+  display: block;
+  width: calc(100% - 28px);
+  margin: 0 14px 14px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.12);
+  color: var(--ink);
+  font-weight: 600;
+  transition: background 0.2s var(--ease), transform 0.3s var(--spring);
+}
+
+.keypicker__transpose:hover {
+  background: rgb(255 255 255 / 0.22);
+}
+
+.keypicker__transpose:active {
+  transform: scale(0.97);
+}
+
 .keypicker__rare {
   padding: 4px 10px;
   border: 0;
@@ -2163,6 +2196,16 @@ button.lcd__cell:nth-child(3) {
   stroke: var(--accent-ink);
 }
 
+/* The frame drawn over the notes to mark them */
+.frame-select {
+  position: fixed;
+  z-index: 40;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  background: rgb(117 184 255 / 0.14);
+  pointer-events: none;
+}
+
 .is-sign-target {
   outline: 2px solid var(--accent-ink);
   outline-offset: 3px;
@@ -2245,4 +2288,10 @@ button.lcd__cell:nth-child(3) {
 .symbols__btn.is-on {
   background: var(--accent);
   color: #0c1a2b;
+}
+
+.help__news {
+  background: none;
+  color: var(--dim);
+  box-shadow: inset 0 0 0 1px var(--line);
 }

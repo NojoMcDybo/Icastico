@@ -11,7 +11,8 @@ import { type EditorState, type VoiceRef, allVoiceRefs, createEditorState, getVo
 import { applyRollEdit } from '../core/editor/rollEdits';
 import { transposeScope, transposeSelection } from '../core/editor/transposeState';
 import { transposeDialog } from './transposeDialog';
-import { type Clip, copyClip, cutClip, pasteClip, rangeSpan, rangeTo } from '../core/editor/range';
+import { latestNotes, showPatchNotes } from './patchNotes';
+import { type Clip, copyClip, cutClip, markFromTo, pasteClip, rangeSpan, rangeTo } from '../core/editor/range';
 import { FILE_EXTENSION, FileFormatError, parseScoreFile, serializeScore } from '../core/file/format';
 import { musicXmlText } from '../core/import/container';
 import { type ImportResult, ImportError, importMusicXml } from '../core/import/musicxml';
@@ -353,6 +354,7 @@ export class Workstation {
     window.addEventListener('keyup', (e) => this.onKeyUp(e));
     window.addEventListener('blur', () => this.releaseSpace());
     el.pages.addEventListener('click', (e) => this.onClick(e));
+    el.pages.addEventListener('dblclick', (e) => this.onDoubleClick(e));
     el.pages.addEventListener('pointerdown', (e) => this.onPointerDown(e));
     el.pages.addEventListener('pointermove', (e) => this.onPointerMove(e));
     el.pages.addEventListener('pointerup', (e) => this.onPointerUp(e));
@@ -1008,6 +1010,7 @@ export class Workstation {
         lastMeasure: content[content.length - 1]!.number,
         fifths: keyAt(score, at),
         meter: meterAt(score, at),
+        parts: score.parts.map((p) => ({ id: p.id, name: p.name, instrument: p.instrument, tab: p.tab === true })),
       },
       check: (c) => {
         const r = applyScoreChanges(this.state.score, c);
@@ -1031,6 +1034,7 @@ export class Workstation {
     const here = measures.find((m) => le(m.start, time) && lt(time, m.end)) ?? measures[0]!;
     const fromMeasure = Math.max(1, here.number);
     openKeyPicker(anchor, keyAt(score, here.number <= 1 ? ZERO : here.start), {
+      transpose: () => void this.transpose(),
       pick: (fifths) => {
         const result = applyScoreChanges(this.state.score, { fifths, fromMeasure });
         if ('error' in result) this.history.apply({ ...this.state, message: result.error });
@@ -1064,7 +1068,8 @@ export class Workstation {
     const sign = this.signUnder(e);
     if (sign) return this.beginSignDrag(sign, e); // a placed sign is picked up, not the note next to it
     const ref = this.hitTest(e);
-    if (!ref?.eventId) return;
+    if (!ref) return this.beginFrame(e); // empty paper: dragging draws a frame that marks the notes inside
+    if (!ref.eventId) return;
     const s = this.history.state;
     const voice = { partId: ref.partId, voiceId: ref.voiceId };
     const targets: { ref: ElementRef; rect: DOMRect }[] = [];
@@ -1296,6 +1301,84 @@ export class Workstation {
       if (!bar) return;
       this.history.apply(dropBarSign(this.state, sign.id, bar.start, sign.from));
     }
+    this.update();
+  }
+
+  /** A drag that starts on empty paper draws a frame; the notes inside it are marked (several notes, whole bars). */
+  private beginFrame(e: PointerEvent): void {
+    if (e.button !== 0 || this.empty) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let frame: HTMLElement | null = null;
+    const rect = (x: number, y: number) => ({ left: Math.min(x, startX), top: Math.min(y, startY), right: Math.max(x, startX), bottom: Math.max(y, startY) });
+    const move = (m: PointerEvent) => {
+      if (!frame) {
+        if (Math.hypot(m.clientX - startX, m.clientY - startY) < 6) return;
+        frame = document.createElement('div');
+        frame.className = 'frame-select';
+        document.body.append(frame);
+      }
+      const r = rect(m.clientX, m.clientY);
+      Object.assign(frame.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.right - r.left}px`, height: `${r.bottom - r.top}px` });
+    };
+    const end = (up: PointerEvent | null) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', cancel);
+      if (!frame) return;
+      frame.remove();
+      this.swallowClick = true;
+      window.setTimeout(() => (this.swallowClick = false), 80);
+      if (up) this.markInside(rect(up.clientX, up.clientY));
+    };
+    const cancel = () => end(null);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', cancel);
+  }
+
+  /** Marks the notes whose drawing touches the frame: the first one found decides which line (and voice) it is about. */
+  private markInside(r: { left: number; top: number; right: number; bottom: number }): void {
+    const elements = this.result?.elements;
+    if (!elements) return;
+    const hits: { id: string; ref: ElementRef }[] = [];
+    for (const [id, ref] of elements) {
+      if (!ref.eventId || ref.kind === 'chordNote') continue;
+      const b = document.getElementById(id)?.getBoundingClientRect();
+      if (b && b.right >= r.left && b.left <= r.right && b.bottom >= r.top && b.top <= r.bottom) hits.push({ id, ref });
+    }
+    if (hits.length === 0) {
+      this.history.apply({ ...this.state, range: null, selection: this.state.caret ? this.state.selection : null, message: null });
+      return this.update();
+    }
+    hits.sort((a, b) => (lt(a.ref.onset, b.ref.onset) ? -1 : eq(a.ref.onset, b.ref.onset) ? 0 : 1));
+    const first = hits[0]!.ref;
+    const same = hits.filter((h) => h.ref.partId === first.partId && h.ref.voiceId === first.voiceId);
+    this.history.apply(markFromTo(this.state, { partId: first.partId, voiceId: first.voiceId }, first.eventId!, same[same.length - 1]!.ref.eventId!));
+    this.update();
+  }
+
+  /** A double click on a bar marks all its notes (on the staff that was clicked). */
+  private onDoubleClick(e: MouseEvent): void {
+    if (this.empty) return;
+    // Blank paper between the staff lines belongs to no drawn shape, so find the bar and the staff by where the pointer is.
+    const inside = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top - 12 && e.clientY <= r.bottom + 12;
+    };
+    const measureEl = [...this.el.pages.querySelectorAll('.measure')].find(inside);
+    const staves = measureEl ? [...measureEl.querySelectorAll(':scope > .staff')] : [];
+    const staffEl = staves.find((st) => { const r = st.getBoundingClientRect(); return e.clientY >= r.top - 6 && e.clientY <= r.bottom + 6; });
+    const number = /^m([0-9]+)$/.exec(measureEl?.id ?? '')?.[1];
+    const bar = number === undefined ? undefined : measuresOf(this.state.score, 1).find((m) => m.number === Number(number));
+    const staffN = Number(/^m[0-9]+-s([0-9]+)$/.exec(staffEl?.id ?? '')?.[1] ?? Number.NaN);
+    const slot = this.result?.staffs.find((s) => s.n === staffN);
+    if (!bar || !slot) return;
+    const part = this.state.score.parts.find((p) => p.id === slot.partId);
+    const voice = part?.voices.find((v) => v.staff === slot.staffIndex && v.events.some((x) => le(bar.start, x.onset) && lt(x.onset, bar.end)));
+    if (!part || !voice) return;
+    const inBar = voice.events.filter((x) => le(bar.start, x.onset) && lt(x.onset, bar.end));
+    this.history.apply(markFromTo(this.state, { partId: part.id, voiceId: voice.id }, inBar[0]!.id, inBar[inBar.length - 1]!.id));
     this.update();
   }
 
@@ -2244,7 +2327,16 @@ export class Workstation {
       b.addEventListener('click', () => this.setKeymap(id));
       switcher.append(b);
     }
-    head.append(title, switcher);
+    const news = document.createElement('button');
+    news.type = 'button';
+    news.className = 'pill help__news';
+    news.textContent = 'Neuigkeiten';
+    news.title = 'Was in den letzten Versionen neu ist';
+    news.addEventListener('click', () => {
+      this.el.help.hidden = true;
+      void showPatchNotes(latestNotes());
+    });
+    head.append(title, switcher, news);
     const desc = document.createElement('p');
     desc.className = 'help__desc';
     desc.textContent = this.keymap.description;

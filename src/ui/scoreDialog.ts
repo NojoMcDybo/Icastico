@@ -18,6 +18,8 @@ export interface EditInitial {
   readonly lastMeasure: number;
   readonly fifths: number;
   readonly meter: TimeSignature;
+  /** The lines the score has now (for adding more instruments and switching the guitar tablature). */
+  readonly parts: readonly { readonly id: string; readonly name: string; readonly instrument: InstrumentId; readonly tab: boolean }[];
 }
 
 type Options =
@@ -116,6 +118,56 @@ export function scoreDialog(options: Options): Promise<ScoreSetup | ScoreChanges
       }
       renderInstruments();
       form.append(row('Instrumente', el('div', {}, list, add)));
+    }
+
+    // Instruments of an existing score: the ones it has (guitar: tablature on / off) and more to add
+    const addedInstruments: { instrument: InstrumentId; tab: boolean }[] = [];
+    const tabBoxes = new Map<string, HTMLInputElement>();
+    if (!isNew) {
+      const have = el('ol', { className: 'instruments' });
+      for (const p of options.initial.parts) {
+        const li = el('li', {}, el('span', { textContent: p.name }));
+        if (p.instrument === 'guitar') {
+          const box = el('input', { type: 'checkbox', checked: p.tab, id: `f-tab-${p.id}` });
+          box.setAttribute('aria-label', `${p.name}: Tabulatur`);
+          tabBoxes.set(p.id, box);
+          li.append(el('label', { className: 'instruments__tab' }, box, ' Tabulatur'));
+        }
+        have.append(li);
+      }
+      const adding = el('ol', { className: 'instruments instruments--new' });
+      const renderAdded = () => {
+        adding.replaceChildren(
+          ...addedInstruments.map((a, i) => {
+            const li = el('li', {}, el('span', { textContent: `${INSTRUMENTS[a.instrument].name} (neu)` }));
+            if (a.instrument === 'guitar') {
+              const box = el('input', { type: 'checkbox', checked: a.tab });
+              box.setAttribute('aria-label', 'Neue Gitarre: Tabulatur');
+              box.addEventListener('change', () => (a.tab = box.checked));
+              li.append(el('label', { className: 'instruments__tab' }, box, ' Tabulatur'));
+            }
+            const remove = el('button', { type: 'button', textContent: '✕', title: 'entfernen' });
+            remove.setAttribute('aria-label', `${INSTRUMENTS[a.instrument].name} wieder entfernen`);
+            remove.addEventListener('click', () => {
+              addedInstruments.splice(i, 1);
+              renderAdded();
+            });
+            li.append(remove);
+            return li;
+          }),
+        );
+      };
+      const more = el('div', { className: 'chips' });
+      for (const def of Object.values(INSTRUMENTS)) {
+        const b = el('button', { type: 'button', textContent: `+ ${def.name}` });
+        b.dataset.instrument = def.id;
+        b.addEventListener('click', () => {
+          addedInstruments.push({ instrument: def.id, tab: def.id === 'guitar' });
+          renderAdded();
+        });
+        more.append(b);
+      }
+      form.append(row('Instrumente', el('div', {}, have, adding, more, el('p', { className: 'form__hint', textContent: 'Neue Zeilen kommen unten dazu. Entfernen geht hier noch nicht.' }))));
     }
 
     // Key
@@ -255,7 +307,10 @@ export function scoreDialog(options: Options): Promise<ScoreSetup | ScoreChanges
         ...(Number(key.value) !== i.fifths ? { fifths: Number(key.value) } : {}),
         ...(meter.count !== i.meter.count || meter.unit !== i.meter.unit ? { meter } : {}),
         ...(!eq(pickupValue, i.pickup) ? { pickup: pickupValue } : {}),
+        ...(addedInstruments.length > 0 ? { addInstruments: addedInstruments.map((a) => ({ instrument: a.instrument, tab: a.tab })) } : {}),
       };
+      const tabChanges = Object.fromEntries(i.parts.filter((p) => tabBoxes.get(p.id) && tabBoxes.get(p.id)!.checked !== p.tab).map((p) => [p.id, tabBoxes.get(p.id)!.checked]));
+      if (Object.keys(tabChanges).length > 0) (changes as { tab?: Record<string, boolean> }).tab = tabChanges;
       const problem = options.check(changes);
       if (problem) {
         error.textContent = problem;

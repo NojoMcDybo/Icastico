@@ -72,6 +72,24 @@ export function createScore(setup: ScoreSetup): Score {
   };
 }
 
+/** A new, empty line for `instrument` at the bottom of the score (ids and names stay unique: "Gitarre 2"). */
+export function addInstrument(score: Score, instrument: InstrumentId, tab = false): { score: Score; partId: string } {
+  const def = getInstrument(instrument);
+  const same = score.parts.filter((p) => p.instrument === instrument).length;
+  let n = same + 1;
+  const idOf = (k: number) => (k === 1 ? instrument : `${instrument}-${k}`);
+  while (score.parts.some((p) => p.id === idOf(n))) n++;
+  const id = idOf(n);
+  const part: Part = {
+    id,
+    name: n === 1 ? def.name : `${def.name} ${n}`,
+    instrument,
+    ...(tab && instrument === 'guitar' ? { tab: true } : {}),
+    voices: def.staves.map((_, staff) => ({ id: def.staves.length === 1 ? `${id}-v1` : `${id}-s${staff + 1}`, staff, events: [] })),
+  };
+  return { score: { ...score, parts: [...score.parts, part] }, partId: id };
+}
+
 /** Empty score with the three first-class instruments, C major, 4/4. */
 export function emptyScore(title = 'Neue Partitur'): Score {
   return createScore({ ...DEFAULT_SETUP, title });
@@ -89,6 +107,10 @@ export interface ScoreChanges {
   readonly fifths?: number;
   /** Applies from `fromMeasure` to the end (later meter changes are replaced). */
   readonly meter?: TimeSignature;
+  /** Instruments to add at the bottom (a guitar may come with its tablature). */
+  readonly addInstruments?: readonly { readonly instrument: InstrumentId; readonly tab?: boolean }[];
+  /** Tablature on / off per existing guitar line (part id → on). */
+  readonly tab?: Readonly<Record<string, boolean>>;
 }
 
 /** Drops entries that repeat the value of the entry before them. */
@@ -115,6 +137,18 @@ export function applyScoreChanges(score: Score, changes: ScoreChanges): { score:
     const { pickup: _old, ...rest } = next;
     next = gt(changes.pickup, ZERO) ? { ...rest, pickup: changes.pickup } : rest;
   }
+
+  for (const [partId, on] of Object.entries(changes.tab ?? {})) {
+    next = {
+      ...next,
+      parts: next.parts.map((p) => {
+        if (p.id !== partId || p.instrument !== 'guitar') return p;
+        const { tab: _old, ...rest } = p;
+        return on ? { ...rest, tab: true } : rest;
+      }),
+    };
+  }
+  for (const add of changes.addInstruments ?? []) next = addInstrument(next, add.instrument, add.tab ?? false).score;
 
   const from = changes.fromMeasure ?? 1;
   const measures = measuresOf(next);

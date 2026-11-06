@@ -48,6 +48,8 @@ export class Wheel {
   /** The row in the middle band. */
   focus(): void {
     this.scroller.focus();
+    // Scrolling before the wheel is on screen has no effect: put the band on its row again now that it is.
+    if (this.at !== null && this.scroller.scrollTop !== this.at * WHEEL_ROW) this.goTo(this.at, false);
   }
 
   get index(): number {
@@ -74,6 +76,7 @@ export class Wheel {
   goTo(index: number, smooth: boolean): void {
     const i = Math.max(0, Math.min(this.items.length - 1, index));
     this.wanted = i;
+    this.at = i;
     window.clearTimeout(this.wantedTimer);
     this.wantedTimer = window.setTimeout(() => (this.wanted = null), 450);
     this.scroller.scrollTo({ top: i * WHEEL_ROW, behavior: smooth ? 'smooth' : 'instant' });
@@ -92,6 +95,7 @@ export class Wheel {
     });
   }
 
+  private at: number | null = null;
   private lastIndex = -1;
   private onScroll(): void {
     cancelAnimationFrame(this.frame);

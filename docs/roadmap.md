@@ -14,7 +14,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Verovio-Rendering, Klick auf Note → Modell-Event (mit Toleranz)
 - [x] Demo-Partitur „Erste Skizze“
 
-## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.18.0)
+## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.18.1)
 
 - [x] Command-System (reine Funktionen) mit Undo/Redo
 - [x] Eingabe-Cursor (blinkend; gestrichelt im Einfügemodus), springt hinter Schlüssel/Taktart
@@ -98,6 +98,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Rückmeldung: klingende Note beim Abspielen blau; geänderte oder neue Note klingt an (auch Pfeiltasten, Ziehen, MIDI, Sprache); Akkordtöne einzeln mit Pfeilen veränderbar
 - [x] Obere Leiste mit festen Plätzen, Tempo wie bei Logic ziehen, Tonart per Quintenzirkel; Zeichnen langsamer Partituren fasst Tastendrücke zusammen (60 Akkorde mit Gleiten: kein Rückstau mehr); Finale-Ziffernblock ist die Startbelegung
 - [x] Bereiche markieren (Alt+Umschalt+Pfeil, Umschalt + Klick, Strg+A): löschen, ausschneiden, kopieren, einfügen, in Schleife abspielen (ADR 0027)
+- [x] 0.18.1 Nachbesserungen: Neuigkeiten auch beim ersten Start nach einem Update (und über „Neuigkeiten“ in Hilfe / Bibliothek); Instrumente und Gitarren-Tabulatur nachträglich in den Partitur-Einstellungen; mehrere Noten / Takte markieren mit Umschalt+Pfeil, Rahmen über leerem Papier und Doppelklick auf einen Takt (Verlängern der Noten wandert auf Strg+Umschalt+Pfeil); „Transponieren …“ unter dem Quintenzirkel; Lücke im „⋯“-Menü behoben
 - [x] Transponieren (Strg+Umschalt+T): chromatisch oder diatonisch, Intervall am Rad wie beim iPhone-Timer (ADR 0027)
 - [x] Zeichen: Rubrik Taktstriche (Doppelstrich, Schlussstrich), Klammer/Akkolade um Zeilen, Atemzeichen, Zäsur, Arpeggio, Tempoanweisungen; gesetzte Zeichen wählen, ziehen, mit Rücktaste löschen; Dateiformat 10
 - [x] Tabulatur nachträglich hinzufügen (Strg+T) und Bereich in Tabulatur übersetzen (Strg+Umschalt+B)

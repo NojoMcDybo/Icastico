@@ -29,6 +29,8 @@ export function segmentPath(a0: number, a1: number, r0: number, r1: number): str
 export interface KeyPickerHost {
   /** The key was chosen. */
   pick(fifths: number): void;
+  /** "Transponieren …": the transpose dialog (the music moves by an interval, not just the key signature). */
+  transpose(): void;
 }
 
 const svgEl = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>, cls?: string): SVGElementTagNameMap[K] => {
@@ -114,7 +116,16 @@ export function openKeyPicker(anchor: HTMLElement, current: number, host: KeyPic
     });
     foot.append(b);
   }
-  pane.append(foot);
+  const transpose = document.createElement('button');
+  transpose.type = 'button';
+  transpose.className = 'keypicker__transpose';
+  transpose.textContent = 'Transponieren …';
+  transpose.title = 'Die Noten um ein Intervall verschieben, chromatisch oder diatonisch (Strg+Umschalt+T)';
+  transpose.addEventListener('click', () => {
+    close();
+    host.transpose();
+  });
+  pane.append(foot, transpose);
 
   const box = anchor.getBoundingClientRect();
   pane.style.left = `${Math.max(8, Math.min(window.innerWidth - SIZE - 8, box.left + box.width / 2 - SIZE / 2))}px`;
