@@ -42,6 +42,7 @@ try {
     const { judge, summarize, testWords } = await import('/src/ui/voice/evaluate.ts');
     const byWord = new Map(testWords().map((t) => [t.word, t.entry]));
     const engines = createEngines();
+    clips = clips.filter((c) => byWord.has(c.word)); // words that are no longer in the vocabulary are not judged
     for (const e of engines) await e.load(() => undefined);
     const out = {};
     for (const engine of engines) {

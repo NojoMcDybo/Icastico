@@ -273,6 +273,34 @@
           "logic": { "keys": ["Klick"], "source": "icastico", "note": "Leertaste halten. In Logic ist die Leertaste sonst die Pause; sie wirkt erst beim Loslassen und nur, wenn nicht geklickt wurde." }
         },
         {
+          "id": "transport.tempoDrag",
+          "title": "Tempo: in der Anzeige nach oben ziehen = schneller, nach unten = langsamer (wie bei Logic); ein Klick tippt die Zahl ein",
+          "command": "mouse.tempoDrag",
+          "finale": { "keys": ["Ziehen"], "source": "icastico", "note": "Ein Pixel = ein Schlag pro Minute; das ganze Ziehen ist ein Rückgängig-Schritt." },
+          "logic": { "keys": ["Ziehen"], "source": "icastico", "note": "Ein Pixel = ein Schlag pro Minute; das ganze Ziehen ist ein Rückgängig-Schritt." }
+        },
+        {
+          "id": "transport.keyCircle",
+          "title": "Tonart: die Anzeige anklicken öffnet den Quintenzirkel (außen Dur, innen Moll)",
+          "command": "mouse.keyCircle",
+          "finale": { "keys": ["Klick"], "source": "icastico", "note": "Gilt ab dem Takt der Auswahl." },
+          "logic": { "keys": ["Klick"], "source": "icastico", "note": "Gilt ab dem Takt der Auswahl." }
+        },
+        {
+          "id": "roll.glideMany",
+          "title": "Piano-Roll: mehrere Noten in eine Note gleiten lassen – vom Punkt jeder Note auf den Zielbalken ziehen, mit Umschalt gleichen alle Töne eines Akkords",
+          "command": "mouse.glideMany",
+          "finale": { "keys": ["Shift+Ziehen"], "source": "icastico", "note": "Ohne Umschalt gleitet der eine Ton, auf dessen Punkt gezogen wird." },
+          "logic": { "keys": ["Shift+Ziehen"], "source": "icastico", "note": "Ohne Umschalt gleitet der eine Ton, auf dessen Punkt gezogen wird." }
+        },
+        {
+          "id": "roll.keyboard",
+          "title": "Piano-Roll: auf eine Taste der Klaviatur links klicken spielt den Ton",
+          "command": "mouse.rollKey",
+          "finale": { "keys": ["Klick"], "source": "icastico" },
+          "logic": { "keys": ["Klick"], "source": "icastico" }
+        },
+        {
           "id": "symbols.drag",
           "title": "Zeichen: aus dem Menü auf eine Note ziehen, oder ein gesetztes Zeichen an eine andere Stelle ziehen",
           "command": "mouse.dragSign",

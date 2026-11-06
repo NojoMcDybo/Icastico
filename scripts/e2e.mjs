@@ -29,6 +29,13 @@ const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream',
 const errors = [];
 try {
   const context = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true, permissions: ['microphone'] });
+  await context.addInitScript(() => {
+    try {
+      if (!localStorage.getItem('icastico.keymap')) localStorage.setItem('icastico.keymap', 'finale');
+    } catch {
+      // no storage
+    }
+  });
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
@@ -302,6 +309,33 @@ try {
   const barsBefore = await bars.count();
   check(barsBefore >= 2, `Piano-Roll zeigt die Töne als Balken (${barsBefore})`);
   const firstTitle = await barTitle(0);
+  // Klaviatur links: bleibt beim seitlichen Scrollen sichtbar und spielt beim Klick
+  check((await page.locator('.roll__keycol .roll__pkey').count()) > 12 && (await page.locator('.roll__keycol .roll__pkey--black').count()) > 4, 'Piano-Roll: links steht eine Klaviatur mit weißen und schwarzen Tasten');
+  const keyX = () => page.locator('.roll__keycol').evaluate((e) => Math.round(e.getBoundingClientRect().x));
+  await page.setViewportSize({ width: 600, height: 900 }); // narrow and zoomed in, so the roll has to scroll
+  for (let k = 0; k < 4; k++) await page.locator('.roll__zoom[aria-label^="Vergrößern"]').first().click();
+  await page.waitForTimeout(300);
+  const keysAt0 = await keyX();
+  await page.locator('.roll__scroll').first().evaluate((e) => { e.scrollLeft = 5000; });
+  await page.waitForTimeout(150);
+  check(Math.abs((await keyX()) - keysAt0) <= 1 && (await page.locator('.roll__scroll').first().evaluate((e) => e.scrollLeft)) > 10, 'Piano-Roll: die Klaviatur bleibt beim Scrollen nach rechts an ihrem Platz');
+  await page.screenshot({ path: join(outDir, 'klaviatur.png') });
+  // Synthesizer-Klang der Roll: Schalter, gemerkt
+  const synthButton = page.locator('.roll__synth').first();
+  check((await synthButton.getAttribute('aria-pressed')) === 'false', 'Piano-Roll: der Synthesizer-Klang ist zunächst aus');
+  await synthButton.click();
+  check((await synthButton.getAttribute('aria-pressed')) === 'true' && (await page.evaluate(() => localStorage.getItem('icastico.rollSynth'))) === '1', 'Piano-Roll: „Synth“ schaltet den Synthesizer-Klang ein (und merkt es sich)');
+  await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
+  await page.click('.transport__play');
+  await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');
+  await page.waitForTimeout(500);
+  check(!/Fehler|nicht verfügbar/.test(await status()), 'Piano-Roll: mit Synthesizer-Klang läuft die Wiedergabe ohne Fehler');
+  await page.click('.transport__stop');
+  await synthButton.click();
+  check((await synthButton.getAttribute('aria-pressed')) === 'false', 'Piano-Roll: „Synth“ schaltet wieder auf die Instrumentenklänge');
+  await page.locator('.roll__scroll').first().evaluate((e) => { e.scrollLeft = 0; });
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.waitForTimeout(300);
 
   await bars.first().click();
   check((await page.locator('.roll__bar.is-selected').count()) === 1 && /Note C5/.test(await status()), 'Klick auf einen Balken wählt den Ton (auch in der Statuszeile)');
@@ -481,6 +515,43 @@ try {
   await page.click('.lcd__cell:has-text("TAKTART")');
   check(await page.locator('.modal').isVisible(), 'Auf die Taktart klicken öffnet die Partitur-Einstellungen');
   await type('Escape');
+  // Tempo wie bei Logic: auf die Zahl drücken und nach oben / unten ziehen
+  const tempoBox = await page.locator('.lcd__cell:has-text("TEMPO")').boundingBox();
+  await page.mouse.move(tempoBox.x + tempoBox.width / 2, tempoBox.y + tempoBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(tempoBox.x + tempoBox.width / 2, tempoBox.y + tempoBox.height / 2 - 30, { steps: 6 });
+  await page.mouse.up();
+  check((await lcd('TEMPO').textContent()) === '130' && !(await page.locator('.lcd__input').count()), 'Tempo: nach oben ziehen macht schneller (30 Pixel = 30 Schläge), kein Eingabefeld');
+  await type('Control+z');
+  check((await lcd('TEMPO').textContent()) === '100', 'Tempo: das ganze Ziehen ist ein einziger Rückgängig-Schritt');
+  await page.mouse.move(tempoBox.x + tempoBox.width / 2, tempoBox.y + tempoBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(tempoBox.x + tempoBox.width / 2, tempoBox.y + tempoBox.height / 2 + 20, { steps: 4 });
+  await page.mouse.up();
+  check((await lcd('TEMPO').textContent()) === '80', 'Tempo: nach unten ziehen macht langsamer');
+  await type('Control+z');
+  // Quintenzirkel statt Einstellungsmenü
+  await page.click('.lcd__cell:has-text("TONART")');
+  await page.waitForSelector('.keypicker');
+  check(!(await page.locator('.modal').count()) && (await page.locator('.keypicker__key--major').count()) >= 12 && (await page.locator('.keypicker__key.is-current').first().getAttribute('title'))?.startsWith('C-Dur'), 'Tonart: ein Klick öffnet den Quintenzirkel (kein Einstellungsmenü), C-Dur ist markiert');
+  await page.click('.keypicker__key--major[title^="D-Dur"]');
+  await page.waitForFunction(() => document.querySelectorAll('.lcd__value')[4]?.textContent === 'Dmaj');
+  check((await page.locator('.keypicker').count()) === 0, 'Tonart: ein Klick auf D im Quintenzirkel setzt D-Dur und schließt ihn');
+  await type('Control+z');
+  await page.waitForFunction(() => document.querySelectorAll('.lcd__value')[4]?.textContent === 'Cmaj');
+  await page.click('.lcd__cell:has-text("TONART")');
+  await page.waitForSelector('.keypicker');
+  await type('Escape');
+  check((await page.locator('.keypicker').count()) === 0, 'Tonart: Esc schließt den Quintenzirkel');
+  // Die Leiste oben bleibt, wo sie ist: ein sehr langer Titel und eine lange Anzeige verschieben nichts
+  const spots = () => page.evaluate(() => ['#roll-button', '#symbols-button', '.lcd', '.transport__buttons', '.help-button'].map((q) => Math.round(document.querySelector(q).getBoundingClientRect().x)));
+  const barBefore = await spots();
+  await page.evaluate(() => {
+    document.getElementById('doc-title').textContent = 'Ein ganz langer Titel '.repeat(8);
+    document.getElementById('mode').textContent = '● Aufnahme · Eingabe · Zweiunddreißigstel · Einfügen · Akkord · Haltebogen ⌒';
+  });
+  check(JSON.stringify(barBefore) === JSON.stringify(await spots()), 'Obere Leiste: Knöpfe, Anzeige und Transport bleiben bei langem Titel und langer Modus-Anzeige an ihrem Platz');
+  await page.screenshot({ path: join(outDir, 'leiste.png'), clip: { x: 0, y: 0, width: 1400, height: 64 } });
   await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
   check((await lcd('SCHLAG').textContent()) === '1', 'Zum Anfang springt auf Takt 1, Schlag 1');
   await page.click('.transport__buttons button[aria-label="Einen Takt vor"]');
@@ -549,6 +620,23 @@ try {
   await isPlaying(false);
   await page.click('.transport__stop');
   check((await lcd('TAKT').first().textContent()) === '1', 'Der Stopp-Knopf hält an, ein zweites Mal springt er zum Anfang');
+  // Beim Abspielen wird die klingende Note blau; nach dem Stopp ist sie es nicht mehr
+  await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
+  await page.click('.transport__play');
+  await isPlaying(true);
+  await page.waitForFunction(() => document.querySelectorAll('.page g.is-playing').length > 0, null, { timeout: 8000 });
+  check(true, 'Beim Abspielen wird die klingende Note blau');
+  await page.click('.transport__stop');
+  await isPlaying(false);
+  check((await page.locator('.page g.is-playing').count()) === 0, 'Nach dem Stopp ist keine Note mehr blau');
+  // Eine geänderte Note wird angehört – auch mit den Pfeiltasten (die Klänge sind vom Abspielen schon geladen)
+  await page.locator('.page g.note').first().click({ force: true });
+  await page.waitForTimeout(700);
+  await type('ArrowUp');
+  await page.waitForFunction(() => (globalThis.__icasticoHz?.() ?? 0) > 0, null, { polling: 30, timeout: 3000 });
+  check(true, 'Pfeil hoch auf einer Note: der neue Ton wird angespielt');
+  await page.waitForFunction(() => (globalThis.__icasticoHz?.() ?? 1) === 0, null, { timeout: 4000 });
+  await type('Control+z');
   for (let k = 0; k < 8; k++) await page.click('.transport__buttons button[aria-label="Einen Takt vor"]');
   const lastBar = Number(await lcd('TAKT').first().textContent());
   check(lastBar >= 2, `Vorspulen bleibt am letzten Takt (Takt ${lastBar}) stehen, springt nicht zurück zum Anfang`);
@@ -655,7 +743,7 @@ try {
   await type('Escape');
   await saved();
   const shaped = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Verlauf-Test.icastico'))[1].contents;
-  check(/"version": 8/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 8)');
+  check(/"version": 9/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 9)');
   await type('Control+Enter');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true', null, { timeout: 30000 });
   await page.waitForTimeout(1500);
@@ -772,14 +860,16 @@ try {
 
   // ── Noten diktieren: Notennamen per Sprache ──
   await newScore('Diktat-Test');
-  await page.evaluate(() => window.__voiceHear('fünf c fis', 0.95));
-  check(/verstanden: fünf c fis → Viertel, C, Fis/.test(await status()), 'Diktat: „fünf c fis“ stellt auf Viertel und gibt C und Fis ein, die Statuszeile nennt alle drei');
+  await page.evaluate(() => window.__voiceHear('fünf', 0.95));
+  await page.evaluate(() => window.__voiceHear('zeh', 0.5)); // the recogniser reports letters with about 0.5
+  await page.evaluate(() => window.__voiceHear('fis', 0.53));
+  check(/verstanden: fis → Fis/.test(await status()), 'Diktat: „fünf“, „zeh“ (= C) und „fis“ einzeln gesprochen: Viertel, C und Fis, die Statuszeile nennt das letzte Wort');
   check((await notes()) === 2 && (await page.locator('.page g.accid').count()) >= 1, 'Diktat: die zwei Noten stehen in der Notenschrift, Fis mit Kreuz');
   await page.evaluate(() => window.__voiceHear('b', 0.95));
-  await page.evaluate(() => window.__voiceHear('c blumenkohl d', 0.95));
-  check((await notes()) === 3 && /nicht verstanden/.test(await status()), 'Diktat: „b“ gibt B ein; eine Reihe mit einem unbekannten Wort wird gar nicht ausgeführt');
-  await page.evaluate(() => window.__voiceHear('c d e', 0.5));
-  check((await notes()) === 3, 'Diktat: eine unsicher erkannte Reihe (unter 0,8) wird nicht ausgeführt');
+  await page.evaluate(() => window.__voiceHear('c d', 0.95));
+  check((await notes()) === 3 && /nicht verstanden/.test(await status()), 'Diktat: „b“ gibt B ein; zwei Wörter in einem Atemzug werden nicht ausgeführt');
+  await page.evaluate(() => window.__voiceHear('d', 0.5));
+  check((await notes()) === 3, 'Diktat: ein unsicher erkanntes „d“ (unter 0,8) wird nicht ausgeführt');
   await type('Escape');
 
   // ── Sprachtest-Dialog (Paket 3): Mikrofon, Sprachmodell, Erkennung, Auswertung, Ergebnisdatei ──
@@ -923,7 +1013,7 @@ try {
   await page.screenshot({ path: join(outDir, 'zeichen.png') });
   await saved();
   const signsFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Zeichen-Test.icastico'))[1].contents;
-  check(/"version": 8/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 8)');
+  check(/"version": 9/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 9)');
   await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
   await page.click('.transport__play');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');

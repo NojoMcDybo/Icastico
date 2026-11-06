@@ -66,7 +66,7 @@ describe('scoring', () => {
     expect(testWords()).toHaveLength(VOCABULARY_DE.reduce((n, e) => n + e.words.length, 0));
     const grammar = JSON.parse(voskGrammar()) as string[];
     expect(grammar).toContain('oktave hoch');
-    expect(grammar).toContain('zweiunddreißigstel');
+    expect(grammar).toContain('sechzehntel');
     expect(grammar).toContain('[unk]');
     expect(grammar.every((g) => g === g.toLowerCase() || g === '[unk]')).toBe(true);
   });

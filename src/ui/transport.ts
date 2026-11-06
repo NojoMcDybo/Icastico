@@ -18,7 +18,12 @@ export interface TransportHost {
   /** Returns whether looping is on now. */
   toggleLoop(): boolean;
   setTempo(bpm: number): void;
-  /** Meter and key live in the score settings dialog. */
+  /** Dragging the tempo up and down (like Logic): one undo step for the whole drag. */
+  beginTempoDrag(): void;
+  endTempoDrag(commit: boolean): void;
+  /** The key display was clicked: the circle of fifths opens below it. */
+  openKeys(anchor: HTMLElement): void;
+  /** The meter lives in the score settings dialog. */
   openSettings(): void;
 }
 
@@ -101,10 +106,38 @@ export class Transport {
 
     const lcd = document.createElement('div');
     lcd.className = 'lcd';
-    this.tempo.el.title = 'Tempo ändern: anklicken und eintippen (Viertel pro Minute), Mausrad ändert um 1';
+    this.tempo.el.title = 'Tempo ändern: nach oben ziehen = schneller, nach unten = langsamer; anklicken zum Eintippen (Viertel pro Minute); Mausrad ändert um 1';
     this.meter.el.title = 'Taktart ändern (öffnet die Partitur-Einstellungen)';
-    this.key.el.title = 'Tonart ändern (öffnet die Partitur-Einstellungen)';
-    this.tempo.el.addEventListener('click', () => this.editTempo());
+    this.key.el.title = 'Tonart wählen (Quintenzirkel)';
+    // Logic style: press on the tempo and drag up or down; a plain click types the number.
+    let drag: { y: number; bpm: number; moved: boolean } | null = null;
+    const endDrag = (e: PointerEvent, commit: boolean) => {
+      const d = drag;
+      drag = null;
+      if (this.tempo.el.hasPointerCapture(e.pointerId)) this.tempo.el.releasePointerCapture(e.pointerId);
+      this.tempo.el.classList.remove('is-dragging');
+      if (!d) return;
+      if (d.moved) host.endTempoDrag(commit);
+      else if (commit) this.editTempo();
+    };
+    this.tempo.el.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || !this.current || this.editing || e.target instanceof HTMLInputElement) return;
+      drag = { y: e.clientY, bpm: tempoOf(this.current.score), moved: false };
+      this.tempo.el.setPointerCapture(e.pointerId);
+    });
+    this.tempo.el.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const up = drag.y - e.clientY;
+      if (!drag.moved) {
+        if (Math.abs(up) < 3) return;
+        drag.moved = true;
+        this.tempo.el.classList.add('is-dragging');
+        host.beginTempoDrag();
+      }
+      host.setTempo(Math.max(MIN_TEMPO, Math.min(MAX_TEMPO, drag.bpm + Math.round(up))));
+    });
+    this.tempo.el.addEventListener('pointerup', (e) => endDrag(e, true));
+    this.tempo.el.addEventListener('pointercancel', (e) => endDrag(e, false));
     this.tempo.el.addEventListener(
       'wheel',
       (e) => {
@@ -115,7 +148,7 @@ export class Transport {
       { passive: false },
     );
     this.meter.el.addEventListener('click', () => host.openSettings());
-    this.key.el.addEventListener('click', () => host.openSettings());
+    this.key.el.addEventListener('click', () => host.openKeys(this.key.el));
     lcd.append(this.bar.el, this.beat.el, this.tempo.el, this.meter.el, this.key.el);
     el.append(group, lcd);
   }

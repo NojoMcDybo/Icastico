@@ -10,7 +10,10 @@ import processorUrl from 'spessasynth_lib/dist/spessasynth_processor.min.js?url'
 import { INSTRUMENTS, type InstrumentId } from '../core/instruments';
 import type { PlaybackPlan } from '../core/playback';
 import type { Engine, Playing } from './engine';
-import { BEND_CENTER, type MidiAction, midiActions } from './midiPlan';
+import { BASE_CHANNEL, BEND_CENTER, type MidiAction, midiActions } from './midiPlan';
+
+const AUDITION_VELOCITY = 100;
+const AUDITION_MS = 700;
 
 /** MuseScore_General (MIT license), fetched by `npm run sounds` into public/sounds. */
 const SOUNDBANK_URL = `${import.meta.env.BASE_URL}sounds/MuseScore_General.sf3`;
@@ -125,6 +128,23 @@ export class Sampler implements Engine {
         this.drainUntil = quiet + 0.05;
       },
     };
+  }
+
+  /** A short sound of these pitches – feedback while editing. Silent (but starts loading) while the sounds are not loaded yet. */
+  async audition(midis: readonly number[], instrument: InstrumentId): Promise<void> {
+    if (!this.loaded) {
+      void this.load().catch(() => undefined);
+      return;
+    }
+    const { ctx, synth } = this.loaded;
+    if (ctx.state !== 'running') await ctx.resume();
+    const channel = BASE_CHANNEL[instrument];
+    // After a stop the synthesizer is silenced until its queued notes have run out: wait for that.
+    const start = { time: Math.max(ctx.currentTime, this.drainUntil + 0.03) };
+    synth.programChange(channel, PROGRAMS[instrument], start);
+    for (const key of midis) synth.noteOn(channel, key, AUDITION_VELOCITY, start);
+    const stop = { time: start.time + AUDITION_MS / 1000 };
+    for (const key of midis) synth.noteOff(channel, key, stop);
   }
 
   /** The strongest frequency (Hz) the speakers are getting right now, 0 when silent. For checks and level display. */

@@ -13,7 +13,7 @@
  */
 import { type Curve, DEFAULT_VOLUME, MAX_VOLUME, MIN_VOLUME, isDefaultCurve, tidyCurve } from '../curve';
 import { type Fraction, ZERO, add, eq, frac, isDyadic, le, lt } from '../time';
-import { type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, locateTones } from '../model';
+import { type Link, type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, locateTones } from '../model';
 import { midiOf, spellMidi } from '../pitch';
 import {
   type EditorState,
@@ -46,7 +46,7 @@ export type RollEdit =
       readonly only?: string;
     }
   /** Glides between two tones (any two on the staff; the earlier one is the start). The same pair again takes the glide away. */
-  | { readonly kind: 'connect'; readonly a: string; readonly b: string }
+  | { readonly kind: 'connect'; readonly a: string; readonly b: string; readonly all?: boolean }
   /** Takes a connection away. */
   | { readonly kind: 'disconnect'; readonly id: string }
   /** Loudness and/or loudness curve of one tone (ADR 0016); a `null` curve takes it away. */
@@ -252,11 +252,14 @@ function connect(s: EditorState, edit: Extract<RollEdit, { kind: 'connect' }>): 
   if (eq(from.event.onset, to.event.onset)) return refuse(s, 'Gleichzeitige Töne lassen sich nicht durch Gleiten verbinden.');
   const links = linksOf(s.score);
   const same = links.find((l) => l.from === from.tone.id && l.to === to.tone.id);
-  if (same) return { ...s, score: withLinks(s.score, links.filter((l) => l !== same)), message: 'Verbindung gelöst.' };
-  if (links.some((l) => l.to === to.tone.id)) return refuse(s, 'In diesen Ton kommt schon eine Verbindung an. Erst die andere lösen.');
-  const kept = links.filter((l) => l.from !== from.tone.id); // one connection leaves a tone; the new glide replaces it
-  const link = { id: freshLinkId(s.score, kept), kind: 'slide' as const, from: from.tone.id, to: to.tone.id };
-  return { ...s, score: withLinks(s.score, [...kept, link]), message: 'Gleiten gesetzt – die Zeit dazwischen ist die Gleitdauer.' };
+  if (same && !edit.all) return { ...s, score: withLinks(s.score, links.filter((l) => l !== same)), message: 'Verbindung gelöst.' };
+  if (links.some((l) => l.to === to.tone.id && l.kind === 'tie')) return refuse(s, 'In diesen Ton kommt ein Haltebogen an. Erst den lösen.');
+  // Several glides may end in one tone (a chord resolving into one note); each tone has one connection going out.
+  const sources = edit.all ? from.event.tones : [from.tone];
+  let next: readonly Link[] = links.filter((l) => !sources.some((t) => t.id === l.from));
+  for (const tone of sources) next = [...next, { id: freshLinkId(s.score, next), kind: 'slide' as const, from: tone.id, to: to.tone.id }];
+  const many = sources.length > 1 ? `${sources.length} Töne gleiten in einen Ton.` : 'Gleiten gesetzt – die Zeit dazwischen ist die Gleitdauer.';
+  return { ...s, score: withLinks(s.score, next), message: many };
 }
 
 function disconnect(s: EditorState, edit: Extract<RollEdit, { kind: 'disconnect' }>): EditorState {

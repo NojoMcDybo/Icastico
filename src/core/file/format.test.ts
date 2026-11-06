@@ -11,6 +11,7 @@ import version4File from './fixtures/version4.icastico?raw';
 import version5File from './fixtures/version5.icastico?raw';
 import version6File from './fixtures/version6.icastico?raw';
 import version7File from './fixtures/version7.icastico?raw';
+import version8File from './fixtures/version8.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -324,5 +325,27 @@ describe('format version 8: special signs (ADR 0024)', () => {
     expect(() => parseScoreFile(serializeScore({ ...score, marks: [{ at: frac(0, 1), kind: 'nonsense' as never }] }, '0'))).toThrow(/Taktzeichen/);
     const bad = { ...score, parts: score.parts.map((p) => ({ ...p, voices: p.voices.map((v) => ({ ...v, events: v.events.map((e) => (e.marks ? { ...e, marks: ['zzz'] } : e)) })) })) };
     expect(() => parseScoreFile(serializeScore(bad, '0'))).toThrow(/Zeichen/);
+  });
+});
+
+describe('format version 9: several glides into one tone', () => {
+  it('opens files saved by Icastico 0.13.0 (format version 8) and saves them as the current version', () => {
+    const score = parseScoreFile(version8File);
+    expect(fileVersion(version8File)).toBe(8);
+    expect(score.parts[0]!.voices[0]!.events[0]!.marks).toEqual(['mf']);
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  it('keeps two glides that end in the same tone, and still refuses a tie that does not arrive alone', () => {
+    const base = parseScoreFile(version8File);
+    const tones = base.parts[0]!.voices[0]!.events.flatMap((e) => e.tones.map((t) => t.id));
+    const target = tones[tones.length - 1]!;
+    const slides = tones.slice(0, 2).map((from, i) => ({ id: `link-${i + 1}`, kind: 'slide' as const, from, to: target }));
+    const score: Score = { ...base, links: slides };
+    expect(parseScoreFile(serializeScore(score, '0')).links).toEqual(slides);
+    const bad = { ...score, links: [...slides, { id: 'link-3', kind: 'tie' as const, from: tones[2]!, to: target }] };
+    expect(() => parseScoreFile(serializeScore(bad, '0'))).toThrow();
   });
 });

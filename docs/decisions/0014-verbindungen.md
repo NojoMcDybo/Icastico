@@ -26,8 +26,10 @@ keinen Platz im Modell. Vorbereitet war das durch die Ton-IDs (ADR 0012).
   Berühren sich die Balken, gibt es nur den **direkten Wechsel**, die
   Verbindung bleibt gespeichert und gleitet wieder, sobald man die Balken
   auseinanderzieht.
-- Pro Ton höchstens eine ausgehende und eine ankommende Verbindung; Halten und
-  Gleiten schließen sich auf demselben Ton aus (ein neues ersetzt das alte).
+- Pro Ton höchstens eine ausgehende Verbindung. **Ankommen** dürfen in einen Ton
+  mehrere Gleiten (ab Dateiformat 9, ADR 0026: drei Noten lösen sich in eine
+  Note auf); ein Haltebogen kommt nur allein an. Halten und Gleiten schließen
+  sich auf demselben Ton aus (ein neues ersetzt das alte).
 - **Schutz vor Zerreißen:** Jede Änderung geht durch `withValidLinks`. Fällt ein
   Ton weg, verschwinden seine Verbindungen im selben Rückgängig-Schritt. Eine
   Änderung, die eine Verbindung unmöglich machen würde (gebundene Noten

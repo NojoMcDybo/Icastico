@@ -95,13 +95,13 @@ export function savePdfSetup(setup: { landscape: boolean; scale: number; pack: b
 
 const KEYMAP = 'icastico.keymap';
 
-/** Chosen key layout ("finale", "logic" or "speedy"); Finale by default. */
+/** Chosen key layout ("finale", "logic" or "speedy"); the numpad layout (a preview note that Enter writes, then repeats) by default. */
 export function loadKeymapPreset(): PresetId {
   try {
     const id = localStorage.getItem(KEYMAP);
-    return id === 'logic' || id === 'speedy' ? id : 'finale';
+    return id === 'finale' || id === 'logic' ? id : 'speedy';
   } catch {
-    return 'finale';
+    return 'speedy';
   }
 }
 
@@ -109,7 +109,7 @@ export function saveKeymapPreset(id: PresetId): void {
   try {
     localStorage.setItem(KEYMAP, id);
   } catch {
-    // not remembered – Finale next time
+    // not remembered – the default layout next time
   }
 }
 
@@ -117,6 +117,25 @@ const VIEWS_KEY = 'icastico.views';
 const MAX_VIEWS = 60;
 
 /** Which views (notation / piano roll per staff) a score was last shown with; keyed by file path. */
+const ROLL_SYNTH_KEY = 'icastico.rollSynth';
+
+/** Whether the piano roll's synthesizer sound (nothing dies away) is on. */
+export function loadRollSynth(): boolean {
+  try {
+    return localStorage.getItem(ROLL_SYNTH_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveRollSynth(on: boolean): void {
+  try {
+    localStorage.setItem(ROLL_SYNTH_KEY, on ? '1' : '0');
+  } catch {
+    // Storage unavailable – it starts off next time.
+  }
+}
+
 export function loadView(path: string): ViewState {
   try {
     const all = JSON.parse(localStorage.getItem(VIEWS_KEY) ?? '{}') as Record<string, unknown>;

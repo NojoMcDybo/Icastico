@@ -301,13 +301,30 @@ button {
   transform: scale(0.93);
 }
 
+/* Fixed places: nothing here moves when the text of another element gets longer or shorter. */
 .topbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 40px 66px minmax(0, 140px) minmax(0, 1fr) 72px 88px 104px minmax(0, 150px) 32px;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   padding: 0 14px;
   background: var(--library-bg);
   user-select: none;
+}
+
+.topbar > * {
+  min-width: 0;
+}
+
+/* The update button keeps its place even when it is not shown. */
+.update-button[hidden] {
+  display: inline-flex !important;
+  visibility: hidden;
+}
+
+.topbar .pill {
+  justify-content: center;
+  padding: 0 8px;
 }
 
 .brand {
@@ -316,6 +333,7 @@ button {
 }
 
 .doc-title {
+  display: block;
   overflow: hidden;
   padding: 4px 10px;
   border-radius: 999px;
@@ -331,22 +349,16 @@ button {
   color: var(--ink);
 }
 
-.update-button {
-  margin-left: auto;
-}
-
 .mode {
-  margin-left: auto;
+  overflow: hidden;
   padding: 4px 12px;
   border-radius: 999px;
   background: rgb(255 255 255 / 0.06);
   color: var(--dim);
   font-variant-numeric: tabular-nums;
+  text-align: center;
+  text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.update-button:not([hidden]) + .mode {
-  margin-left: 0;
 }
 
 .mode--input {
@@ -419,7 +431,8 @@ button {
 }
 
 /* Selection on the paper: Verovio draws with currentColor. */
-.page g.is-selected {
+.page g.is-selected,
+.page g.is-playing {
   color: var(--accent-ink);
   fill: var(--accent-ink);
 }
@@ -1205,6 +1218,8 @@ body.is-dragging-note * {
 }
 
 .roll__scroll {
+  display: flex;
+  align-items: flex-start;
   overflow: auto;
   scrollbar-color: #3a3a40 transparent;
   scrollbar-width: thin;
@@ -1218,6 +1233,36 @@ body.is-dragging-note * {
 
 .roll__svg {
   display: block;
+  flex: none;
+}
+
+/* The keyboard sticks to the left edge while the roll scrolls sideways. */
+.roll__keycol {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  display: block;
+  flex: none;
+  cursor: pointer;
+}
+
+.roll__pkey {
+  fill: #e9e9ec;
+  stroke: #9a9aa0;
+  stroke-width: 0.5;
+}
+
+.roll__pkey--black {
+  fill: #1c1c1e;
+  stroke: #000;
+}
+
+.roll__pkey:hover {
+  fill: var(--accent);
+}
+
+.roll__key {
+  fill: #55555a;
 }
 
 .roll__row {
@@ -1288,6 +1333,11 @@ body.is-dragging-note * {
 
 .roll__bar.is-secondary.is-selected {
   fill-opacity: 1;
+}
+
+.roll__synth[aria-pressed='true'] {
+  background: var(--accent);
+  color: #0c1a2b;
 }
 
 .roll__link {
@@ -1500,7 +1550,6 @@ body.is-dragging-note * {
 /* Transport bar: buttons and the display (bar, beat, tempo, meter, key). */
 .transport {
   display: flex;
-  flex: 1;
   align-items: center;
   justify-content: center;
   gap: 14px;
@@ -1517,7 +1566,7 @@ body.is-dragging-note * {
 
 .transport__btn {
   display: grid;
-  width: 30px;
+  width: 28px;
   height: 26px;
   padding: 0;
   place-items: center;
@@ -1586,7 +1635,9 @@ body.is-dragging-note * {
 
 .lcd__cell {
   display: flex;
-  min-width: 62px;
+  width: 62px;
+  min-width: 0;
+  flex: none;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -1635,11 +1686,115 @@ button.lcd__cell:hover:not(:disabled) {
   text-align: center;
 }
 
+.lcd__cell:nth-child(3) {
+  width: 70px; /* tempo, three digits */
+}
+
+.lcd__cell:nth-child(5) {
+  width: 78px; /* key name */
+}
+
+button.lcd__cell:nth-child(3) {
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.lcd__cell.is-dragging {
+  background: rgb(117 184 255 / 0.18);
+}
+
 @media (max-width: 1000px) {
   .lcd__cell {
-    min-width: 46px;
-    padding-inline: 8px;
+    width: 54px;
+    padding-inline: 6px;
   }
+}
+
+/* The circle of fifths (key chooser) */
+.keypicker {
+  position: fixed;
+  z-index: 40;
+  border: 1px solid var(--glass-edge);
+  border-radius: 24px;
+  background: var(--glass-bg), var(--glass-tint);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 rgb(255 255 255 / 0.5);
+  animation: symbols-in 0.32s var(--spring);
+}
+
+.keypicker__key {
+  position: absolute;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  place-items: center;
+  align-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.1);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1;
+  transform: translate(-50%, -50%);
+  transition: background 0.2s var(--ease), transform 0.3s var(--spring);
+}
+
+.keypicker__key small {
+  margin-top: 2px;
+  color: rgb(255 255 255 / 0.6);
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.keypicker__key--minor {
+  width: 34px;
+  height: 34px;
+  background: rgb(255 255 255 / 0.05);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.keypicker__key:hover {
+  background: rgb(255 255 255 / 0.22);
+}
+
+.keypicker__key:active {
+  transform: translate(-50%, -50%) scale(0.93);
+}
+
+.keypicker__key.is-current {
+  background: var(--accent);
+  color: #0c1a2b;
+}
+
+.keypicker__key.is-current small {
+  color: rgb(12 26 43 / 0.7);
+}
+
+.keypicker__rare {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  display: flex;
+  gap: 6px;
+}
+
+.keypicker__rare .keypicker__key {
+  position: static;
+  width: 40px;
+  height: 40px;
+  transform: none;
+}
+
+.keypicker__hint {
+  position: absolute;
+  bottom: 14px;
+  left: 16px;
+  color: rgb(255 255 255 / 0.55);
+  font-size: 11px;
 }
 
 /* The preview note of Finale's numpad typing: a ghost where Enter will put the note */

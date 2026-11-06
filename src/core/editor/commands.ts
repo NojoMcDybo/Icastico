@@ -138,12 +138,13 @@ const sortTones = (ts: readonly Tone[]): Tone[] => [...ts].sort((a, b) => midiOf
 function replacePitches(s: EditorState, fn: (p: Pitch, ev: NoteEvent) => Pitch): EditorState {
   const t = target(s);
   if (!t) return say(s, NO_NOTE);
-  const score = updateEvents(s.score, t.ref, (events) =>
-    events.map((e) =>
-      e.id === t.event.id ? { ...e, tones: sortTones(e.tones.map((tone) => ({ ...tone, pitch: fn(tone.pitch, e) }))) } : e,
-    ),
-  );
-  return { ...s, score, selection: selectEvent(t.ref, t.event), message: null };
+  // A single notehead of a chord that was clicked is changed alone; otherwise the whole note.
+  const clicked = s.selection?.kind === 'event' && s.selection.eventId === t.event.id ? s.selection.toneId : undefined;
+  const only = clicked && t.event.tones.length > 1 && t.event.tones.some((x) => x.id === clicked) ? clicked : undefined;
+  const tones = t.event.tones.map((tone) => (only === undefined || tone.id === only ? { ...tone, pitch: fn(tone.pitch, t.event) } : tone));
+  if (only !== undefined && new Set(tones.map((x) => midiOf(x.pitch))).size < tones.length) return say(s, 'Dort liegt schon ein anderer Ton des Akkords.');
+  const score = updateEvents(s.score, t.ref, (events) => events.map((e) => (e.id === t.event.id ? { ...e, tones: sortTones(tones) } : e)));
+  return { ...s, score, selection: { ...selectEvent(t.ref, t.event), ...(only !== undefined ? { toneId: only } : {}) }, message: null };
 }
 
 /** Changes a note's length, overwriting what follows; a caret right after the note moves along. */

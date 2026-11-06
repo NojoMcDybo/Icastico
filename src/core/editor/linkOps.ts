@@ -86,11 +86,14 @@ export function withValidLinks(before: EditorState, rawAfter: EditorState): Edit
   const links = after.score.links ?? [];
   const alive = links.filter((l) => spots.has(l.from) && spots.has(l.to));
   const out = new Set<string>();
-  const into = new Set<string>();
+  const into = new Map<string, LinkKind[]>(); // several glides may end in one tone, a tie only alone
   for (const l of alive) {
-    if (out.has(l.from) || into.has(l.to)) return { ...before, message: 'Ein Ton kann nur eine Verbindung abgehen und eine ankommen haben. Erst die andere lösen.' };
+    const arriving = into.get(l.to) ?? [];
+    if (out.has(l.from) || (arriving.length > 0 && (l.kind === 'tie' || arriving.includes('tie')))) {
+      return { ...before, message: 'Aus einem Ton geht nur eine Verbindung ab, und in einen Ton kommt ein Haltebogen nur allein an. Erst die andere lösen.' };
+    }
     out.add(l.from);
-    into.add(l.to);
+    into.set(l.to, [...arriving, l.kind]);
     const why = linkBreak(l.kind, spots.get(l.from)!, spots.get(l.to)!);
     if (why) return { ...before, message: `Das würde ${l.kind === 'tie' ? 'einen Haltebogen' : 'eine Gleitverbindung'} zerreißen: ${why} Erst lösen (${KEY[l.kind]}).` };
   }

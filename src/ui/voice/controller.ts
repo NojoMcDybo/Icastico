@@ -5,7 +5,7 @@
 import type { CommandId } from '../../core/editor/commands';
 import type { VoiceSource } from '../../platform/voice';
 import type { UiCommandId } from '../keymaps/library';
-import { type VoiceMatch, matchVoiceSequence } from './matcher';
+import { type VoiceMatch, matchVoice } from './matcher';
 import { VOCABULARY_DE, type VoiceCommand } from './vocabulary.de';
 
 export interface VoiceHost {
@@ -24,17 +24,20 @@ export class VoiceController {
     source.onHeard((heard) => this.hear(heard.text, heard.confidence));
   }
 
-  /** Runs what was heard (one command, or several in one breath, e.g. dictated notes) and says what it was. */
-  hear(text: string, confidence: number): VoiceMatch[] | null {
+  /**
+   * Runs what was heard and says what it was. One command per breath: a recogniser that splits a long word into
+   * two ("Haltebogen" → "halbe bogen", "Bemol" → "b null") would otherwise run two wrong commands (ADR 0025).
+   */
+  hear(text: string, confidence: number): VoiceMatch | null {
     if (!this.host.ready()) return null;
-    const matches = matchVoiceSequence(text, confidence, this.vocabulary);
-    if (!matches) {
+    const match = matchVoice(text, confidence, this.vocabulary);
+    if (!match) {
       this.host.say(`nicht verstanden: „${text.trim()}“`);
       return null;
     }
-    for (const match of matches) this.host.run(match.command, match.arg);
-    this.host.say(`verstanden: ${text.trim()} → ${matches.map((m) => m.label).join(', ')}`);
-    return matches;
+    this.host.run(match.command, match.arg);
+    this.host.say(`verstanden: ${text.trim()} → ${match.label}`);
+    return match;
   }
 }
 

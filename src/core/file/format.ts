@@ -26,7 +26,7 @@ export const FILE_EXTENSION = 'icastico';
  * 8 = optional `marks` per note (special signs) and per score (bar signs: repeats, endings, jumps; ADR 0024),
  * 7 = optional `lyric` per note, `chords` (chord symbols) per score (ADR 0019), `tab` per part (ADR 0022).
  */
-export const FORMAT_VERSION = 8;
+export const FORMAT_VERSION = 9;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -288,6 +288,8 @@ const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
   6: (doc) => ({ ...doc, version: 7 }),
   // 7 → 8: adds the optional "marks" of notes and of the score. Version-7 files have none.
   7: (doc) => ({ ...doc, version: 8 }),
+  // 8 → 9: several glides may end in one tone. Older files simply have fewer connections.
+  8: (doc) => ({ ...doc, version: 9 }),
 };
 
 /** Applies `fn` to every event object of a (still unvalidated) score; anything unexpected is left for the reader to reject. */

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { COMMANDS } from '../../core/editor/commands';
 import { UI_COMMANDS } from '../keymaps/library';
 import { StandInVoice } from '../../platform/voice';
-import { MAX_COMMANDS, MIN_CONFIDENCE, indexOf, matchVoice, matchVoiceSequence, normalize } from './matcher';
+import { MIN_CONFIDENCE, indexOf, matchVoice, normalize } from './matcher';
 import { VoiceController, type VoiceHost } from './controller';
 import { VOCABULARY_DE } from './vocabulary.de';
 
@@ -42,7 +42,7 @@ describe('matching what was heard', () => {
     expect(normalize('  Zweiunddreißigstel. ')).toBe('zweiunddreissigstel');
     expect(hears('FÜNF!')).toMatchObject({ arg: 5 });
     expect(hears('fuenf')).toMatchObject({ arg: 5 });
-    expect(hears('Zweiunddreissigstel')).toMatchObject({ arg: 2 });
+    expect(hears('ZWEI')).toMatchObject({ arg: 2 });
     expect(hears(' Oktave   hoch ')).toMatchObject({ command: 'edit.octave', arg: 1 });
   });
 
@@ -73,32 +73,37 @@ describe('matching what was heard', () => {
   });
 });
 
-describe('several commands in one breath (dictation)', () => {
-  const run = (text: string, confidence = 0.95) => matchVoiceSequence(text, confidence)?.map((m) => `${m.command} ${m.arg}`);
+describe('dictated notes', () => {
+  const one = (text: string, confidence = 0.95) => {
+    const m = matchVoice(text, confidence);
+    return m && `${m.command} ${m.arg}`;
+  };
 
-  it('a row of note names is one command each, in the order spoken', () => {
-    expect(run('c d e')).toEqual(['input.note 0', 'input.note 1', 'input.note 2']);
-    expect(run('fünf c fis')).toEqual(['input.duration 5', 'input.note 0', 'input.spelled 18']);
-    expect(run('Oktave hoch')).toEqual(['edit.octave 1']); // a two-word command stays one command
-    expect(run('c Oktave hoch d')).toEqual(['input.note 0', 'edit.octave 1', 'input.note 1']);
-    expect(run('zur Pause')).toEqual(['edit.toRest 0']);
+  it('note names are one command each: fis is F sharp, es is E flat, b is B flat, h is B', () => {
+    expect(one('c')).toBe('input.note 0');
+    expect(one('fis')).toBe('input.spelled 18');
+    expect(one('es')).toBe('input.spelled 11');
+    expect(one('b')).toBe('input.spelled 31');
+    expect(one('h')).toBe('input.note 6');
+    expect(one('as')).toBe('input.spelled 26');
   });
 
-  it('names notes with their accidental: fis is F sharp, es is E flat, b is B flat, h is B', () => {
-    expect(run('fis es b h as')).toEqual(['input.spelled 18', 'input.spelled 11', 'input.spelled 31', 'input.note 6', 'input.spelled 26']);
+  it('a row of words in one breath is not understood – a split compound word must not run two commands', () => {
+    expect(one('c d e')).toBeNull();
+    expect(one('halbe bogen')).toBeNull(); // what "Haltebogen" sounded like to the recogniser
+    expect(one('b null')).toBeNull(); // and "Bemol"
+    expect(one('vier sechzehntel')).toBeNull();
   });
 
-  it('one word that is not understood stops the whole sentence – nothing is run', () => {
-    expect(run('c d Blumenkohl e')).toBeUndefined();
-    expect(run('c d', 0.5)).toBeUndefined();
-    expect(run('')).toBeUndefined();
-    expect(run(Array(MAX_COMMANDS + 1).fill('c').join(' '))).toBeUndefined();
-    expect(run(Array(MAX_COMMANDS).fill('c').join(' '))).toHaveLength(MAX_COMMANDS);
-  });
-
-  it('a single word still means the same as before', () => {
-    expect(run('fünf')).toEqual(['input.duration 5']);
-    expect(matchVoice('c d', 0.95)).toBeNull(); // the single-word matcher (voice test) stays strict
+  it('letters the recogniser reports with about 0.5 are understood, everything else still needs 0.8', () => {
+    expect(one('zeh', 0.5)).toBe('input.note 0');
+    expect(one('geh', 0.5)).toBe('input.note 4');
+    expect(one('fis', 0.53)).toBe('input.spelled 18');
+    expect(one('zeh', 0.39)).toBeNull();
+    expect(one('dis', 0.59)).toBeNull(); // heard "des" in the test; a wrong accidental is worse than none
+    expect(one('des', 0.59)).toBeNull();
+    expect(one('fünf', 0.5)).toBeNull();
+    expect(one('des', 0.85)).toBe('input.spelled 6');
   });
 });
 
@@ -117,16 +122,17 @@ describe('the voice controller', () => {
     expect(log).toEqual(['run input.duration 5', 'say verstanden: fünf → Viertel']);
   });
 
-  it('runs a dictated row of commands one after the other and names them all', () => {
+  it('runs one note per breath and names it', () => {
     const { log, source } = setup();
-    source.hear('fünf c fis', 0.9);
-    expect(log).toEqual(['run input.duration 5', 'run input.note 0', 'run input.spelled 18', 'say verstanden: fünf c fis → Viertel, C, Fis']);
+    source.hear('zeh', 0.5);
+    expect(log).toEqual(['run input.note 0', 'say verstanden: zeh → C']);
   });
 
-  it('runs nothing of a row with an unknown word in it', () => {
+  it('runs nothing of a row of words', () => {
     const { log, source } = setup();
     source.hear('c Blumenkohl d', 0.9);
-    expect(log).toEqual(['say nicht verstanden: „c Blumenkohl d“']);
+    source.hear('c d', 0.9);
+    expect(log).toEqual(['say nicht verstanden: „c Blumenkohl d“', 'say nicht verstanden: „c d“']);
   });
 
   it('says "nicht verstanden" and runs nothing for unknown or unsure words', () => {

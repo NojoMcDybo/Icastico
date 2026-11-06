@@ -46,17 +46,27 @@ Offen: der Test mit Instrument im Hintergrund (Ziel ≥ 85 %), und ob im Dauerbe
 Fehlauslösungen erzeugen (Gegenmaßnahmen: Sprechpausen-Erkennung mit Mindestlautstärke, Wörter werden ignoriert,
 solange etwas abgespielt wird; die Statuszeile zeigt, was verstanden wurde, Strg+Z nimmt es zurück).
 
-## Noten diktieren (Nachtrag)
+## Noten diktieren (Nachtrag) und zweiter Test
 
-Der Wortschatz kennt jetzt Notennamen (c d e f g a h; cis des fis es as b his …; "h" ist B, "b" ist Bb; Buchstaben auch als
+Der Wortschatz kennt Notennamen (c d e f g a h; cis des fis es as b his …; "h" ist B, "b" ist Bb; Buchstaben auch als
 „zeh/deh/eh/eff/geh/ah/hah“, weil der Erkenner gesprochene Buchstaben oft so schreibt). Reine Buchstaben folgen wie die
 Tasten der Tonart (input.note), Namen mit Vorzeichen setzen es fest (input.spelled); die Oktave ist die nächste zur
-vorigen Note, „Oktave hoch/runter“ korrigiert. Mehrere Befehle in einem Atemzug („fünf c fis“) werden nur ausgeführt, wenn
-**alles** erkannt wurde und die Sicherheit ≥ 0,8 ist. Die Sicherheit ist bei Reihen deutlich niedriger als bei Einzelwörtern
-(mit der synthetischen Stimme 0,3–0,5, auch bei richtig erkannten Reihen), Reihen werden also meist abgelehnt; zuverlässig ist
-**eine Note pro Atemzug**. Bei Reihen verschluckte der Erkenner mit der synthetischen Stimme auch Buchstaben („c d e f g“ → „zeh d f geh“).
-Schwach: Cis/Ces, Dis/Des (klingen ähnlich). Der Sprachtest (Strg+Umschalt+V) fragt die Notennamen mit ab; Wortliste und
-Synonyme werden danach nach der Stimme des Owners angepasst. „Be“ (Erniedrigung) heißt jetzt „Bemol“, weil „B“ ein Notenname ist.
+vorigen Note, „Oktave hoch/runter“ korrigiert.
+
+**Zweiter Test (68 Wörter, Stimme des Owners, ruhig):** Vosk mit Wortliste 46 richtig, 2 falsch, 20 nicht verstanden;
+frei 36 richtig. Daraus folgt:
+
+- **Die Sicherheit ist kein gutes Maß.** Richtig erkannte Buchstaben („zeh“, „eh“, „geh“, „ah“, „hah“) und „fis“, „ass“
+  kommen immer mit etwa 0,5, falsche Antworten dagegen mit 0,8–1 („ces“ → „fes“, „es“ → „f“). Darum hat jedes Wort
+  im Wortschatz eine eigene Untergrenze (`minConfidence`, 0,4 für diese Wörter, sonst 0,8). Mit dieser Einstellung
+  hätte derselbe Test **58 von 62 richtig (93,5 %), 1 falsch (1,6 %)**; offen bleiben „wiederherstellen“ (nichts gehört),
+  „dis“ (klingt wie „des“, wird abgelehnt), „eis“ und „es“ (wird als „f“ verstanden).
+- **Nur ein Befehl pro Atemzug.** Der Erkenner zerlegt lange Wörter in zwei bekannte: „Haltebogen“ → „halbe bogen“,
+  „Bemol“ → „b null“, „Vierundsechzigstel“ → „vier sechzehntel“, jeweils mit Sicherheit 1. Eine Reihe von Wörtern wie
+  Befehle hintereinander auszuführen hätte hier zwei falsche Befehle ausgelöst; die kurzzeitig eingebaute Reihen-Erkennung
+  („fünf c fis“) ist deshalb wieder entfernt. Diktieren heißt: eine Note pro Atemzug.
+- Entfernt wurden unzuverlässige Wörter: „Vierundsechzigstel“, „Zweiunddreißigstel“, „Haltebogen“ (kürzere gibt es),
+  „Be/Bemol“ (Erniedrigung; mit Notennamen wie des/ges/as/b oder der Taste möglich), „ces“ und „fes“ (verwechselt).
 
 ## Alternativen
 

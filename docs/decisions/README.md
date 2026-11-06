@@ -39,6 +39,7 @@ Was wird dadurch leichter, was schwerer?
 | 0009 | [Bibliothek: eigener Ordner, Sammlungen, automatisches Speichern](0009-bibliothek.md) | angenommen (Referenz: Owner-App Folio) |
 | 0010 | [Installer, Desktop-Verknüpfung, automatische Updates](0010-updates.md) | angenommen |
 | 0025 | [Sprachtest: Vosk im Fenster](0025-sprachtest.md) | angenommen |
+| 0026 | [Roll-Klaviatur, Synth-Klang, Gleiten in einen Ton, Rückmeldung](0026-roll-und-rueckmeldung.md) | angenommen |
 | 0011 | [Bibliothek der Tastenbelegungen (Finale + Logic), Ziehen mit der Maus](0011-tastenbelegung-bibliothek.md) | angenommen |
 | 0012 | [Jeder Ton hat eine dauerhafte Nummer (Ton-ID)](0012-ton-identitaet.md) | angenommen |
 | 0013 | [Piano-Roll als zweite Ansicht derselben Töne](0013-piano-roll.md) | angenommen |

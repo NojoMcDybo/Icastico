@@ -23,14 +23,23 @@ const TIMBRES: Record<InstrumentId, Timbre> = {
   piano: { harmonics: [1, 0.55, 0.3, 0.18, 0.1, 0.05], attack: 0.004, decay: 0.9, sustain: 0.25, release: 0.25 },
 };
 
+/** The synthesizer sound of the piano roll: organ-like, the tone stays as loud as it started until the key is let go. */
+const SUSTAINED: Timbre = { harmonics: [1, 0.5, 0.33, 0.25, 0.2, 0.16, 0.12], attack: 0.008, decay: 1, sustain: 1, release: 0.06 };
+
 const frequency = (midi: number): number => 440 * 2 ** ((midi - 69) / 12);
 
 export class SimpleSynth implements Engine {
   private ctx: AudioContext | null = null;
-  private readonly waves = new Map<InstrumentId, PeriodicWave>();
+  private readonly waves = new Map<string, PeriodicWave>();
 
-  /** Starts the plan at `from` seconds (the plan is already cut there). Needs a user gesture the first time. */
-  async play(plan: PlaybackPlan, from: number): Promise<Playing> {
+  /** A short sound of these pitches – feedback while editing. */
+  audition(midis: readonly number[], instrument: InstrumentId, sustained: boolean): void {
+    const notes = midis.map((midi): SoundNote => ({ instrument, start: 0, end: 0.4, path: [{ t: 0, midi }, { t: 0.4, midi }] }));
+    void this.play({ notes, length: 0.4 }, 0, sustained);
+  }
+
+  /** Starts the plan at `from` seconds (the plan is already cut there). Needs a user gesture the first time. `sustained`: the roll's synth sound. */
+  async play(plan: PlaybackPlan, from: number, sustained = false): Promise<Playing> {
     const ctx = (this.ctx ??= new AudioContext());
     if (ctx.state !== 'running') await ctx.resume();
     const out = ctx.createGain();
@@ -40,7 +49,7 @@ export class SimpleSynth implements Engine {
 
     const origin = ctx.currentTime + 0.08 - from; // piece time 0 on the audio clock
     const oscillators: OscillatorNode[] = [];
-    for (const note of plan.notes) oscillators.push(this.schedule(ctx, out, note, origin));
+    for (const note of plan.notes) oscillators.push(this.schedule(ctx, out, note, origin, sustained));
 
     return {
       position: () => Math.max(0, ctx.currentTime - origin),
@@ -60,20 +69,21 @@ export class SimpleSynth implements Engine {
     };
   }
 
-  private wave(ctx: AudioContext, instrument: InstrumentId): PeriodicWave {
-    let wave = this.waves.get(instrument);
+  private wave(ctx: AudioContext, instrument: InstrumentId, sustained: boolean): PeriodicWave {
+    const key = sustained ? 'synth' : instrument;
+    let wave = this.waves.get(key);
     if (!wave) {
-      const imag = new Float32Array([0, ...TIMBRES[instrument].harmonics]);
+      const imag = new Float32Array([0, ...(sustained ? SUSTAINED : TIMBRES[instrument]).harmonics]);
       wave = ctx.createPeriodicWave(new Float32Array(imag.length), imag);
-      this.waves.set(instrument, wave);
+      this.waves.set(key, wave);
     }
     return wave;
   }
 
-  private schedule(ctx: AudioContext, out: AudioNode, note: SoundNote, origin: number): OscillatorNode {
-    const timbre = TIMBRES[note.instrument];
+  private schedule(ctx: AudioContext, out: AudioNode, note: SoundNote, origin: number, sustained: boolean): OscillatorNode {
+    const timbre = sustained ? SUSTAINED : TIMBRES[note.instrument];
     const osc = ctx.createOscillator();
-    osc.setPeriodicWave(this.wave(ctx, note.instrument));
+    osc.setPeriodicWave(this.wave(ctx, note.instrument, sustained));
     // Exponential in Hz is linear in semitones: a glide sounds even.
     const first = note.path[0]!;
     osc.frequency.setValueAtTime(frequency(first.midi), origin + first.t);

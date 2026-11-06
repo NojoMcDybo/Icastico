@@ -76,6 +76,22 @@ describe('playback plan', () => {
     expect(planFrom(planPlayback(glided.score), 5).notes).toEqual([]);
   });
 
+  it('three notes gliding into one: one sound goes on as the target, the other two arrive at its pitch and end', () => {
+    let s = createEditorState(withTempoScore(emptyScore(), 120));
+    s = cmd(s, 'input.duration', 5);
+    s = cmd(cmd(cmd(s, 'input.note', 0), 'input.chordNote', 2), 'input.chordNote', 4); // C E G
+    s = cmd(cmd(s, 'input.rest'), 'input.note', 1); // rest, then D
+    const chord = events(s)[0]!;
+    const target = events(s)[1]!.tones[0]!.id;
+    const resolved = applyRollEdit(s, { kind: 'connect', a: chord.tones[0]!.id, b: target, all: true });
+    const notes = planPlayback(resolved.score).notes;
+    expect(notes).toHaveLength(3);
+    const ends = notes.map((n) => [n.end, n.path[n.path.length - 1]!.midi]).sort((x, y) => x![0]! - y![0]!);
+    // two end exactly when the target starts (1 s at 120 bpm: a quarter rest after the chord), at the target's pitch; one goes on to the target's end
+    expect(ends.filter(([end]) => end === 1.0)).toEqual([[1, 74], [1, 74]]);
+    expect(ends.filter(([end]) => end! > 1.0)).toHaveLength(1);
+  });
+
   it('an empty score plans nothing', () => {
     expect(planPlayback(emptyScore())).toEqual({ notes: [], length: 0 });
   });

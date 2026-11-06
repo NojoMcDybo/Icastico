@@ -24,8 +24,9 @@ import { type Score, keyAt, measuresOf, meterAt, withTempo } from '../core/model
 import { secondsOf, tempoOf, timeAt } from '../core/playback';
 import { durationName } from '../core/notation/notate';
 import { type Pitch, STEPS, midiOf, pitchToString } from '../core/pitch';
-import { type Fraction, ZERO, eq, le, lt } from '../core/time';
-import { applyScoreChanges, createScore, emptyScore } from '../core/templates';
+import { type Fraction, ZERO, eq, le, lt, toNumber } from '../core/time';
+import { applyScoreChanges, createScore, emptyScore, keyName as germanKeyName } from '../core/templates';
+import { openKeyPicker } from './keyPicker';
 import { dirOf, fileNameOf, preferredFileName } from '../library/library';
 import type { LibraryStore } from '../library/store';
 import { type ElementRef, type MeiResult, scoreToMei, staffElementId } from '../render/mei';
@@ -37,6 +38,7 @@ import { LibraryHome } from './libraryHome';
 import { CurvePopup, type ShapeHost } from './curvePopup';
 import { PianoRoll, type RollHost } from './pianoRoll';
 import { Player } from './player';
+import { Synth } from '../audio/synth';
 import { Transport } from './transport';
 import { currentVoice, voiceTestEnabled } from '../platform/voice';
 import { type MidiListener, listenToMidi } from '../platform/midi';
@@ -65,7 +67,7 @@ import {
 } from './lanes';
 import { Thumbnails } from './thumbnails';
 import type { UpdateChecker } from './updates';
-import { loadNewScoreDefaults, loadPdfSetup, loadView, savePdfSetup, saveKeymapPreset, saveLastOpened, saveNewScoreDefaults, saveView } from './preferences';
+import { loadRollSynth, saveRollSynth, loadNewScoreDefaults, loadPdfSetup, loadView, savePdfSetup, saveKeymapPreset, saveLastOpened, saveNewScoreDefaults, saveView } from './preferences';
 import { scoreDialog } from './scoreDialog';
 import { comboOf, numpadComboOf } from './keys';
 import { type Keymap, type PresetId, type UiCommandId, buildKeymap, findBinding, KEY_LIBRARY, PRESETS } from './keymaps/library';
@@ -119,6 +121,8 @@ const SCALE = 55;
 const HIT_TOLERANCE = 10;
 /** MIDI keys pressed within this time after the first one count as one chord. */
 const CHORD_WINDOW_MS = 60;
+/** A redraw that takes longer than this (ms) makes the following ones wait (see `update`). */
+const SLOW_REDRAW_MS = 60;
 /** How close (px) the pointer must be to a placed sign to pick it up. */
 const SIGN_TOLERANCE = 6;
 
@@ -182,7 +186,19 @@ export class Workstation {
   private swallowClick = false;
   private autosaveTimer = 0;
   private readonly player: Player;
+  private readonly synth: Synth;
   private readonly transport: Transport;
+  /** What was last heard for editing feedback (the score and the preview note), to hear only what changed. */
+  private heardScore: Score | null = null;
+  private heardGhost = '';
+  private lastAudition = 0;
+  /** Events drawn blue because they sound right now, and the page nodes of the events (per engraving). */
+  private lastRedrawMs = 0;
+  private lastRedrawEnd = 0;
+  private redrawTimer = 0;
+  private litEvents = new Set<string>();
+  private eventNodes: { readonly result: MeiResult; readonly nodes: Map<string, Element[]> } | null = null;
+  private readonly spanCache = new WeakMap<Score, { readonly id: string; readonly a: number; readonly b: number }[]>();
   private loop = false;
   /** Where playback starts and where it is: follows the selection while stopped, the clock while playing. */
   private playPos: Fraction = ZERO;
@@ -236,6 +252,8 @@ export class Workstation {
       : null;
     this.shape = new CurvePopup(this.gestureHost());
     this.buildNotationBar();
+    this.synth = new Synth((message) => this.say(message));
+    this.synth.sustained = loadRollSynth();
     this.player = new Player({
       frame: (seconds) => {
         // The music may be played in another order than written (repeats): show the bar that sounds.
@@ -248,7 +266,7 @@ export class Workstation {
         this.history.apply({ ...this.state, message });
         this.renderStatus();
       },
-    });
+    }, this.synth);
     this.symbols = new SymbolPalette({
       insert: (kind, index) => this.insertSign(kind, index),
       drag: (kind, index, glyph, e) => this.beginSignDrag(kind === 'note' ? { kind, glyph, id: NOTE_SYMBOLS[index]!.id } : { kind, glyph, id: BAR_SIGNS[index]!.id }, e),
@@ -266,6 +284,13 @@ export class Workstation {
         return this.loop;
       },
       setTempo: (bpm) => this.setTempo(bpm),
+      beginTempoDrag: () => this.history.beginGesture(),
+      endTempoDrag: (commit) => {
+        if (commit) this.history.commitGesture();
+        else this.history.cancelGesture();
+        this.update();
+      },
+      openKeys: (anchor) => this.openKeys(anchor),
       openSettings: () => void this.scoreSettings(),
     });
     // Spoken commands (plan "Sprachbefehle"): for now only the stand-in source – text field in test mode, `window.__voiceHear`.
@@ -915,6 +940,26 @@ export class Workstation {
     this.update();
   }
 
+  /** The circle of fifths below the key display: the chosen key counts from the bar of the selection (an undoable change). */
+  private openKeys(anchor: HTMLElement): void {
+    if (this.empty) return;
+    const score = this.state.score;
+    const time = this.focusTime();
+    const measures = measuresOf(score, 1, time);
+    const here = measures.find((m) => le(m.start, time) && lt(time, m.end)) ?? measures[0]!;
+    const fromMeasure = Math.max(1, here.number);
+    openKeyPicker(anchor, keyAt(score, here.number <= 1 ? ZERO : here.start), {
+      pick: (fifths) => {
+        const result = applyScoreChanges(this.state.score, { fifths, fromMeasure });
+        if ('error' in result) this.history.apply({ ...this.state, message: result.error });
+        else if (result.score !== this.state.score) {
+          this.history.apply({ ...this.state, score: result.score, message: `Tonart ${germanKeyName(fifths)}${fromMeasure > 1 ? ` ab Takt ${fromMeasure}` : ''}` });
+        }
+        this.update();
+      },
+    });
+  }
+
   // ── Dragging notes up/down ───────────────────────────────────────────────
 
   /** Half the distance between two staff lines of the staff a symbol sits on, in pixels. */
@@ -1211,7 +1256,31 @@ export class Workstation {
 
   // ── Output ───────────────────────────────────────────────────────────────
 
+  /**
+   * Redraws everything for the current state. A score that takes long to engrave must not queue up one redraw per key
+   * press (holding an arrow key would lock the window for seconds): keys arriving right after a slow redraw only change
+   * the model and the status; one redraw with the newest state follows a moment later.
+   */
   private update(): void {
+    const slow = this.lastRedrawMs > SLOW_REDRAW_MS;
+    if (slow && !this.history.inGesture && performance.now() - this.lastRedrawEnd < this.lastRedrawMs * 1.5) {
+      if (!this.redrawTimer) {
+        this.redrawTimer = window.setTimeout(() => {
+          this.redrawTimer = 0;
+          this.refresh();
+        }, this.lastRedrawMs);
+      }
+      this.auditionEdits();
+      this.renderTransport();
+      this.renderStatus();
+      return;
+    }
+    window.clearTimeout(this.redrawTimer);
+    this.redrawTimer = 0;
+    this.refresh();
+  }
+
+  private refresh(): void {
     this.renderLanes(); // first: a lane that just appeared needs its size before the notation is engraved
     try {
       if (!this.history.inGesture) this.renderIfNeeded();
@@ -1225,6 +1294,7 @@ export class Workstation {
       });
       this.renderIfNeeded();
     }
+    this.auditionEdits();
     this.decorate();
     this.renderTransport();
     this.renderStatus();
@@ -1402,6 +1472,12 @@ export class Workstation {
     return {
       ...this.gestureHost(),
       openShape: (target, anchor) => this.shape.open(target, anchor),
+      hearKey: (midi, partId) => {
+        const part = this.state.score.parts.find((p) => p.id === partId);
+        if (part && !this.player.active) this.hear([midi], part.instrument);
+      },
+      synthOn: () => this.synth.sustained,
+      toggleSynth: () => this.toggleRollSynth(),
       select: (selection, caretTime) => {
         const s = this.state;
         const caret = s.caret && selection && caretTime ? { partId: selection.partId, voiceId: selection.voiceId, time: caretTime } : s.caret;
@@ -1526,6 +1602,7 @@ export class Workstation {
       for (const ui of this.rollLanes.values()) ui.roll.setPlayhead(this.empty ? null : this.playPos, false);
     } else {
       for (const ui of this.rollLanes.values()) ui.roll.setPlayhead(this.playPos, true);
+      this.lightPlaying();
       this.transport.show({ score: this.state.score, time: this.playPos, playing: true, loop: this.loop, recording: this.recording, disabled: false });
     }
   }
@@ -1665,6 +1742,7 @@ export class Workstation {
     const width = Math.min(this.el.pages.clientWidth, 1100);
     if (s.score === this.renderedScore && measures === this.renderedMeasures && width === this.renderedWidth && hiddenKey === this.renderedHidden) return;
 
+    const started = performance.now();
     const result = scoreToMei(s.score, { ...(coverTime ? { coverTime } : {}), hiddenStaves: hidden });
     const { pages, log } = this.engraver.engrave(result.mei, {
       pageWidth: Math.round((width * 100) / SCALE),
@@ -1685,6 +1763,8 @@ export class Workstation {
     this.renderedMeasures = measures;
     this.renderedWidth = width;
     this.renderedHidden = hiddenKey;
+    this.lastRedrawEnd = performance.now();
+    this.lastRedrawMs = this.lastRedrawEnd - started;
   }
 
   private decorate(): void {
@@ -1710,6 +1790,86 @@ export class Workstation {
     if (s.caret) this.drawCaret(elements);
     this.drawStaffSwitches();
     this.followSelection();
+    this.el.pages.querySelectorAll('.is-playing').forEach((n) => n.classList.remove('is-playing'));
+    this.litEvents.clear(); // lit again below, from the playhead
+    this.lightPlaying();
+  }
+
+  // ── Feedback: the sounding note is blue, an edited note is heard ─────────
+
+  /** Start and end of every event on the timeline (as numbers), kept per score. */
+  private spansOf(score: Score): readonly { readonly id: string; readonly a: number; readonly b: number }[] {
+    let spans = this.spanCache.get(score);
+    if (!spans) {
+      spans = score.parts.flatMap((p) => p.voices.flatMap((v) => v.events.map((e) => ({ id: e.id, a: toNumber(e.onset), b: toNumber(e.onset) + toNumber(e.duration) }))));
+      this.spanCache.set(score, spans);
+    }
+    return spans;
+  }
+
+  /** While playing, the notes that sound at the playhead are blue on the paper. */
+  private lightPlaying(): void {
+    const result = this.result;
+    const want = new Set<string>();
+    if (this.player.active && result && !this.empty) {
+      const t = toNumber(this.playPos);
+      for (const span of this.spansOf(this.state.score)) if (span.a <= t + 1e-9 && t < span.b - 1e-9) want.add(span.id);
+    }
+    if (want.size === this.litEvents.size && [...want].every((id) => this.litEvents.has(id))) return;
+    if (result && this.eventNodes?.result !== result) {
+      const nodes = new Map<string, Element[]>();
+      for (const [id, ref] of result.elements) {
+        const node = ref.eventId && ref.kind !== 'chordNote' ? document.getElementById(id) : null;
+        if (node && ref.eventId) nodes.set(ref.eventId, [...(nodes.get(ref.eventId) ?? []), node]);
+      }
+      this.eventNodes = { result, nodes };
+    }
+    const nodes = this.eventNodes?.nodes;
+    for (const id of this.litEvents) if (!want.has(id)) nodes?.get(id)?.forEach((n) => n.classList.remove('is-playing'));
+    for (const id of want) if (!this.litEvents.has(id)) nodes?.get(id)?.forEach((n) => n.classList.add('is-playing'));
+    this.litEvents = want;
+  }
+
+  /** Plays the notes the last change touched: a pitch that was changed (also by the arrow keys or while dragging), a new note, a preview note. */
+  private auditionEdits(): void {
+    const s = this.state;
+    const before = this.heardScore;
+    const ghost = s.input.ghost ? s.input.ghost.map(pitchToString).join(' ') : '';
+    const ghostChanged = ghost !== this.heardGhost;
+    this.heardScore = s.score;
+    this.heardGhost = ghost;
+    if (this.empty || this.player.active || !before || performance.now() - this.lastAudition < 40) return;
+    const sel = s.selection;
+    if (ghostChanged && s.input.ghost && s.caret) {
+      const part = s.score.parts.find((p) => p.id === s.caret!.partId);
+      if (part) return this.hear(s.input.ghost.map(midiOf), part.instrument);
+    }
+    if (s.score === before || sel?.kind !== 'event') return;
+    // A selection may point at a voice that does not exist (yet / any more) in one of the two scores.
+    const find = (score: Score) => {
+      const part = score.parts.find((p) => p.id === sel.partId);
+      return { part, event: part?.voices.find((v) => v.id === sel.voiceId)?.events.find((e) => e.id === sel.eventId) };
+    };
+    const { part, event } = find(s.score);
+    if (!part || !event) return;
+    const old = find(before).event;
+    const sound = (e: typeof event) => e.tones.map((t) => t.id + ':' + midiOf(t.pitch)).join(' ');
+    if (old && sound(old) === sound(event)) return; // the score changed elsewhere: nothing to hear
+    const tones = sel.toneId ? event.tones.filter((t) => t.id === sel.toneId) : event.tones;
+    this.hear(tones.map((t) => midiOf(t.pitch)), part.instrument);
+  }
+
+  private hear(midis: readonly number[], instrument: Parameters<Synth['audition']>[1]): void {
+    this.lastAudition = performance.now();
+    this.synth.audition(midis, instrument);
+  }
+
+  /** The synthesizer sound of the roll on / off (remembered); every roll shows the same state. */
+  private toggleRollSynth(): void {
+    this.synth.sustained = !this.synth.sustained;
+    saveRollSynth(this.synth.sustained);
+    for (const ui of this.rollLanes.values()) ui.roll.setSynth(this.synth.sustained);
+    this.say(this.synth.sustained ? 'Synthesizer-Klang an: Töne klingen nicht aus.' : 'Synthesizer-Klang aus: die Instrumentenklänge.');
   }
 
   /** A selection made in another view scrolls into sight here – only when the selection changed. */

@@ -114,14 +114,22 @@ export function planPlayback(score: Score): PlaybackPlan {
   const strike = (m: ToneSpot): number => m.tone.volume ?? dynamics.get(m.event.id) ?? DEFAULT_VOLUME;
   const chained = new Map<string, string>(); // tone → the tone its sound continues into
   const via = new Map<string, Link>(); // the link a sound continues along
+  const merged = new Map<string, Link>(); // sounds that glide into a tone but end there: another sound carries on from it
+  const claimed = new Set<string>(); // tones a sound already continues into
   for (const link of score.links ?? []) {
     const a = spots.get(link.from);
     const b = spots.get(link.to);
     if (!a || !b) continue;
     const gap = lt(eventEnd(a.event), b.event.onset);
     if (link.kind === 'tie' || gap) {
-      chained.set(link.from, link.to);
-      via.set(link.from, link);
+      // Several glides into one tone (a chord resolving): the first goes on as that tone, the others glide in and end.
+      if (claimed.has(link.to)) {
+        merged.set(link.from, link);
+      } else {
+        chained.set(link.from, link.to);
+        via.set(link.from, link);
+        claimed.add(link.to);
+      }
     }
   }
   const continued = new Set(chained.values());
@@ -143,7 +151,8 @@ export function planPlayback(score: Score): PlaybackPlan {
       const t0 = secondsOf(score, m.event.onset);
       const written = secondsOf(score, eventEnd(m.event));
       // Staccato and friends shorten the last note of a sound (a tied or glided note goes on).
-      const t1 = i === members.length - 1 ? t0 + (written - t0) * soundingLength(m.event) : written;
+      const mergeLink = i === members.length - 1 ? merged.get(m.tone.id) : undefined;
+      const t1 = i === members.length - 1 && !mergeLink ? t0 + (written - t0) * soundingLength(m.event) : written;
       for (const t of [t0, t1]) {
         const last = path[path.length - 1];
         if (!last || last.t !== t || last.midi !== midi) path.push({ t, midi });
@@ -155,8 +164,8 @@ export function planPlayback(score: Score): PlaybackPlan {
       } else {
         gain.push({ t: t0, level: rel }, { t: t1, level: rel });
       }
-      const next = members[i + 1];
-      const link = via.get(m.tone.id);
+      const next = members[i + 1] ?? (mergeLink ? spots.get(mergeLink.to) : undefined);
+      const link = via.get(m.tone.id) ?? mergeLink;
       if (next && link?.curve && t1 < secondsOf(score, next.event.onset)) {
         // A shaped glide: pitch and loudness travel through the gap along the curve instead of in a straight line.
         const n0 = secondsOf(score, next.event.onset);
@@ -169,6 +178,12 @@ export function planPlayback(score: Score): PlaybackPlan {
           path.push({ t, midi: midi + (nextMidi - midi) * f });
           gain.push({ t, level: from + (to - from) * f });
         }
+      }
+      if (mergeLink && next) {
+        // This sound ends by arriving at the pitch of the tone the others carry on with.
+        const n0 = secondsOf(score, next.event.onset);
+        path.push({ t: n0, midi: midiNumber(next) });
+        gain.push({ t: n0, level: rel * (m.tone.curve ? curveAt(m.tone.curve, 1) : 1) });
       }
     });
     const volume = strongest === DEFAULT_VOLUME ? {} : { volume: strongest };

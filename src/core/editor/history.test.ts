@@ -125,17 +125,16 @@ describe('tone selection', () => {
     expect(tones(h.state)).toBe('C5');
   });
 
-  it('a command that works on the whole note selects the whole note again', () => {
+  it('a command on a chord with a clicked tone changes only that tone and keeps it selected', () => {
     const h = withNote();
     h.apply(runCommand(h.state, 'input.chordNote', 2));
     const event = getVoice(h.state.score, VOICE).voice.events[0]!;
     const toneId = event.tones[1]!.id;
     h.apply({ ...h.state, selection: { kind: 'event', ...VOICE, eventId: event.id, toneId } });
     h.apply(runCommand(h.state, 'edit.octave', 1));
-    expect(h.state.selection).toMatchObject({ kind: 'event', eventId: event.id });
-    expect(h.state.selection).not.toHaveProperty('toneId');
-    expect(getVoice(h.state.score, VOICE).voice.events[0]!.tones.map((t) => t.id).sort()).toEqual(
-      event.tones.map((t) => t.id).sort(),
-    );
+    expect(h.state.selection).toMatchObject({ kind: 'event', eventId: event.id, toneId });
+    const after = getVoice(h.state.score, VOICE).voice.events[0]!;
+    expect(after.tones.find((t) => t.id === toneId)!.pitch.octave).toBe(event.tones[1]!.pitch.octave + 1);
+    expect(after.tones.find((t) => t.id === event.tones[0]!.id)!.pitch).toEqual(event.tones[0]!.pitch); // the other tone stays
   });
 });

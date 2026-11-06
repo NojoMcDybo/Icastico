@@ -269,7 +269,8 @@ export function linkProblems(score: Score): string[] {
   const spots = locateTones(score);
   const ids = new Set<string>();
   const outgoing = new Set<string>();
-  const incoming = new Set<string>();
+  /** What arrives in each tone: several glides may (a chord resolving into one note), a tie only alone. */
+  const incoming = new Map<string, LinkKind[]>();
   for (const link of links) {
     if (ids.has(link.id)) problems.push(`Doppelte Verbindungs-ID ${link.id}.`);
     ids.add(link.id);
@@ -285,9 +286,10 @@ export function linkProblems(score: Score): string[] {
     const why = linkBreak(link.kind, a, b);
     if (why) problems.push(`Verbindung ${link.id}: ${why}`);
     if (outgoing.has(link.from)) problems.push(`Von Ton ${link.from} geht mehr als eine Verbindung aus.`);
-    if (incoming.has(link.to)) problems.push(`In Ton ${link.to} kommt mehr als eine Verbindung an.`);
+    const arriving = incoming.get(link.to) ?? [];
+    if (arriving.length > 0 && (link.kind === 'tie' || arriving.includes('tie'))) problems.push(`In Ton ${link.to} kommt mehr als eine Verbindung an (ein Haltebogen kommt allein).`);
     outgoing.add(link.from);
-    incoming.add(link.to);
+    incoming.set(link.to, [...arriving, link.kind]);
   }
   return problems;
 }

@@ -50,6 +50,11 @@ export interface RollHost {
   edit(edit: RollEdit): void;
   /** A click on a bar or a glide line opens the menu for its loudness / course (ADR 0016). */
   openShape(target: ShapeTarget, anchor: DOMRect): void;
+  /** A key of the keyboard column was pressed: let it be heard. */
+  hearKey(midi: number, partId: string): void;
+  /** The synthesizer sound (nothing dies away) is on. */
+  synthOn(): boolean;
+  toggleSynth(): void;
 }
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -94,6 +99,7 @@ export class PianoRoll {
   private gesture: Gesture | null = null;
   private pxPerWhole = DEFAULT_PX_PER_WHOLE;
   private zoomButtons: HTMLButtonElement[] = [];
+  private readonly synthButton: HTMLButtonElement;
   /** Last selection scrolled into view / voice centred vertically, so rendering never fights the user's scrolling. */
   private shownSelection = '';
   private centredVoice = '';
@@ -116,13 +122,22 @@ export class PianoRoll {
     this.info.className = 'roll__info';
     const zoomOut = this.zoomButton('−', 'Verkleinern (Strg + Mausrad)', 1 / 1.25);
     const zoomIn = this.zoomButton('+', 'Vergrößern (Strg + Mausrad)', 1.25);
-    this.head.append(this.title, this.info, zoomOut, zoomIn, controls);
+    this.synthButton = document.createElement('button');
+    this.synthButton.type = 'button';
+    this.synthButton.className = 'lane__btn roll__synth';
+    this.synthButton.textContent = 'Synth';
+    this.synthButton.title = 'Synthesizer-Klang: Töne klingen nicht aus, solange sie stehen (an/aus, gilt für das Abspielen und das Anhören beim Bearbeiten)';
+    this.synthButton.addEventListener('click', (e) => {
+      e.stopPropagation();
+      host.toggleSynth();
+    });
+    this.setSynth(host.synthOn());
+    this.head.append(this.title, this.info, zoomOut, zoomIn, this.synthButton, controls);
     this.zoomButtons = [zoomOut, zoomIn];
     this.scroller = document.createElement('div');
     this.scroller.className = 'roll__scroll';
     el.replaceChildren(this.head, this.scroller);
 
-    this.scroller.addEventListener('scroll', () => this.syncKeys());
     this.scroller.addEventListener('pointerdown', (e) => this.onDown(e));
     this.scroller.addEventListener('pointermove', (e) => this.onMove(e));
     this.scroller.addEventListener('pointerup', (e) => this.onUp(e, true));
@@ -186,11 +201,17 @@ export class PianoRoll {
     }
   }
 
+  /** Shows whether the synthesizer sound is on. */
+  setSynth(on: boolean): void {
+    this.synthButton.setAttribute('aria-pressed', String(on));
+  }
+
   /** Small strip or full view; takes effect at the next `render`. */
   setCompact(compact: boolean): void {
     this.compact = compact;
     this.el.classList.toggle('is-compact', compact);
     for (const b of this.zoomButtons) b.hidden = compact;
+    this.synthButton.hidden = compact;
   }
 
   /** True while a drag is running (the workstation must not redraw over it). */
@@ -300,12 +321,17 @@ export class PianoRoll {
       body.append(svgEl('line', { x1: x, x2: x, y1: 0, y2: height }, 'roll__caret'));
     }
 
-    if (!this.compact) this.drawKeys(body, layout); // on top of the bars: they slide under the key column
     this.svg = svg;
     this.body = body;
     this.rubber = null;
-    this.scroller.replaceChildren(svg);
-    this.syncKeys();
+    if (this.compact) {
+      this.scroller.replaceChildren(svg);
+    } else {
+      // The keyboard is a column of its own that sticks to the left edge (CSS) while the roll scrolls sideways;
+      // the bars slide under it.
+      svg.style.marginLeft = `-${layout.labelWidth}px`;
+      this.scroller.replaceChildren(this.drawKeys(layout, ref.partId, height + 22), svg);
+    }
     this.keepInView(ref, allMidis, selected, sel ? `${sel.voiceId}/${sel.eventId}/${sel.toneId ?? ''}` : '');
   }
 
@@ -358,7 +384,7 @@ export class PianoRoll {
         dot.dataset.tone = toneId;
         dot.dataset.end = end;
         const tip = svgEl('title', {});
-        tip.textContent = 'Ziehen und auf einen anderen Balken loslassen: Gleiten (die Zeit dazwischen ist die Gleitdauer)';
+        tip.textContent = 'Ziehen und auf einen anderen Balken loslassen: Gleiten (die Zeit dazwischen ist die Gleitdauer). Mehrere Töne dürfen in einen Ton gleiten; mit Umschalt gleiten alle Töne des Akkords.';
         dot.append(tip);
         body.append(dot);
       }
@@ -385,22 +411,33 @@ export class PianoRoll {
     }
   }
 
-  private drawKeys(body: SVGGElement, layout: RollLayout): void {
-    const group = svgEl('g', {}, 'roll__keycol');
-    body.append(group);
-    group.append(svgEl('rect', { x: 0, y: 0, width: layout.labelWidth, height: contentHeight(layout) }, 'roll__keys'));
+  /** A piano keyboard, one row per semitone like the rows of the roll; a click on a key plays it. */
+  private drawKeys(layout: RollLayout, partId: string, height: number): SVGSVGElement {
+    const width = layout.labelWidth;
+    const keys = svgEl('svg', { width, height, viewBox: `0 0 ${width} ${height}` }, 'roll__keycol');
+    keys.setAttribute('role', 'group');
+    keys.setAttribute('aria-label', 'Klaviatur');
+    keys.append(svgEl('rect', { x: 0, y: 0, width, height }, 'roll__keys'));
+    const body = svgEl('g', { transform: 'translate(0 22)' });
+    keys.append(body);
     for (let m = layout.highMidi; m >= layout.lowMidi; m--) {
+      const black = isBlackKey(m);
+      const y = yOfMidi(layout, m);
+      const key = svgEl('rect', { x: 0, y, width: black ? Math.round(width * 0.62) : width - 1, height: layout.rowHeight, rx: black ? 2 : 0 }, black ? 'roll__pkey roll__pkey--black' : 'roll__pkey');
+      key.dataset.midi = String(m);
+      body.append(key);
       const label = octaveLabel(m);
-      if (!label) continue;
-      const t = svgEl('text', { x: 6, y: yOfMidi(layout, m) + layout.rowHeight - 3 }, 'roll__key');
-      t.textContent = label;
-      group.append(t);
+      if (label) {
+        const t = svgEl('text', { x: width - 5, y: y + layout.rowHeight - 3, 'text-anchor': 'end' }, 'roll__key');
+        t.textContent = label;
+        body.append(t);
+      }
     }
-  }
-
-  /** The key column stays at the left edge while the roll scrolls sideways. */
-  private syncKeys(): void {
-    this.svg?.querySelector('.roll__keycol')?.setAttribute('transform', `translate(${this.scroller.scrollLeft} 0)`);
+    keys.addEventListener('pointerdown', (e) => {
+      const key = e.target instanceof Element ? e.target.closest<SVGElement>('.roll__pkey') : null;
+      if (key?.dataset.midi) this.host.hearKey(Number(key.dataset.midi), partId);
+    });
+    return keys;
   }
 
   /** Centres a new voice vertically once; scrolls a newly selected bar into view horizontally. */
@@ -557,7 +594,7 @@ export class PianoRoll {
     if (g.mode === 'link') {
       const hit = document.elementFromPoint(e.clientX, e.clientY);
       const target = hit?.closest<SVGElement>('.roll__bar, .roll__dot')?.dataset.tone;
-      if (g.started && commit && target && target !== g.linkTone) this.host.edit({ kind: 'connect', a: g.linkTone!, b: target });
+      if (g.started && commit && target && target !== g.linkTone) this.host.edit({ kind: 'connect', a: g.linkTone!, b: target, ...(e.shiftKey ? { all: true } : {}) });
       return;
     }
     if (g.started) {

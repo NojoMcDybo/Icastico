@@ -55,42 +55,6 @@ export function indexOf(vocabulary: readonly VoiceCommand[]): Map<string, VoiceC
   return index;
 }
 
-/** Most commands taken from one breath ("fünf c d e f g"): beyond that something is wrong. */
-export const MAX_COMMANDS = 12;
-
-/**
- * Several commands in one breath ("fünf c d fis"): the whole text must be made of vocabulary phrases (longest
- * phrase first), otherwise nothing at all – a half-understood sentence is not run. Null when unsure or unknown.
- */
-export function matchVoiceSequence(
-  text: string,
-  confidence: number,
-  vocabulary: readonly VoiceCommand[] = VOCABULARY_DE,
-  minConfidence = MIN_CONFIDENCE,
-): VoiceMatch[] | null {
-  if (!(confidence >= minConfidence)) return null;
-  const index = indexOf(vocabulary);
-  const longest = Math.max(...[...index.keys()].map((k) => k.split(' ').length));
-  const tokens = normalize(text).split(' ').filter(Boolean);
-  const out: VoiceMatch[] = [];
-  for (let i = 0; i < tokens.length; ) {
-    let found: VoiceMatch | null = null;
-    let length = 0;
-    for (let n = Math.min(longest, tokens.length - i); n >= 1 && !found; n--) {
-      const heard = tokens.slice(i, i + n).join(' ');
-      const entry = index.get(heard);
-      if (entry) {
-        found = { command: entry.command, arg: entry.arg ?? 0, label: entry.label, heard };
-        length = n;
-      }
-    }
-    if (!found || out.length >= MAX_COMMANDS) return null;
-    out.push(found);
-    i += length;
-  }
-  return out.length ? out : null;
-}
-
 /** The command for what was heard, or null when it is unknown or the recogniser was not sure enough. */
 export function matchVoice(
   text: string,
@@ -98,8 +62,8 @@ export function matchVoice(
   vocabulary: readonly VoiceCommand[] = VOCABULARY_DE,
   minConfidence = MIN_CONFIDENCE,
 ): VoiceMatch | null {
-  if (!(confidence >= minConfidence)) return null;
   const heard = normalize(text);
   const entry = indexOf(vocabulary).get(heard);
-  return entry ? { command: entry.command, arg: entry.arg ?? 0, label: entry.label, heard } : null;
+  if (!entry || !(confidence >= Math.min(minConfidence, entry.minConfidence ?? minConfidence))) return null;
+  return { command: entry.command, arg: entry.arg ?? 0, label: entry.label, heard };
 }

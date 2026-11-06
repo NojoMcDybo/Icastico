@@ -234,15 +234,27 @@ describe('connecting two bars by dragging', () => {
     expect(h.state.score.links).toHaveLength(1);
   });
 
-  it('a new glide from a tone replaces its old one; a second one into the same tone is refused', () => {
+  it('a new glide from a tone replaces its old one; several notes may glide into the same tone', () => {
     const s = melody();
     const first = connect(s, tone(s, 0), tone(s, 1));
     const moved = connect(first, tone(s, 0), tone(s, 2));
     expect(moved.score.links).toHaveLength(1);
     expect(moved.score.links![0]!.to).toBe(tone(s, 2));
-    const blocked = connect(moved, tone(s, 1), tone(s, 2)); // the D already receives a glide
-    expect(blocked.score).toBe(moved.score);
-    expect(blocked.message).toMatch(/schon eine Verbindung/);
+    const both = connect(moved, tone(s, 1), tone(s, 2)); // the D now receives two glides: C and C resolve into it
+    expect(both.score.links!.map((l) => [l.from, l.to])).toEqual([[tone(s, 0), tone(s, 2)], [tone(s, 1), tone(s, 2)]]);
+    expect(validateScore(both.score)).toEqual([]);
+  });
+
+  it('with "all" every tone of a chord glides into the target: three notes become one', () => {
+    let s = cmd(fresh(), 'input.duration', 5);
+    s = cmd(cmd(cmd(s, 'input.note', 0), 'input.chordNote', 2), 'input.chordNote', 4); // C E G chord
+    s = cmd(cmd(s, 'input.rest'), 'input.note', 1);
+    const chord = events(s)[0]!;
+    const target = events(s)[events(s).length - 1]!.tones[0]!.id;
+    const resolved = applyRollEdit(s, { kind: 'connect', a: chord.tones[0]!.id, b: target, all: true });
+    expect(resolved.score.links!.map((l) => l.to)).toEqual([target, target, target]);
+    expect(new Set(resolved.score.links!.map((l) => l.from))).toEqual(new Set(chord.tones.map((t) => t.id)));
+    expect(validateScore(resolved.score)).toEqual([]);
   });
 
   it('glides between two voices of the same staff, but not between overlapping notes', () => {

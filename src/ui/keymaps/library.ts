@@ -39,6 +39,10 @@ export const MOUSE_COMMANDS = new Set([
   'mouse.playFrom',
   'mouse.dragSign',
   'midi.note',
+  'mouse.tempoDrag',
+  'mouse.keyCircle',
+  'mouse.glideMany',
+  'mouse.rollKey',
   'mouse.curvePoint',
 ]);
 

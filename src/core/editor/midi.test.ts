@@ -51,3 +51,35 @@ describe('notes from a MIDI keyboard', () => {
     }
   });
 });
+
+describe('a single notehead of a chord', () => {
+  const chord = (): EditorState => {
+    let s = runCommand(newScoreState(), 'input.duration', 5);
+    s = runCommand(runCommand(runCommand(s, 'input.midi', 60), 'input.midiAdd', 64), 'input.midiAdd', 67); // C E G
+    return s;
+  };
+  const pick = (s: EditorState, index: number): EditorState => {
+    const e = getVoice(s.score, VOICE).voice.events[0]!;
+    return { ...s, selection: { kind: 'event', ...VOICE, eventId: e.id, toneId: e.tones[index]!.id } };
+  };
+
+  it('moves alone with the arrow keys, stays selected, and the others stay where they are', () => {
+    let s = pick(chord(), 1); // E
+    s = runCommand(s, 'edit.step', 1); // F
+    expect(notes(s)).toEqual(['C4+F4+G4']);
+    expect(s.selection).toMatchObject({ toneId: getVoice(s.score, VOICE).voice.events[0]!.tones[1]!.id });
+    s = runCommand(s, 'edit.octave', 1);
+    expect(notes(s)).toEqual(['C4+G4+F5']);
+    s = runCommand(s, 'edit.alter', 1);
+    expect(notes(s)).toEqual(['C4+G4+F#5']);
+  });
+
+  it('refuses to land on a tone the chord already has, and without a clicked tone the whole chord moves', () => {
+    const s = pick(chord(), 1);
+    const stepped = runCommand(runCommand(s, 'edit.step', 1), 'edit.step', 1); // E → F → G: taken
+    expect(notes(stepped)).toEqual(['C4+F4+G4']);
+    expect(stepped.message).toMatch(/schon ein anderer Ton/);
+    const whole = runCommand({ ...chord(), selection: { ...pick(chord(), 0).selection!, toneId: undefined } as never }, 'edit.step', 1);
+    expect(notes(whole)).toEqual(['D4+F4+A4']);
+  });
+});
