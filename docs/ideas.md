@@ -139,7 +139,7 @@ mit echten Aufnahmen prüfen kann.
 | Tonart automatisch vorschlagen | 💡 | M | Vorschlag | Erst nach der Erkennung sinnvoll |
 | Gesungene Silben → Liedtext | ❌? | XL | Vorschlag | Spracherkennung beim Singen ist ein anderes, hartes Problem. Eher nicht |
 | Gitarre/Klavier mehrstimmig → Noten | 💡 | XL | Vision | „Experimentell“. Erst anfassen, wenn einstimmig überzeugt |
-| Fertige Aufnahme (MP3/WAV) importieren und transkribieren | 💡 | L | Vorschlag | Gleiche Technik wie Aufnahme, andere Quelle |
+| Fertige Aufnahme (MP3/WAV) importieren und transkribieren | 💡 | L | Vorschlag | Gleiche Technik wie Aufnahme, andere Quelle. Auch Einzelspuren (Stems) aus Logic, siehe „Import aus Logic“ |
 
 Technische Optionen (Pitch-Erkennung, Modelle) werden erst bewertet, wenn der
 Schritt ansteht – dann mit Empfehlung und ADR. Regel 7 gilt: Erkennung läuft
@@ -193,10 +193,83 @@ nativ in Rust, die Musiklogik danach (Quantisieren, Schreibweise) in TypeScript.
 |---|---|---|---|---|
 | MusicXML Export/Import | 📌 | L | Vision | Brücke zu Finale, MuseScore, Dorico – der Weg für Finale-Umsteiger |
 | PDF-Export | 📌 | M | Vision | Schritt 3 |
-| MIDI-Export | 💡 | S | Vorschlag | |
+| **Aufgenommene Projekte importieren** (aus Logic u. a.): MIDI-Spuren und Notation → Partitur | 💡 | L | Owner | Siehe „Import aus Logic“ unten. Direkt `.logicx` lesen geht nicht |
+| MIDI-Export | 💡 | S | Vorschlag | Rückweg zu Logic & Co. |
 | Audio-Export (WAV/MP3) | 💡 | M | Vorschlag | Nach Wiedergabe |
 | Liederbuch/Setlist: mehrere Partituren zu einem Dokument, Reihenfolge, Inhaltsverzeichnis | 💡 | L | Vorschlag | Passt zu Gesang/Gitarre – Bibliothek ist schon da |
 | Teilen per Link/QR | ❌ | – | Vision | Online ist Nicht-Ziel |
+
+### Import aus Logic und anderen Aufnahmeprogrammen (Idee vom Owner)
+
+**Kurzantwort: Ja, aber nicht über die Logic-Projektdatei.** Das Logic-Paket
+(`.logicx`) ist ein geschlossenes, undokumentiertes Format
+([Hinweis dazu](https://github.com/jonkubis/LogicProFormatWriter)). Es direkt zu
+lesen wäre Reverse-Engineering, bricht mit jedem Logic-Update und ist
+rechtlich heikel. Der saubere Weg: **Logic exportiert, Icastico importiert**
+– über offene Formate, die *jedes* Aufnahmeprogramm kann. Das bedeutet auch:
+Es funktioniert genauso mit GarageBand, Ableton, Cubase, Reaper.
+
+| Weg | Was du in Logic machst | Was Icastico tut | Aufwand | Qualität |
+|---|---|---|---|---|
+| **1. MIDI-Datei** | Regionen markieren → Ablage → Exportieren → „Auswahl als MIDI-Datei“ ([Apple-Anleitung](https://support.apple.com/guide/logicpro-ipad/lpip53ffa1a7/ipados)) | liest die Noten *exakt* (Tonhöhe, Zeitpunkt, Länge), quantisiert **selbst** zu Notenwerten | M–L | Hängt am Spiel: mit Klick aufgenommen = gut, frei gespielt = viel Nacharbeit |
+| **2. MusicXML** | Im Notations-Editor markieren → „Auswahl als MusicXML“ ([Hinweis](https://www.musicxml.com/?p=5226)) | liest fertige Notation, Logic hat schon quantisiert | L (aber ohnehin geplant, siehe oben) | Logics Notensatz ist eher schlicht, Aufräumen nötig |
+| **3. Audio-Einzelspuren** (WAV) | Spuren als Audiodateien exportieren | Einstimmig → Noten (Schritt 4) | XL | Nur Einzelstimmen wie Gesang, Mehrstimmiges unzuverlässig |
+| 4. `.logicx` direkt | – | – | – | ❌ siehe oben |
+
+(Dass Logic MusicXML kann, hatte ich erst *nicht* gedacht, die Recherche hat es
+korrigiert. Genaue Menüpunkte hängen an deiner Logic-Version, bitte einmal
+nachsehen.)
+
+**Warum Weg 1 spannend ist, nicht nur als Komfort:** Die Roadmap plant
+sowieso eine Kette „Töne mit Zeitpunkten → Quantisierung → Tonart und
+Schreibweise → Stimmen → Befehle ins Modell“ (für MIDI-Keyboard und
+Audio→Noten, siehe Architektur). Eine **MIDI-Datei ist der einfachste Weg,
+diese Kette zu bauen und zu testen**: gleiche Eingabe liefert jedes Mal
+dasselbe Ergebnis, ohne Mikrofon und ohne Live-Spiel. Alles, was dort
+entsteht, nutzt später das MIDI-Keyboard und das Einsingen mit.
+**Weg 2** (MusicXML-Import) hat doppelten Nutzen: Er ist auch der Weg für
+Finale/MuseScore-Umsteiger.
+
+**Was die Umwandlung schwierig macht** (und im Import-Fenster steuerbar sein
+sollte):
+
+| Knackpunkt | Wie es gelöst werden kann |
+|---|---|
+| Gespielte Zeiten sind nie exakt | **Raster wählen** (Achtel/Sechzehntel, mit/ohne Triolen), Vorschau vor dem Übernehmen |
+| Tempo und Takt | Aus der Datei lesen (Tempo- und Taktspur). Ohne Klick aufgenommen: schwierig, Tempo schätzen oder vom Owner eintragen lassen |
+| Fis oder Ges? (MIDI kennt nur „Taste 66“) | Aus der **Tonart** ableiten; Tonart aus der Datei oder vorschlagen, Owner bestätigt |
+| Klavier: zwei Hände, mehrere Stimmen | **Trennpunkt** (z. B. ab c1 aufwärts rechte Hand); mehrere Stimmen pro System brauchen die offene Modellfrage aus Abschnitt 4 |
+| Haltepedal, überlappende Noten | Längen nach Regeln glätten (legato), Pedal ignorieren |
+| Schlagzeug | Eigene Notationsregeln nötig (Abschnitt 4), erst später |
+| Triolen, Swing | N-Tolen sind noch nicht im Modell (Roadmap „Später“) |
+| Viele Spuren | **Spuren auswählen** und jeder ein Instrument zuordnen |
+
+**Ehrliche Erwartung:** Du bekommst einen **guten Rohentwurf**, kein fertiges
+Notenbild. Wer zum Klick aufgenommen hat und sauber spielt, spart den
+größten Teil des Abtippens. Frei gespielte Klaviermitschnitte mit Pedal
+brauchen deutlich Nacharbeit (bei jeder Software, auch bei Logic selbst). Der
+Wert liegt darin, dass man **korrigiert statt neu tippt**.
+
+**Ablauf (Vorschlag):** Datei öffnen/hineinziehen → Import-Fenster mit Vorschau
+(Spuren, Instrumente, Raster, Tonart, Handtrennung) → „Übernehmen“ → neue
+Partitur. Der Import ist ein einzelner Befehl, also mit **Strg+Z** komplett
+rückgängig zu machen. Das Dateiformat `.icastico` bleibt unberührt, es wird
+nur eine normale Partitur erzeugt.
+
+**Technik (nur Richtung, kein ADR):** Eine Standard-MIDI-Datei zu lesen ist
+einfach und offen dokumentiert; Bibliotheken dafür gibt es, ein eigener
+Leser ist auch machbar. Läuft in TypeScript (Regel 7: keine Musiklogik in
+Rust), Datei lesen über die vorhandene Plattformschicht.
+
+**Fragen an den Owner:**
+
+- Nimmst du **mit Klick (Metronom)** auf oder frei? Das entscheidet über die Qualität.
+- Welche Instrumente sind der Hauptfall: Klavier, Gitarre, Gesang, alles?
+- Wichtiger zuerst: **MIDI-Spuren** oder **fertige Notation (MusicXML)** aus Logic?
+- Brauchst du den Rückweg (Icastico → MIDI → Logic)?
+- **Testdaten:** Exportiere aus einem echten Projekt von dir eine `.mid` und,
+  falls möglich, die `.musicxml` derselben Stelle (kurze Passage genügt). Echte
+  Beispiele sind mehr wert als jede Annahme von mir.
 
 ## 7. Bibliothek
 
@@ -230,7 +303,9 @@ nativ in Rust, die Musiklogik danach (Quantisieren, Schreibweise) in TypeScript.
 5. **Workstation (Schritt 2)** – Panels und Paletten lohnen sich erst, wenn es
    genug gibt, was man darin zeigen kann.
 6. **MusicXML** – spätestens vor der ersten breiten Veröffentlichung, sonst
-   haben Finale-Umsteiger keinen Weg hinein.
+   haben Finale-Umsteiger keinen Weg hinein. Dazu **MIDI-Datei-Import**
+   als erster Verbraucher der Quantisierung (Abschnitt 6, „Import aus Logic“),
+   noch vor Audio→Noten.
 7. **Audio→Noten** – Herzstück der Vision, aber das größte Risiko. Vorher
    einen kleinen Versuchsaufbau (nur Tonhöhenverlauf anzeigen), um zu sehen,
    wie gut es mit echter Stimme klappt.
