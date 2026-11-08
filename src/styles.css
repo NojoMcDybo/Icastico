@@ -2308,3 +2308,100 @@ button.lcd__cell:nth-child(3) {
 .import__name small {
   color: var(--dim);
 }
+
+/* Lyrics field (ADR 0029): docked at the bottom, glass like the other panes */
+.lyrics {
+  position: fixed;
+  z-index: 30;
+  left: 50%;
+  bottom: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(760px, calc(100vw - 32px));
+  padding: 12px 14px;
+  transform: translateX(-50%);
+  border: 1px solid var(--glass-edge);
+  border-radius: 20px;
+  background: var(--glass-bg), var(--glass-tint);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+
+.lyrics[hidden] {
+  display: none;
+}
+
+.lyrics__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lyrics__status {
+  flex: 1;
+  color: var(--dim);
+  font-size: 12px;
+}
+
+.lyrics__close {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.07);
+  color: var(--ink);
+}
+
+.lyrics__text {
+  width: 100%;
+  resize: vertical;
+  padding: 8px 10px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 12px;
+  background: rgb(0 0 0 / 0.25);
+  color: var(--ink);
+  font: inherit;
+}
+
+.lyrics__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 96px;
+  overflow-y: auto;
+}
+
+.lyrics__chip {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.08);
+  color: var(--ink);
+  transition: background 0.2s var(--ease), transform 0.3s var(--spring);
+}
+
+.lyrics__chip:active {
+  transform: scale(0.93);
+}
+
+.lyrics__chip.is-done {
+  color: var(--faint);
+  background: rgb(255 255 255 / 0.04);
+}
+
+.lyrics__chip.is-current {
+  background: rgb(117 184 255 / 0.22);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.lyrics__foot {
+  display: flex;
+  gap: 8px;
+}
+
+.is-lyric-assign .page g.note {
+  cursor: cell;
+}

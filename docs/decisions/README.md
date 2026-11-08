@@ -40,6 +40,7 @@ Was wird dadurch leichter, was schwerer?
 | 0010 | [Installer, Desktop-Verknüpfung, automatische Updates](0010-updates.md) | angenommen |
 | 0025 | [Sprachtest: Vosk im Fenster](0025-sprachtest.md) | angenommen |
 | 0027 | [Bereiche, Transponieren, mehr Zeichen, Tabulatur, Export](0027-bereich-transponieren-zeichen.md) | angenommen |
+| 0029 | [Liedtext-Feld, Bindebogen mit T, stille Vorschau-Note](0029-liedtext-feld-und-bindebogen.md) | angenommen |
 | 0028 | [MIDI und Einzelstimmen-Aufnahmen importieren (Quantisierung)](0028-midi-und-aufnahmen-importieren.md) | angenommen |
 | 0026 | [Roll-Klaviatur, Synth-Klang, Gleiten in einen Ton, Rückmeldung](0026-roll-und-rueckmeldung.md) | angenommen |
 | 0011 | [Bibliothek der Tastenbelegungen (Finale + Logic), Ziehen mit der Maus](0011-tastenbelegung-bibliothek.md) | angenommen |

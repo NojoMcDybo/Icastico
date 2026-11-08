@@ -126,10 +126,20 @@ describe('Finale-style note entry', () => {
     expect(s.message).toMatch(/gelöst/);
   });
 
-  it('T refuses different pitches with a message', () => {
+  it('T on a note followed by a different pitch makes a slur (Bindebogen), a second T takes it away', () => {
     let s = play(fresh(), '5 C D esc');
     s = play({ ...s, selection: { kind: 'event', ...VOICE, eventId: 'voice-v1-n1' } }, 'T');
-    expect(s.message).toMatch(/andere Tonhöhe/);
+    expect(s.message).toMatch(/Bindebogen/);
+    expect(s.score.parts[0]!.voices[0]!.events[0]!.marks).toEqual(['slur']);
+    expect(s.score.links).toBeUndefined();
+    s = play(s, 'T');
+    expect(s.score.parts[0]!.voices[0]!.events[0]!.marks).toBeUndefined();
+  });
+
+  it('T on the last note says there is nothing to connect', () => {
+    let s = play(fresh(), '5 C D esc');
+    s = play({ ...s, selection: { kind: 'event', ...VOICE, eventId: 'voice-v1-n2' } }, 'T');
+    expect(s.message).toMatch(/Kein Bogen möglich/);
   });
 
   it('Shift+letter adds a chord note above', () => {

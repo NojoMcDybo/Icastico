@@ -51,6 +51,7 @@ export const NOTE_SYMBOLS: readonly NoteSymbol[] = [
   { id: 'breath', group: 'phrase', label: 'Atemzeichen', glyph: '𝄒' },
   { id: 'caesura', group: 'phrase', label: 'Zäsur (kurze Pause im Fluss)', glyph: '𝄓' },
   { id: 'arpeggio', group: 'phrase', label: 'Arpeggio (Akkord gebrochen, von unten nach oben)', glyph: 'arp.' },
+  { id: 'slur', group: 'phrase', label: 'Bindebogen zur nächsten Note (Legato)', glyph: '⌒' },
 ];
 
 export const NOTE_SYMBOL_IDS: readonly string[] = NOTE_SYMBOLS.map((s) => s.id);

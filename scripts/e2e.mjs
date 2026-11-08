@@ -474,7 +474,9 @@ try {
 
   await bars.nth(3).click(); // the second single C – its neighbour is the D
   await type('t');
-  check((await page.locator('.roll__link--tie').count()) === 0 && /andere Tonhöhe/.test(await status()), 'T8: Haltebogen zu einer anderen Tonhöhe wird abgelehnt');
+  check((await page.locator('.roll__link--tie').count()) === 0 && /Bindebogen/.test(await status()) && (await page.locator('.page g.slur').count()) === 1, 'T8: zu einer anderen Tonhöhe gibt T keinen Haltebogen, sondern einen Bindebogen');
+  await type('t');
+  check((await page.locator('.page g.slur').count()) === 0, 'T8: noch einmal T löst den Bindebogen');
   await bars.nth(2).click(); // the first single C – next is the other C
   await type('t');
   check((await page.locator('.roll__link--tie').count()) === 1 && (await page.locator('.page g.tie').count()) === 1, 'T8: Haltebogen zwischen zwei gleichen Noten – in Roll und Notenschrift gezeichnet');
@@ -757,7 +759,7 @@ try {
   await type('Escape');
   await saved();
   const shaped = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Verlauf-Test.icastico'))[1].contents;
-  check(/"version": 10/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 10)');
+  check(/"version": 11/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 11)');
   await type('Control+Enter');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true', null, { timeout: 30000 });
   await page.waitForTimeout(1500);
@@ -1071,18 +1073,50 @@ try {
   await page.fill('#prompt-input', 'Am7');
   await page.click('.modal button[type="submit"]');
   await type('l');
-  await page.waitForSelector('.modal h2:text("Liedtext")');
-  await page.fill('#prompt-input', 'Hal- lo _');
-  await page.click('.modal button[type="submit"]');
-  await page.waitForFunction(() => document.querySelectorAll('.page g.harm').length === 1 && document.querySelectorAll('.page g.verse').length === 2);
+  await page.waitForSelector('.lyrics:not([hidden])');
+  await page.fill('.lyrics__text', 'Hal-lo Welt');
+  check((await page.locator('.lyrics__chip').count()) === 3 && /Silbe 1 von 3/.test(await page.locator('.lyrics__status').textContent()), 'Liedtext-Feld: der Text mit Bindestrichen wird in drei Silben zerlegt');
+  const noteAt = (i) => page.locator('.page g.note').nth(i).click({ force: true });
+  await noteAt(0);
+  check(/Silbe 2 von 3/.test(await page.locator('.lyrics__status').textContent()) && (await page.locator('.lyrics__chip.is-done').count()) === 1, 'Liedtext-Feld: nach dem Klick auf eine Note springt das Feld zur nächsten Silbe');
+  await noteAt(1);
+  await noteAt(2);
+  await page.waitForFunction(() => document.querySelectorAll('.page g.harm').length === 1 && document.querySelectorAll('.page g.verse').length === 3);
   check(/Am7/.test(await page.locator('.page g.harm').textContent()), 'Akkordsymbol Am7 erscheint über der Notenzeile');
-  check((await page.locator('.page g.verse').allTextContents()).map((t) => t.replace(/\s+/g, '')).join('|') === 'Hal|lo', 'Liedtext „Hal-lo“ steht unter den ersten beiden Noten');
+  check((await page.locator('.page g.verse').allTextContents()).map((t) => t.replace(/\s+/g, '')).join('|') === 'Hal|lo|Welt', 'Liedtext „Hal-lo Welt“ steht unter den drei Noten, jede Silbe nach einem Klick');
+  check(/Alle Silben sind zugeordnet/.test(await page.locator('.lyrics__status').textContent()), 'Liedtext-Feld: nach der letzten Silbe meldet es, dass alles zugeordnet ist');
   await page.screenshot({ path: join(outDir, 'leadsheet.png') });
   await saved();
   const leadFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Leadsheet-Test.icastico'))[1].contents;
   check(/"lyric": "Hal-"/.test(leadFile) && /"text": "Am7"/.test(leadFile), 'Liedtext und Akkordsymbol stehen in der gespeicherten Datei');
+  await page.click('.lyrics__close');
   await type('Control+z');
-  check((await page.locator('.page g.verse').count()) === 0, 'Rückgängig nimmt den Liedtext zurück');
+  check((await page.locator('.page g.verse').count()) === 2, 'Rückgängig nimmt die zuletzt gesetzte Silbe zurück');
+  await type('Control+z', 'Control+z');
+  check((await page.locator('.page g.verse').count()) === 0, 'Rückgängig nimmt den ganzen Liedtext Silbe für Silbe zurück');
+  await page.locator('.page g.note').first().click({ force: true }); // the field is closed: the click only selects
+  await type('l');
+  await page.click('.lyrics__foot .pill:has-text("alle setzen")');
+  await page.waitForFunction(() => document.querySelectorAll('.page g.verse').length === 3);
+  check((await page.locator('.page g.verse').allTextContents()).map((t) => t.replace(/\s+/g, '')).join('|') === 'Hal|lo|Welt', 'Liedtext-Feld: „Ab gewählter Note alle setzen“ legt den ganzen Text auf einmal unter die Noten');
+  await page.click('.lyrics__close');
+
+  // ── Punktierung per Ziffernblock-Komma, Bindebogen mit T ──
+  await newScore('Bogen-Test');
+  await type('5', 'c', 'd', 'Escape');
+  await page.locator('.page g.note').first().click({ force: true });
+  await type('t');
+  check((await page.locator('.page g.slur').count()) === 1 && /Bindebogen/.test(await status()), 'T verbindet die markierte Note mit der folgenden anderen Tonhöhe durch einen Bindebogen');
+  await type('t');
+  check((await page.locator('.page g.slur').count()) === 0, 'T nochmal löst den Bindebogen');
+  await page.locator('.page g.note').nth(1).click({ force: true });
+  await type('NumpadDecimal');
+  check((await page.locator('.page g.dots').count()) >= 1, 'Das Komma des Ziffernblocks punktiert die markierte Note');
+  await newScore('Haltebogen-Test');
+  await type('5', 'c', 'c', 'Escape');
+  await page.locator('.page g.note').first().click({ force: true });
+  await type('t');
+  check((await page.locator('.page g.tie').count()) === 1 && (await page.locator('.page g.slur').count()) === 0, 'T bei gleicher Tonhöhe macht einen Haltebogen (durchgehende Note), keinen Bindebogen');
 
   // ── Triolen (Alt+9 in der Finale-Belegung) ──
   await newScore('Triolen-Test');
@@ -1183,7 +1217,7 @@ try {
   await page.screenshot({ path: join(outDir, 'zeichen.png') });
   await saved();
   const signsFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Zeichen-Test.icastico'))[1].contents;
-  check(/"version": 10/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 10)');
+  check(/"version": 11/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 11)');
   await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
   await page.click('.transport__play');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');

@@ -210,6 +210,8 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
     let fifths = 0;
     let measureStart: Fraction = ZERO;
     const raws = new Map<string, Raw[]>(); // "staff:voice" → notes
+    /** Slurs that have started (by number): they become the sign "slur" if they stop on the very next note of the voice. */
+    const openSlurs = new Map<string, { key: string; raw: Raw; index: number }>();
     const comingMarks: string[] = []; // dynamics and wedges written before the note they belong to
     let voltaOpen = 0;
     let voltaClose = false;
@@ -338,8 +340,17 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
           const marks = [...comingMarks.splice(0), ...notationMarks(el, () => skip('Zeichen, die es in der Bibliothek nicht gibt'))].reduce<string[]>((list, id) => (list.includes(id) ? list : toggleNoteSymbol(list, id)), []);
           const raw: Raw = { onset: start, duration: lt(start, finish) ? sub(finish, start) : frac(1, 64), pitches: [pitch], tieStart: [tieStart], tieStop: [tieStop], lyric: syllableOf(el), marks };
           const list = raws.get(key) ?? [];
+          const slurs = childrenNamed(el, 'notations').flatMap((n) => childrenNamed(n, 'slur'));
+          for (const sl of slurs.filter((x) => x.attrs.type === 'stop')) {
+            const open = openSlurs.get(sl.attrs.number ?? '1');
+            openSlurs.delete(sl.attrs.number ?? '1');
+            if (!open) continue;
+            if (open.key === key && list.length === open.index + 1) open.raw.marks.splice(0, open.raw.marks.length, ...toggleNoteSymbol(open.raw.marks, 'slur'));
+            else skip('Bögen über mehrere Noten');
+          }
           list.push(raw);
           raws.set(key, list);
+          for (const sl of slurs.filter((x) => x.attrs.type === 'start')) openSlurs.set(sl.attrs.number ?? '1', { key, raw, index: list.length - 1 });
           last = raw;
         } else if (el.name === 'barline') {
           const repeat = child(el, 'repeat');

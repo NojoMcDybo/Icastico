@@ -817,11 +817,19 @@ function toggleLink(s: EditorState, kind: LinkKind): EditorState {
   return { ...s, score: withLinks(s.score, links), message: `${name} gesetzt.` };
 }
 
+/**
+ * T: a bow to the next note. Equal pitches right after each other make a tie (one held note);
+ * anything else makes a slur (Bindebogen, legato) – the sign "slur" on the first note.
+ */
 function tie(s: EditorState): EditorState {
   const t = target(s);
   if (!t) return say(s, NO_NOTE);
   const end = eventEnd(t.event);
-  if (getVoice(s.score, t.ref).voice.events.some((e) => eq(e.onset, end))) return toggleLink(s, 'tie');
+  const events = getVoice(s.score, t.ref).voice.events;
+  const next = events[events.findIndex((e) => e.id === t.event.id) + 1];
+  const adjacent = next !== undefined && eq(next.onset, end);
+  if (adjacent && linkSources(s, t.event).some((from) => next.tones.some((to) => midiOf(to.pitch) === midiOf(from.pitch)))) return toggleLink(s, 'tie');
+  if (next && (adjacent || !(s.caret && eq(s.caret.time, end)))) return toggleMark(s, NOTE_SYMBOLS.findIndex((x) => x.id === 'slur'));
   if (s.caret && eq(s.caret.time, end)) {
     const pendingTie = !s.input.pendingTie;
     return {
@@ -830,7 +838,7 @@ function tie(s: EditorState): EditorState {
       message: pendingTie ? 'Haltebogen: Die nächste Note gleicher Tonhöhe wird angebunden.' : 'Haltebogen aufgehoben.',
     };
   }
-  return say(s, 'Kein Haltebogen möglich: Es folgt keine Note.');
+  return say(s, 'Kein Bogen möglich: Es folgt keine Note.');
 }
 
 const slide = (s: EditorState): EditorState => toggleLink(s, 'slide');
@@ -937,6 +945,18 @@ export function setLyrics(s: EditorState, text: string): EditorState {
     selection: selectEvent(t.ref, t.event),
     message: extra > 0 ? `${extra} Silbe(n) passen nicht mehr: Es gibt keine weiteren Noten.` : null,
   };
+}
+
+/** Puts one syllable on one note ("_" or empty takes the syllable away) – the lyrics field's click on a note. */
+export function setLyricOf(s: EditorState, ref: VoiceRef, eventId: string, syllable: string): EditorState {
+  const score = updateEvents(s.score, ref, (events) =>
+    events.map((e) => {
+      if (e.id !== eventId) return e;
+      const { lyric: _old, ...rest } = e;
+      return syllable && syllable !== '_' ? { ...rest, lyric: syllable } : rest;
+    }),
+  );
+  return { ...s, score };
 }
 
 /** Time a chord symbol typed now belongs to: where the next note goes, else the selected note. */

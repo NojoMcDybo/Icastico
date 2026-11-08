@@ -185,6 +185,16 @@ export function exportMusicXml(score: Score, appVersion = ''): ExportResult {
           if (e.marks?.some((x) => x === 'cresc' || x === 'dim')) wedgeStops.add(voice.events[hairpinEnd(voice.events, k)]!.id);
         });
 
+        // A slur sign on a note: the slur starts on its last drawn piece and stops on the first piece of the next note.
+        const slurs = { start: new Set<string>(), stop: new Set<string>() };
+        voice.events.forEach((e, k) => {
+          const to = voice.events[k + 1];
+          if (to && e.marks?.includes('slur')) {
+            slurs.start.add(e.id);
+            slurs.stop.add(to.id);
+          }
+        });
+
         items.forEach((item, i) => {
           const start = item.kind === 'measureRest' ? m.start : item.onset;
           const real = item.kind === 'measureRest' ? sub(m.end, m.start) : realValue(item.duration, item.tuplet);
@@ -196,7 +206,7 @@ export function exportMusicXml(score: Score, appVersion = ''): ExportResult {
             const xml = harmonyXml(c.text, units(sub(c.at, start))) ?? `<direction><direction-type><words>${esc(c.text)}</words></direction-type></direction>`;
             out.push(`      ${xml}`);
           }
-          out.push(...itemToXml(item, i, brackets, vi + 1, staffTag, octaveShift, voice, continues, units, length, tieOut, tieIn, wedgeStops).map((l) => `      ${l}`));
+          out.push(...itemToXml(item, i, brackets, vi + 1, staffTag, octaveShift, voice, continues, units, length, tieOut, tieIn, wedgeStops, slurs).map((l) => `      ${l}`));
         });
       });
       const rightBar = [
@@ -240,6 +250,7 @@ function itemToXml(
   tieOut: ReadonlySet<string>,
   tieIn: ReadonlySet<string>,
   wedgeStops: ReadonlySet<string>,
+  slurs: { readonly start: ReadonlySet<string>; readonly stop: ReadonlySet<string> },
 ): string[] {
   if (item.kind === 'measureRest') {
     return [`<note><rest measure="yes"/><duration>${measureUnits}</duration><voice>${voiceNo}</voice>${staffTag}</note>`];
@@ -266,7 +277,8 @@ function itemToXml(
     else if (sign === 'cresc') before.push(direction('<wedge type="crescendo"/>', 'below'));
     else if (sign === 'dim') before.push(direction('<wedge type="diminuendo"/>', 'below'));
   }
-  const notationSigns = signs
+  const slurXml = `${!item.tiedFromPrevious && slurs.stop.has(item.eventId) ? '<slur type="stop" number="1"/>' : ''}${!item.tiedToNext && slurs.start.has(item.eventId) ? '<slur type="start" number="1"/>' : ''}`;
+  const notationSigns = slurXml + signs
     .map((sign) => (ARTICULATION_XML[sign] ? `<articulations><${ARTICULATION_XML[sign]}/></articulations>` : ORNAMENT_XML[sign] ? `<ornaments><${ORNAMENT_XML[sign]}/></ornaments>` : sign === 'fermata' ? '<fermata/>' : sign === 'arpeggio' ? '<arpeggiate/>' : ''))
     .join('');
   return [...before, ...item.tones.map((tone, ti) => {

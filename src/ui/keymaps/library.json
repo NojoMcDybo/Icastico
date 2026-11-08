@@ -54,7 +54,7 @@
           "title": "Punktierung",
           "command": "input.dot",
           "finale": { "keys": ["Period"], "source": "doku", "note": "In der Eingabe gilt der Punkt für die nächste Note (Annahme), sonst für die ausgewählte." },
-          "logic": { "keys": ["0"], "source": "doku", "note": "Logic: „nächste zwei Noten punktiert“; Icastico punktiert die nächste Note." }
+          "logic": { "keys": ["0", "Period"], "source": "doku", "note": "Logic: „nächste zwei Noten punktiert“; Icastico punktiert die nächste Note. Das Komma des Ziffernblocks punktiert auch hier." }
         },
         {
           "id": "input.chordNote",
@@ -182,7 +182,7 @@
         },
         {
           "id": "edit.tie",
-          "title": "Haltebogen zur nächsten Note gleicher Tonhöhe (nochmal: lösen)",
+          "title": "Bogen zur nächsten Note: bei gleicher Tonhöhe ein Haltebogen (eine durchgehende Note), sonst ein Bindebogen (nochmal: lösen)",
           "command": "edit.tie",
           "finale": { "keys": ["T"], "source": "doku" },
           "logic": { "keys": ["Shift+T"], "source": "icastico", "note": "T ist in Logic die Taste für Fis." }
@@ -528,9 +528,9 @@
         },
         {
           "id": "text.lyrics",
-          "title": "Liedtext ab der gewählten Note eingeben",
+          "title": "Liedtext-Feld: Text mit Bindestrichen eintippen, dann Silbe und Noten anklicken",
           "command": "text.lyrics",
-          "finale": { "keys": ["L"], "source": "icastico", "note": "Eine Silbe pro Note, Bindestrich am Ende = das Wort geht weiter, _ = Note ohne Silbe." },
+          "finale": { "keys": ["L"], "source": "icastico", "note": "Silbe im Feld anklicken, dann die Noten der Reihe nach: jede bekommt die Silbe, danach springt das Feld zur nächsten. „_“ = Note ohne Silbe; „Ab gewählter Note alle setzen“ legt den Text auf einmal darunter." },
           "logic": { "keys": ["L"], "source": "icastico" }
         },
         {

@@ -4,7 +4,8 @@
  *
  * Rendering is skipped when only caret/selection changed (decorate only).
  */
-import { type CommandId, chordSymbolText, dropBarSign, dropNoteSign, eraseBarSign, eraseNoteSign, ghostPitches, signsAtFocus, lyricsText, newScoreState, runCommand, setChordSymbol, setLyrics } from '../core/editor/commands';
+import { LyricsPanel } from './lyricsPanel';
+import { type CommandId, chordSymbolText, dropBarSign, dropNoteSign, eraseBarSign, eraseNoteSign, ghostPitches, signsAtFocus, lyricsText, newScoreState, runCommand, setChordSymbol, setLyricOf, setLyrics } from '../core/editor/commands';
 import { demoScore } from '../core/demo';
 import { History } from '../core/editor/history';
 import { type EditorState, type VoiceRef, allVoiceRefs, createEditorState, getVoice, inputLength, staffCenter } from '../core/editor/state';
@@ -199,7 +200,6 @@ export class Workstation {
   private readonly transport: Transport;
   /** What was last heard for editing feedback (the score and the preview note), to hear only what changed. */
   private heardScore: Score | null = null;
-  private heardGhost = '';
   private lastAudition = 0;
   /** Events drawn blue because they sound right now, and the page nodes of the events (per engraving). */
   private lastRedrawMs = 0;
@@ -212,6 +212,8 @@ export class Workstation {
   /** A placed sign that was clicked: Backspace takes it away, dragging moves it. */
   private selectedSign: SignDrag | null = null;
   private litEvents = new Set<string>();
+  /** The lyrics field: type the text, then click syllable and notes (ADR 0029). */
+  private readonly lyrics: LyricsPanel;
   private eventNodes: { readonly result: MeiResult; readonly nodes: Map<string, Element[]> } | null = null;
   private readonly spanCache = new WeakMap<Score, { readonly id: string; readonly a: number; readonly b: number }[]>();
   private loop = false;
@@ -291,6 +293,15 @@ export class Workstation {
       drag: (kind, index, glyph, e) => this.beginSignDrag(kind === 'note' ? { kind, glyph, id: NOTE_SYMBOLS[index]!.id } : { kind, glyph, id: BAR_SIGNS[index]!.id }, e),
     });
     document.body.append(this.symbols.el);
+    this.lyrics = new LyricsPanel({
+      existingText: () => lyricsText(this.state) ?? '',
+      applyAll: (text) => {
+        if (!text) return;
+        this.history.apply(setLyrics(this.state, text));
+        this.update();
+      },
+    });
+    document.body.append(this.lyrics.el);
     this.transport = new Transport(el.transport, {
       play: () => this.togglePlay(),
       stop: () => (this.player.active ? this.player.stop() : this.seek(ZERO)),
@@ -545,7 +556,7 @@ export class Workstation {
         void this.exportPdf([this.history.committed.score], this.history.committed.score.title);
         return;
       case 'text.lyrics':
-        void this.editLyrics();
+        this.lyrics.toggle();
         return;
       case 'text.chord':
         void this.editChord();
@@ -955,23 +966,6 @@ export class Workstation {
       return getVoice(s.score, sel).voice.events.find((e) => e.id === sel.eventId)?.onset ?? ZERO;
     }
     return ZERO;
-  }
-
-  /** Lyrics from the selected note on, typed as one line – an undoable change (ADR 0019). */
-  private async editLyrics(): Promise<void> {
-    const start = lyricsText(this.state);
-    if (start === null) {
-      this.history.apply({ ...this.state, message: 'Erst eine Note auswählen, dann L drücken.' });
-      return this.update();
-    }
-    const text = await promptText({
-      title: 'Liedtext',
-      label: 'Eine Silbe pro Note. Bindestrich am Ende: das Wort geht weiter. „_“: Note ohne Silbe.',
-      value: start,
-      confirm: 'Übernehmen',
-    });
-    if (text !== null) this.history.apply(setLyrics(this.state, text));
-    this.update();
   }
 
   /** The chord symbol at the caret / selected note – an undoable change (ADR 0019). */
@@ -1479,7 +1473,10 @@ export class Workstation {
       ? { kind: 'event' as const, ...voice, eventId: ref.eventId, ...(ref.toneId ? { toneId: ref.toneId } : {}) }
       : { kind: 'gap' as const, ...voice, time: ref.onset };
     const caret = s.caret ? { ...voice, time: ref.onset } : null;
-    this.history.apply({ ...s, selection, caret, input: { ...s.input, ghost: null }, message: null });
+    const base = { ...s, selection, caret, input: { ...s.input, ghost: null }, message: null };
+    // With the lyrics field open and a syllable chosen, the click also puts that syllable on the note.
+    const syllable = ref.eventId && this.lyrics.assigning ? this.lyrics.take() : null;
+    this.history.apply(syllable !== null && ref.eventId ? { ...setLyricOf(base, voice, ref.eventId, syllable), message: syllable === '_' ? 'Silbe entfernt.' : `Silbe „${syllable}“ gesetzt.` } : base);
     this.update();
   }
 
@@ -2120,20 +2117,14 @@ export class Workstation {
     this.litEvents = want;
   }
 
-  /** Plays the notes the last change touched: a pitch that was changed (also by the arrow keys or while dragging), a new note, a preview note. */
+  /** Plays the notes the last change touched: a pitch that was changed (also by the arrow keys or while dragging) or a new note – not the preview note. */
   private auditionEdits(): void {
     const s = this.state;
     const before = this.heardScore;
-    const ghost = s.input.ghost ? s.input.ghost.map(pitchToString).join(' ') : '';
-    const ghostChanged = ghost !== this.heardGhost;
     this.heardScore = s.score;
-    this.heardGhost = ghost;
     if (this.empty || this.player.active || !before || performance.now() - this.lastAudition < 40) return;
     const sel = s.selection;
-    if (ghostChanged && s.input.ghost && s.caret) {
-      const part = s.score.parts.find((p) => p.id === s.caret!.partId);
-      if (part) return this.hear(s.input.ghost.map(midiOf), part.instrument);
-    }
+    // The preview note at the input cursor is silent while its pitch is changed; it sounds when Enter sets it (a new note).
     if (s.score === before || sel?.kind !== 'event') return;
     // A selection may point at a voice that does not exist (yet / any more) in one of the two scores.
     const find = (score: Score) => {

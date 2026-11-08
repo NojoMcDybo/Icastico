@@ -328,6 +328,16 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
             const notes = ev.tones.map((t) => '#' + (first.first.tones.length > 1 ? chordNoteId(first.first, t) : first.first.id));
             list.push(`<arpeg xml:id="arp-${ev.id}" staff="${ref.staffN}" plist="${notes.join(' ')}" order="up"/>`);
           }
+          else if (mark === 'slur') {
+            // A slur runs from this note to the next one of the voice (a tie is a link, a slur is this sign).
+            const to = voice.events[voice.events.indexOf(ev) + 1];
+            const end = to && pieces.get(to.id);
+            if (end && elements.get(end.first.id)) {
+              const target = first.lastMeasure === first.firstMeasure ? list : (controls.get(first.lastMeasure) ?? []);
+              target.push(`<slur xml:id="slr-${ev.id}" staff="${elements.get(first.last.id)!.staffN}" startid="#${first.last.id}" endid="#${end.first.id}"/>`);
+              controls.set(first.lastMeasure, target);
+            }
+          }
           else if (mark === 'cresc' || mark === 'dim') {
             // The hairpin runs to the next note with a dynamic (else to the last note of the voice).
             const later = voice.events.filter((e) => compare(e.onset, ev.onset) > 0);

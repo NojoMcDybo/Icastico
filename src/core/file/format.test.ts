@@ -13,6 +13,7 @@ import version6File from './fixtures/version6.icastico?raw';
 import version7File from './fixtures/version7.icastico?raw';
 import version8File from './fixtures/version8.icastico?raw';
 import version9File from './fixtures/version9.icastico?raw';
+import version10File from './fixtures/version10.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -368,5 +369,23 @@ describe('format version 10: groups and more signs', () => {
     expect(parseScoreFile(serializeScore(score, '0')).groups).toEqual(score.groups);
     expect(() => parseScoreFile(serializeScore({ ...score, groups: [{ symbol: 'brace', parts: [a!] }] }, '0'))).toThrow(/mindestens zwei/);
     expect(() => parseScoreFile(serializeScore({ ...score, groups: [{ symbol: 'bracket' as never, parts: ['nope', a!] }] }, '0'))).toThrow(/mindestens zwei/);
+  });
+});
+
+describe('format version 11: the slur sign', () => {
+  it('opens files saved by Icastico 0.19.0 (format version 10) and saves them as the current version', () => {
+    const score = parseScoreFile(version10File);
+    expect(fileVersion(version10File)).toBe(10);
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  it('keeps the slur sign on a note', () => {
+    const base = parseScoreFile(version10File);
+    const part = base.parts[0]!;
+    const voice = part.voices[0]!;
+    const score: Score = { ...base, parts: [{ ...part, voices: [{ ...voice, events: voice.events.map((e, i) => (i === 0 ? { ...e, marks: ['slur'] } : e)) }, ...part.voices.slice(1)] }, ...base.parts.slice(1)] };
+    expect(parseScoreFile(serializeScore(score, '0')).parts[0]!.voices[0]!.events[0]!.marks).toEqual(['slur']);
   });
 });

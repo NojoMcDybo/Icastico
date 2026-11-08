@@ -133,6 +133,36 @@ describe('MusicXML export (round trip through the importer)', () => {
   });
 });
 
+describe('slurs (Bindebogen, ADR 0029)', () => {
+  it('are written as start and stop on the two notes and read back as the sign', () => {
+    const base = emptyScore();
+    const voice = base.parts[0]!.voices[0]!;
+    const events = parseLine('C5:1/4 D5:1/4 E5:1/4 F5:1/4', 'e').map((e, i) => (i === 0 || i === 1 ? { ...e, marks: ['slur'] } : e));
+    const score: Score = { ...base, parts: base.parts.map((p, i) => (i === 0 ? { ...p, voices: [{ ...voice, events }] } : p)) };
+    const { xml, notes } = exportMusicXml(score);
+    expect(notes).toEqual([]);
+    expect(xml.match(/<slur type="start" number="1"\/>/g)).toHaveLength(2);
+    expect(xml.match(/<slur type="stop" number="1"\/>/g)).toHaveLength(2);
+    const back = importMusicXml(xml);
+    expect(back.notes).toEqual([]);
+    expect(back.score.parts[0]!.voices[0]!.events.map((e) => e.marks ?? [])).toEqual([['slur'], ['slur'], [], []]);
+    expect(validateScore(back.score)).toEqual([]);
+  });
+
+  it('a longer slur from another program is reported, not drawn wrongly', () => {
+    const xml = exportMusicXml(emptyScore()).xml;
+    expect(xml).not.toContain('<slur');
+    const long = `<?xml version="1.0"?><score-partwise><part-list><score-part id="P1"><part-name>Gesang</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time></attributes>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>1</duration><notations><slur type="start" number="1"/></notations></note>
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>1</duration></note>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>1</duration><notations><slur type="stop" number="1"/></notations></note>
+      <note><rest/><duration>1</duration></note></measure></part></score-partwise>`;
+    const back = importMusicXml(long);
+    expect(back.notes.join(' ')).toMatch(/Bögen über mehrere Noten/);
+    expect(back.score.parts[0]!.voices[0]!.events.some((e) => e.marks?.includes('slur'))).toBe(false);
+  });
+});
+
 describe('barlines, breath signs and groups survive the MusicXML round trip (ADR 0027)', () => {
   it('double bar, final bar, tempo words, breath, caesura, arpeggio and a bracket', () => {
     const base = emptyScore();

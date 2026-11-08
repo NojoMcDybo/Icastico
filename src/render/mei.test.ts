@@ -413,4 +413,19 @@ describe('barlines, breath signs and groups (ADR 0027)', () => {
     expect(pages[0]).toMatch(/class="breath"/);
     expect(pages[0]).toMatch(/class="arpeg"/);
   });
+
+  it('draws a slur from a note with the sign to the next note, also over a barline (ADR 0029)', () => {
+    const base = score();
+    const marked = {
+      ...base,
+      parts: base.parts.map((p) =>
+        p.id !== 'voice' ? p : { ...p, voices: p.voices.map((v) => ({ ...v, events: v.events.map((e, i) => (i === 0 || i === 3 ? { ...e, marks: ['slur'] } : e)) })) },
+      ),
+    };
+    const { mei } = scoreToMei(marked);
+    expect(mei.match(/<slur /g)).toHaveLength(2);
+    const { log, pages } = engraver.engrave(mei);
+    expect(log).toBe('');
+    expect(pages[0]!.match(/class="slur"/g)).toHaveLength(2);
+  });
 });

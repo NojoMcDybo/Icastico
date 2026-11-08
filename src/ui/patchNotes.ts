@@ -12,6 +12,14 @@ export interface PatchNote {
 /** Newest first. Keep each line to one short sentence. */
 export const PATCH_NOTES: readonly PatchNote[] = [
   {
+    version: '0.20.0',
+    items: [
+      'Liedtext-Feld (Taste L): den Text mit Bindestrichen eintippen, eine Silbe wählen und die Noten der Reihe nach anklicken – das Feld springt jedes Mal zur nächsten Silbe.',
+      'Taste T: bei gleicher Tonhöhe ein Haltebogen (eine durchgehende Note), bei anderer Tonhöhe ein Bindebogen zur nächsten Note.',
+      'Die Vorschau-Note klingt beim Verstellen mit den Pfeiltasten nicht mehr; erst Enter setzt sie und lässt sie hören. Das Komma des Ziffernblocks punktiert auch in der Logic-Belegung.',
+    ],
+  },
+  {
     version: '0.19.0',
     items: [
       'Import aus Logic: MIDI-Dateien werden zur Partitur – du wählst Spuren, Instrument, Taktart, Tempo und Tonart, die Noten werden auf Notenwerte gerundet (auch Triolen).',

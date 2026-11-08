@@ -36,13 +36,16 @@ describe('ties', () => {
     expect(cmd(tied, 'edit.tie').score.links).toBeUndefined();
   });
 
-  it('are refused for other pitches and for notes that do not follow directly', () => {
-    const m = select(melody(), 1);
-    expect(cmd(m, 'edit.tie').message).toMatch(/Kein Haltebogen möglich/); // gap before D5
+  it('T makes a slur instead of a tie for other pitches and for notes after a gap', () => {
+    const m = cmd(select(melody(), 1), 'edit.tie'); // gap before D5
+    expect(m.message).toMatch(/Bindebogen/);
+    expect(m.score.links).toEqual(melody().score.links);
+    expect(m.score.parts[0]!.voices[0]!.events[1]!.marks).toEqual(['slur']);
     const twoPitches = cmd(cmd(cmd(fresh(), 'input.note', 0), 'input.note', 1), 'edit.escape');
     const other = cmd(select(twoPitches, 0), 'edit.tie');
-    expect(other.message).toMatch(/andere Tonhöhe/);
+    expect(other.message).toMatch(/Bindebogen/);
     expect(other.score.links).toBeUndefined();
+    expect(other.score.parts[0]!.voices[0]!.events[0]!.marks).toEqual(['slur']);
   });
 
   it('one undo step sets them, one takes them away', () => {
