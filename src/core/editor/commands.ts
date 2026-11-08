@@ -19,6 +19,7 @@ import { emptyScore } from '../templates';
 import {
   type Caret,
   type EditorState,
+  type InputSettings,
   type Selection,
   type VoiceRef,
   allVoiceRefs,
@@ -388,8 +389,36 @@ function enterNote(s0: EditorState, stepIndex: number): EditorState {
 function enterPitchClass(s0: EditorState, pc: number): EditorState {
   const s = ensureCaret(s0);
   if (!s.caret) return say(s, 'Die Partitur hat keine Stimme.');
-  const { step, alter } = spellPitchClass(pc, keyAt(s.score, s.caret.time));
+  // A sharp / flat typed before the key moves the pitch by a semitone.
+  const { step, alter } = spellPitchClass((((pc + (s.input.nextAlter ?? 0)) % 12) + 12) % 12, keyAt(s.score, s.caret.time));
   return enterPitch(s, step, alter);
+}
+
+/** What was set for "the next note only" is used up. */
+function usedUp(input: InputSettings): InputSettings {
+  const { nextAlter: _a, octaveShift: _o, ...rest } = input;
+  return rest;
+}
+
+/** Sharp or flat for the next note (typed before it); the same key again takes it back. */
+function nextAccidental(s0: EditorState, delta: 1 | -1): EditorState {
+  const s = ensureCaret(s0);
+  if (!s.caret) return say(s, 'Die Partitur hat keine Stimme.');
+  if (s.input.nextAlter === delta) {
+    const { nextAlter: _off, ...rest } = s.input;
+    return { ...s, input: rest, message: 'Vorzeichen für die nächste Note aufgehoben.' };
+  }
+  return { ...s, input: { ...s.input, nextAlter: delta }, message: delta > 0 ? 'Die nächste Note bekommt ein Kreuz.' : 'Die nächste Note bekommt ein B.' };
+}
+
+/** The next note is moved up or down by octaves from where it would land (the nearest one to the note before). */
+function nextOctave(s0: EditorState, delta: number): EditorState {
+  const s = ensureCaret(s0);
+  if (!s.caret) return say(s, 'Die Partitur hat keine Stimme.');
+  const shift = Math.max(-3, Math.min(3, (s.input.octaveShift ?? 0) + delta));
+  const text = shift === 0 ? 'Die nächste Note kommt in der gewohnten Oktave.' : `Die nächste Note kommt ${Math.abs(shift)} ${Math.abs(shift) === 1 ? 'Oktave' : 'Oktaven'} ${shift > 0 ? 'höher' : 'tiefer'}.`;
+  const { octaveShift: _old, ...rest } = s.input;
+  return { ...s, input: shift === 0 ? rest : { ...rest, octaveShift: shift }, message: text };
 }
 
 const validMidi = (n: number): boolean => Number.isInteger(n) && n >= 0 && n <= 127;
@@ -470,10 +499,12 @@ function enterPitch(s0: EditorState, step: Pitch['step'], alterOverride: number 
   const s = ensureCaret(s0);
   const caret = s.caret;
   if (!caret) return say(s, 'Die Partitur hat keine Stimme.');
-  if (s.input.chord) return enterChordPitch(s, caret, step, alterOverride);
-  const alter = alterOverride ?? keyAlteration(keyAt(s.score, caret.time), step);
-  // A MIDI key names its octave; letter keys take the nearest one.
-  const pitch = exactMidi !== undefined ? { step, alter, octave: Math.floor(exactMidi / 12) - 1 } : nearestOctave(step, alter, referencePitch(s, caret));
+  const typed = alterOverride ?? s.input.nextAlter ?? null; // a sharp / flat typed before the letter
+  if (s.input.chord) return enterChordPitch(s, caret, step, typed);
+  const alter = typed ?? keyAlteration(keyAt(s.score, caret.time), step);
+  // A MIDI key names its octave; letter keys take the nearest one (moved by the octaves asked for).
+  const near = exactMidi !== undefined ? { step, alter, octave: Math.floor(exactMidi / 12) - 1 } : nearestOctave(step, alter, referencePitch(s, caret));
+  const pitch = exactMidi !== undefined ? near : { ...near, octave: near.octave + (s.input.octaveShift ?? 0) };
   const length = inputLength(s.input);
   const insert = s.input.insert;
   const prev = getVoice(s.score, caret).voice.events.find((e) => eq(eventEnd(e), caret.time));
@@ -499,7 +530,7 @@ function enterPitch(s0: EditorState, step: Pitch['step'], alterOverride: number 
     selection,
     nextId,
     caret: { ...caret, time: add(caret.time, length) },
-    input: { ...s.input, pendingTie: false },
+    input: { ...usedUp(s.input), pendingTie: false },
     message: null,
   };
 }
@@ -1009,6 +1040,9 @@ export const COMMANDS = {
   'mark.bar': { title: 'Zeichen am Takt (Wiederholung, Klammer, Segno, Coda, Sprung)', run: toggleBarSign },
   'edit.tab': { title: 'Tabulatur an/aus', run: toggleTab },
   'input.tuplet': { title: 'Triolen / Quintolen / Septolen', run: toggleTuplet },
+  'input.nextSharp': { title: 'Kreuz für die nächste Note', run: (s) => nextAccidental(s, 1) },
+  'input.nextFlat': { title: 'B für die nächste Note', run: (s) => nextAccidental(s, -1) },
+  'input.octave': { title: 'Oktave für die nächste Note', run: nextOctave },
   'input.length': { title: 'Notenwert (Ziffernblock)', run: inputLengthKey },
   'input.repeat': { title: 'Vorschau-Note setzen (Finale-Ziffernblock)', run: commitGhost },
   'ghost.step': { title: 'Vorschau-Note eine Stufe höher/tiefer', run: ghostStep },

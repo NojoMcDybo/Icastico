@@ -22,7 +22,9 @@ import { pdfDialog } from './pdfDialog';
 import { type PaletteKind, SymbolPalette } from './symbolPalette';
 import { BAR_SIGNS, NOTE_SYMBOLS, barSign, noteSymbol, voltaNumber } from '../core/symbols';
 import { type PlayMap, playMapOf } from '../core/playOrder';
-import { scoresToPdf } from './pdfExport';
+import { printPages, scoresToPdf } from './pdfExport';
+import { quantizeEvents } from '../core/editor/quantizeOp';
+import type { Subdivision } from '../core/import/quantize';
 import { exportMusicXml, type ExportResult } from '../core/export/musicxml';
 import { exportMidi } from '../core/export/midi';
 import type { ExportChoice } from './libraryHome';
@@ -74,7 +76,7 @@ import {
 } from './lanes';
 import { Thumbnails } from './thumbnails';
 import type { UpdateChecker } from './updates';
-import { loadRollSynth, saveRollSynth, loadNewScoreDefaults, loadPdfSetup, loadView, savePdfSetup, saveKeymapPreset, saveLastOpened, saveNewScoreDefaults, saveView } from './preferences';
+import { loadRollSynth, saveRollSynth, loadNewScoreDefaults, loadPdfSetup, loadView, savePdfSetup, saveKeymapPreset, saveLastOpened, saveNewScoreDefaults, saveView, loadMetronome, saveMetronome, loadZoom, saveZoom, ZOOM_MAX, ZOOM_MIN } from './preferences';
 import { scoreDialog } from './scoreDialog';
 import { comboOf, numpadComboOf } from './keys';
 import { type Keymap, type PresetId, type UiCommandId, buildKeymap, findBinding, KEY_LIBRARY, PRESETS } from './keymaps/library';
@@ -217,6 +219,11 @@ export class Workstation {
   private eventNodes: { readonly result: MeiResult; readonly nodes: Map<string, Element[]> } | null = null;
   private readonly spanCache = new WeakMap<Score, { readonly id: string; readonly a: number; readonly b: number }[]>();
   private loop = false;
+  /** The metronome click during playback (remembered). */
+  private metronome = loadMetronome();
+  /** Size of the notation in percent. */
+  private zoom = loadZoom();
+  private renderedZoom = 0;
   /** Where playback starts and where it is: follows the selection while stopped, the clock while playing. */
   private playPos: Fraction = ZERO;
   /** Which views are shown how (per staff and lane); remembered per score. */
@@ -288,6 +295,7 @@ export class Workstation {
         this.renderStatus();
       },
     }, this.synth);
+    this.player.setMetronome(this.metronome);
     this.symbols = new SymbolPalette({
       insert: (kind, index) => this.insertSign(kind, index),
       drag: (kind, index, glyph, e) => this.beginSignDrag(kind === 'note' ? { kind, glyph, id: NOTE_SYMBOLS[index]!.id } : { kind, glyph, id: BAR_SIGNS[index]!.id }, e),
@@ -313,6 +321,7 @@ export class Workstation {
         this.player.setLoop(this.loop);
         return this.loop;
       },
+      toggleMetronome: () => this.flipMetronome(),
       setTempo: (bpm) => this.setTempo(bpm),
       beginTempoDrag: () => this.history.beginGesture(),
       endTempoDrag: (commit) => {
@@ -516,6 +525,16 @@ export class Workstation {
       case 'play.loopRange':
         this.toggleRangeLoop();
         return;
+      case 'play.metronome':
+        this.flipMetronome();
+        this.renderTransport();
+        return;
+      case 'play.cycle':
+        this.cycle();
+        return;
+      case 'view.zoom':
+        this.zoomBy(arg ?? 0);
+        return;
       case 'edit.transpose':
         void this.transpose();
         return;
@@ -551,6 +570,12 @@ export class Workstation {
         return;
       case 'file.exportMidi':
         void this.exportScoreAs(this.history.committed.score, 'midi');
+        return;
+      case 'file.print':
+        this.printScore();
+        return;
+      case 'edit.quantize':
+        void this.quantizeDialog();
         return;
       case 'file.exportPdf':
         void this.exportPdf([this.history.committed.score], this.history.committed.score.title);
@@ -1814,6 +1839,77 @@ export class Workstation {
     this.update();
   }
 
+  /** Metronome on / off; while the music plays it goes on from where it is, with or without the click. */
+  private flipMetronome(): boolean {
+    this.metronome = !this.metronome;
+    saveMetronome(this.metronome);
+    this.player.setMetronome(this.metronome);
+    this.say(this.metronome ? 'Metronom an: bei der Wiedergabe klickt es auf jedem Schlag.' : 'Metronom aus.');
+    if (this.player.active && !this.loopingRange) this.seek(this.playPos);
+    return this.metronome;
+  }
+
+  /** Prints the score: the pages go into a hidden sheet that only the print layout shows, then the system's print dialog opens. */
+  private printScore(): void {
+    if (this.empty) return;
+    try {
+      document.getElementById('print-root')?.remove();
+      const root = document.createElement('div');
+      root.id = 'print-root';
+      for (const svg of printPages(this.engraver, this.history.committed.score, { ...loadPdfSetup(), pack: false })) {
+        const page = document.createElement('div');
+        page.className = 'print-page';
+        page.innerHTML = svg;
+        root.append(page);
+      }
+      document.body.append(root);
+      window.addEventListener('afterprint', () => root.remove(), { once: true });
+      window.print();
+    } catch (err) {
+      this.say(`Drucken ging nicht: ${errorText(err)}`);
+    }
+  }
+
+  /** Quantise (Q): asks for the finest note value, then rounds the marked passage (or the selected voice) to it. */
+  private async quantizeDialog(): Promise<void> {
+    if (this.empty) return;
+    const choice = await ask({
+      title: 'Quantisieren',
+      text: 'Anfang und Länge der markierten Noten (ohne Markierung: der ganzen gewählten Zeile) auf einen Notenwert runden. Triolen werden erkannt. Wähle den kleinsten Notenwert:',
+      buttons: [
+        { id: '8', label: 'Achtel' },
+        { id: '16', label: 'Sechzehntel', primary: true },
+        { id: '32', label: '32tel' },
+        { id: 'no', label: 'Abbrechen' },
+      ],
+      cancel: 'no',
+    });
+    if (choice !== 'no') this.history.apply(quantizeEvents(this.state, { subdivision: Number(choice) as Subdivision, triplets: true }));
+    this.update();
+  }
+
+  /** Notation bigger (+1) or smaller (−1) in steps of 10 %; 0 = normal size. */
+  private zoomBy(direction: number): void {
+    const next = direction === 0 ? 100 : Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, this.zoom + Math.sign(direction) * 10));
+    if (next === this.zoom) {
+      this.say(direction === 0 ? 'Die Notenschrift hat schon die normale Größe.' : `Die Notenschrift ist schon ${this.zoom > 100 ? 'am größten' : 'am kleinsten'} (${this.zoom} %).`);
+      return;
+    }
+    this.zoom = next;
+    saveZoom(next);
+    this.say(`Notenschrift: ${next} %`);
+    this.update();
+  }
+
+  /** Cycle (Logic: C): with a marked passage it repeats that, otherwise the whole piece – the same as the repeat button. */
+  private cycle(): void {
+    if (rangeSpan(this.state)) return this.toggleRangeLoop();
+    this.loop = !this.loop;
+    this.player.setLoop(this.loop);
+    this.say(this.loop ? 'Wiederholen an: die ganze Partitur immer wieder.' : 'Wiederholen aus.');
+    this.renderTransport();
+  }
+
   /** Plays the marked passage in a loop; a second press (or Stop) ends it. */
   private toggleRangeLoop(): void {
     if (this.player.active && this.loopingRange) {
@@ -1873,7 +1969,7 @@ export class Workstation {
   }
 
   private renderTransport(): void {
-    this.transport.show({ score: this.state.score, time: this.playPos, playing: this.player.active, loop: this.loop, recording: this.recording, disabled: this.empty });
+    this.transport.show({ score: this.state.score, time: this.playPos, playing: this.player.active, loop: this.loop, metronome: this.metronome, recording: this.recording, disabled: this.empty });
     this.renderPlayhead();
   }
 
@@ -1883,7 +1979,7 @@ export class Workstation {
     } else {
       for (const ui of this.rollLanes.values()) ui.roll.setPlayhead(this.playPos, true);
       this.lightPlaying();
-      this.transport.show({ score: this.state.score, time: this.playPos, playing: true, loop: this.loop, recording: this.recording, disabled: false });
+      this.transport.show({ score: this.state.score, time: this.playPos, playing: true, loop: this.loop, metronome: this.metronome, recording: this.recording, disabled: false });
     }
   }
 
@@ -2019,14 +2115,16 @@ export class Workstation {
     const hiddenKey = [...hidden].join();
     const coverTime = s.caret?.time;
     const measures = measuresOf(s.score, 1, coverTime).length;
-    const width = Math.min(this.el.pages.clientWidth, 1100);
-    if (s.score === this.renderedScore && measures === this.renderedMeasures && width === this.renderedWidth && hiddenKey === this.renderedHidden) return;
+    // The page stays as wide as before when zoomed out (smaller notes, more per line), and grows when zoomed in.
+    const width = Math.min(this.el.pages.clientWidth, Math.round((1100 * Math.max(this.zoom, 100)) / 100));
+    if (s.score === this.renderedScore && measures === this.renderedMeasures && width === this.renderedWidth && hiddenKey === this.renderedHidden && this.zoom === this.renderedZoom) return;
 
     const started = performance.now();
+    const scale = Math.max(10, Math.round((SCALE * this.zoom) / 100));
     const result = scoreToMei(s.score, { ...(coverTime ? { coverTime } : {}), hiddenStaves: hidden });
     const { pages, log } = this.engraver.engrave(result.mei, {
-      pageWidth: Math.round((width * 100) / SCALE),
-      scale: SCALE,
+      pageWidth: Math.round((width * 100) / scale),
+      scale,
       tab: result.tab,
     });
     if (log) console.warn('[Verovio]', log);
@@ -2042,6 +2140,7 @@ export class Workstation {
     this.renderedScore = s.score;
     this.renderedMeasures = measures;
     this.renderedWidth = width;
+    this.renderedZoom = this.zoom;
     this.renderedHidden = hiddenKey;
     this.lastRedrawEnd = performance.now();
     this.lastRedrawMs = this.lastRedrawEnd - started;
@@ -2262,6 +2361,8 @@ export class Workstation {
       if (s.input.insert) parts.push('Einfügen');
       if (s.input.chord) parts.push('Akkord');
       if (s.input.pendingTie) parts.push('Haltebogen ⌒');
+      if (s.input.nextAlter) parts.push(s.input.nextAlter > 0 ? '♯ nächste Note' : '♭ nächste Note');
+      if (s.input.octaveShift) parts.push(`Oktave ${s.input.octaveShift > 0 ? '+' : ''}${s.input.octaveShift}`);
       this.el.mode.textContent = parts.join(' · ');
       this.el.mode.classList.add('mode--input');
     } else {

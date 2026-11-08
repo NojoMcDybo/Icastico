@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { frac } from './time';
 import { withTempo, type Score } from './model';
 import { emptyScore } from './templates';
-import { keyName, barBeat, levelAt, pitchAt, planFrom, planPlayback, planUntil, secondsOf, timeAt } from './playback';
+import { keyName, barBeat, levelAt, pitchAt, planFrom, planPlayback, planUntil, secondsOf, timeAt, withClicks } from './playback';
 import { runCommand } from './editor/commands';
 import { applyRollEdit } from './editor/rollEdits';
 import { createEditorState, getVoice, type EditorState, type VoiceRef } from './editor/state';
@@ -184,5 +184,37 @@ describe('transport display', () => {
     expect(keyName(1)).toBe('Gmaj');
     expect(keyName(-2)).toBe('Bbmaj');
     expect(keyName(99)).toBe('Cmaj');
+  });
+});
+
+describe('metronome clicks', () => {
+  const clicks = (plan: ReturnType<typeof planPlayback>, base: ReturnType<typeof planPlayback>) => plan.notes.filter((n) => !base.notes.includes(n));
+
+  it('puts a click on every beat, a stronger one on the first beat of each bar', () => {
+    let s = createEditorState(withTempo(emptyScore(), 120));
+    s = runCommand(runCommand(s, 'input.duration', 5), 'input.note', 0);
+    for (let i = 0; i < 7; i++) s = runCommand(s, 'input.note', i % 7);
+    const base = planPlayback(s.score); // two bars of 4/4 at 120: a beat lasts 0.5 s
+    const c = clicks(withClicks(base, s.score), base);
+    expect(c).toHaveLength(8);
+    expect(c.map((x) => x.start)).toEqual([0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]);
+    expect(c[0]!.volume).toBeGreaterThan(c[1]!.volume!);
+    expect(c[4]!.volume).toBe(c[0]!.volume);
+  });
+
+  it('counts the beats of the meter: three clicks per bar in 3/4, an eighth apart in 6/8', () => {
+    const three = { ...emptyScore(), meter: [{ at: frac(0), sig: { count: 3, unit: 4 } }] };
+    const run = (score: Score) => withClicks({ notes: [], length: 0 }, { ...score }).notes;
+    expect(run(three).length % 3).toBe(0);
+    const six = { ...emptyScore(), tempo: 120, meter: [{ at: frac(0), sig: { count: 6, unit: 8 } }] };
+    const [a, b] = run(six);
+    expect(b!.start - a!.start).toBeCloseTo(0.25, 5);
+  });
+
+  it('keeps the music and leaves out the click of an upbeat', () => {
+    const score: Score = { ...emptyScore(), pickup: frac(1, 4) };
+    const notes = withClicks({ notes: [], length: 0 }, score).notes;
+    expect(notes[0]!.start).toBe(0); // the first full bar starts after the upbeat
+    expect(notes.every((n) => n.start >= 0)).toBe(true);
   });
 });

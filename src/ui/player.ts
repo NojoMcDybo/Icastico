@@ -3,7 +3,7 @@
  * workstation where the music is, until it ends (or loops) or the user stops it.
  */
 import type { Score } from '../core/model';
-import { type PlaybackPlan, planFrom, planPlayback, planUntil } from '../core/playback';
+import { type PlaybackPlan, planFrom, planPlayback, planUntil, withClicks } from '../core/playback';
 import type { Playing } from '../audio/engine';
 import { Synth } from '../audio/synth';
 
@@ -24,6 +24,8 @@ export class Player {
   private playing: Playing | null = null;
   private plan: PlaybackPlan | null = null;
   private loop = false;
+  /** A click on every beat (from the next start on). */
+  private clicks = false;
   /** Looping just a passage: from / to in seconds. */
   private range: { readonly from: number; readonly to: number } | null = null;
   private raf = 0;
@@ -48,7 +50,8 @@ export class Player {
     this.cancelled = false;
     this.loop = loop;
     this.range = range ?? null;
-    this.plan = range ? planUntil(planPlayback(score), range.to) : planPlayback(score);
+    const full = this.clicks ? withClicks(planPlayback(score), score) : planPlayback(score);
+    this.plan = range ? planUntil(full, range.to) : full;
     try {
       if (this.plan.length === 0) throw new Error('Es gibt noch nichts zu hören – erst Noten eingeben.');
       const from = range ? range.from : fromSeconds >= this.plan.length ? 0 : fromSeconds;
@@ -66,6 +69,10 @@ export class Player {
 
   setLoop(loop: boolean): void {
     this.loop = loop;
+  }
+
+  setMetronome(on: boolean): void {
+    this.clicks = on;
   }
 
   stop(): void {

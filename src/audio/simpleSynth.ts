@@ -20,6 +20,7 @@ interface Timbre {
 const TIMBRES: Record<InstrumentId, Timbre> = {
   voice: { harmonics: [1, 0.4, 0.25, 0.1], attack: 0.06, decay: 0.3, sustain: 0.8, release: 0.18 },
   guitar: { harmonics: [1, 0.7, 0.5, 0.3, 0.15, 0.08], attack: 0.004, decay: 0.5, sustain: 0.15, release: 0.12 },
+  tab: { harmonics: [1, 0.7, 0.5, 0.3, 0.15, 0.08], attack: 0.004, decay: 0.5, sustain: 0.15, release: 0.12 },
   piano: { harmonics: [1, 0.55, 0.3, 0.18, 0.1, 0.05], attack: 0.004, decay: 0.9, sustain: 0.25, release: 0.25 },
 };
 

@@ -10,7 +10,7 @@
  * time relative to that (0–1, linear between the points) – a note's loudness curve, and through a
  * glide's gap the crossfade between the two notes, along the same curve as the pitch.
  */
-import { type Fraction, frac, lt, sub, toNumber } from './time';
+import { type Fraction, add, frac, lt, mul, sub, toNumber } from './time';
 import { DEFAULT_VOLUME, curveAt } from './curve';
 import type { InstrumentId } from './instruments';
 import { DEFAULT_TEMPO, type Link, type NoteEvent, type Score, type ToneSpot, eventEnd, locateTones, measuresOf } from './model';
@@ -52,6 +52,24 @@ const CURVE_STEP = 0.02;
 const GLIDE_STEPS = 16;
 
 export const tempoOf = (score: Score): number => score.tempo ?? DEFAULT_TEMPO;
+
+/**
+ * The plan with a metronome click on every beat of the meter (the first beat of a bar stronger; an upbeat has none).
+ * The click is a short high piano note – nothing needs to be loaded for it.
+ */
+export function withClicks(plan: PlaybackPlan, score: Score): PlaybackPlan {
+  const clicks: SoundNote[] = [];
+  for (const m of measuresOf(score, 1)) {
+    const beat = frac(1, m.sig.unit);
+    for (let k = 0, t = m.gridStart; lt(t, m.end); k++, t = add(m.gridStart, mul(beat, frac(k)))) {
+      if (lt(t, m.start)) continue;
+      const start = secondsOf(score, t);
+      const strong = k === 0;
+      clicks.push({ instrument: 'piano', start, end: start + 0.06, path: [{ t: start, midi: strong ? 103 : 96 }], volume: strong ? 118 : 88 });
+    }
+  }
+  return { notes: [...plan.notes, ...clicks].sort((a, b) => a.start - b.start), length: Math.max(plan.length, ...clicks.map((c) => c.end)) };
+}
 
 /** Seconds for a time on the timeline (a quarter note lasts 60 / tempo seconds). */
 export const secondsOf = (score: Score, t: Fraction): number => (toNumber(t) * 240) / tempoOf(score);

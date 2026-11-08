@@ -80,19 +80,23 @@
         },
         {
           "id": "input.nextSharp",
-          "title": "Kreuz für die nächste Note",
+          "title": "Kreuz für die nächste Note (vor dem Buchstaben tippen; nochmal: aufheben)",
+          "command": "input.nextSharp",
           "logic": { "keys": ["Shift+3"], "source": "doku", "note": "Auf US-Tastaturen ist Umschalt+3 das #." }
         },
         {
           "id": "input.nextFlat",
-          "title": "B für die nächste Note",
+          "title": "B für die nächste Note (vor dem Buchstaben tippen; nochmal: aufheben)",
+          "command": "input.nextFlat",
           "logic": { "keys": ["Shift+B"], "source": "doku" }
         },
         {
           "id": "input.octave",
-          "title": "Eingabe-Oktave höher / tiefer",
-          "args": { "1": "höher", "-1": "tiefer", "2": "zwei höher", "-2": "zwei tiefer" },
-          "logic": { "keys": { "1": ["X"], "-1": ["Z"], "2": ["Shift+X"], "-2": ["Shift+Z"] }, "source": "doku", "note": "Icastico wählt die Oktave automatisch nah an der vorigen Note." }
+          "title": "Oktave für die nächste Note höher / tiefer",
+          "command": "input.octave",
+          "args": { "1": "höher", "2": "zwei höher", "-1": "tiefer", "-2": "zwei tiefer" },
+          "finale": { "keys":  { "1": ["Alt+X"], "-1": ["Alt+Z"]}, "source": "icastico", "note": "Gilt nur für die nächste Note; sonst wählt Icastico die Oktave nah an der vorigen Note." },
+          "logic": { "keys":  { "1": ["X"], "2": ["Shift+X"], "-1": ["Z"], "-2": ["Shift+Z"]}, "source": "doku", "note": "Gilt nur für die nächste Note; sonst wählt Icastico die Oktave nah an der vorigen Note." }
         },
         {
           "id": "input.repeat",
@@ -198,7 +202,8 @@
           "id": "edit.toRest",
           "title": "Note in Pause umwandeln",
           "command": "edit.toRest",
-          "finale": { "keys": [], "source": "icastico", "note": "In Finale R; hier ist R die Aufnahmetaste, Entf macht dasselbe." }
+          "finale": { "keys": ["Mod+Delete"], "source": "icastico", "note": "In Finale R; hier ist R die Aufnahmetaste. Anders als Entf wird auch bei einem gewählten Akkordton die ganze Note zur Pause." },
+          "logic": { "keys": ["Mod+Delete"], "source": "icastico" }
         },
         {
           "id": "edit.delete",
@@ -380,8 +385,28 @@
         },
         {
           "id": "edit.quantize",
-          "title": "Quantisieren (eingespielte Noten ins Raster)",
+          "title": "Quantisieren: eingespielte Noten ins Raster rücken (markierter Bereich, sonst die ganze Zeile)",
+          "command": "edit.quantize",
+          "finale": { "keys": ["Q"], "source": "icastico" },
           "logic": { "keys": ["Q"], "source": "doku" }
+        },
+        {
+          "id": "roll.synth",
+          "title": "Piano-Roll: Synth-Klang an / aus (Orgelklang, nichts klingt aus)",
+          "command": "ui.control",
+          "via": "Knopf „Synth“ in der Leiste der Roll"
+        },
+        {
+          "id": "roll.resize",
+          "title": "Piano-Roll: Höhe ändern (Doppelklick: Standardhöhe)",
+          "command": "ui.control",
+          "via": "Kante über der Roll ziehen oder mit ↑ / ↓"
+        },
+        {
+          "id": "lane.view",
+          "title": "Zeile als Noten, als Piano-Roll oder als beides zeigen",
+          "command": "ui.control",
+          "via": "Schalter „Noten · Beides · Roll“ an der Zeile (Strg+Umschalt+P schaltet die Roll um)"
         }
       ]
     },
@@ -413,9 +438,11 @@
         },
         {
           "id": "view.zoom",
-          "title": "Vergrößern / verkleinern",
-          "args": { "1": "größer", "-1": "kleiner" },
-          "logic": { "keys": { "1": ["Mod+ArrowRight"], "-1": ["Mod+ArrowLeft"] }, "source": "doku" }
+          "title": "Notenschrift vergrößern / verkleinern (in 10-%-Schritten)",
+          "command": "view.zoom",
+          "args": { "0": "normale Größe", "1": "größer", "-1": "kleiner" },
+          "finale": { "keys":  { "0": ["Mod+0"], "1": ["Mod+Plus"], "-1": ["Mod+Minus"]}, "source": "icastico" },
+          "logic": { "keys":  { "0": ["Mod+0"], "1": ["Mod+ArrowRight", "Mod+Plus"], "-1": ["Mod+ArrowLeft", "Mod+Minus"]}, "source": "doku", "note": "Strg+Pfeil rechts / links wie in Logic; Strg+Plus / Minus wie in anderen Programmen." }
         }
       ]
     },
@@ -468,12 +495,13 @@
           "id": "score.settings",
           "title": "Partitur-Einstellungen (Titel, Tonart, Taktart, Auftakt)",
           "command": "score.settings",
-          "finale": { "keys": ["Mod+Comma"], "source": "icastico" },
-          "logic": { "keys": ["Mod+Comma"], "source": "icastico" }
+          "finale": { "keys": ["Mod+Comma"], "source": "icastico", "note": "Auch: den Titel oben oder die Anzeige „Taktart“ anklicken." },
+          "logic": { "keys": ["Mod+Comma"], "source": "icastico", "note": "Auch: den Titel oben oder die Anzeige „Taktart“ anklicken." }
         },
         {
           "id": "file.print",
-          "title": "Drucken",
+          "title": "Drucken (die Seiten der Partitur im A4-Format; der Druckdialog kann auch ein PDF speichern)",
+          "command": "file.print",
           "finale": { "keys": ["Mod+P"], "source": "doku" },
           "logic": { "keys": ["Mod+P"], "source": "doku" }
         },
@@ -516,8 +544,8 @@
           "id": "file.exportPdf",
           "title": "Als PDF speichern (A4, Notengröße wählbar)",
           "command": "file.exportPdf",
-          "finale": { "keys": ["Mod+P"], "source": "icastico", "note": "Aus der Bibliothek lassen sich mehrere Partituren zusammen als PDF speichern." },
-          "logic": { "keys": ["Mod+P"], "source": "icastico" }
+          "finale": { "keys": ["Mod+Shift+F"], "source": "icastico", "note": "Strg+P druckt; aus der Bibliothek lassen sich mehrere Partituren zusammen als PDF speichern." },
+          "logic": { "keys": ["Mod+Shift+F"], "source": "icastico", "note": "Strg+P druckt." }
         },
         {
           "id": "file.extractPart",
@@ -538,7 +566,7 @@
           "title": "Akkordsymbol an dieser Stelle eingeben (leer = löschen)",
           "command": "text.chord",
           "finale": { "keys": ["K"], "source": "icastico", "note": "Zum Beispiel Am7 oder C/G; das Symbol bleibt an seiner Zeit stehen." },
-          "logic": { "keys": ["K"], "source": "icastico" }
+          "logic": { "keys": ["Shift+K"], "source": "icastico", "note": "In dieser Belegung ist K das Metronom." }
         },
         {
           "id": "view.help",
@@ -546,6 +574,72 @@
           "command": "view.help",
           "finale": { "keys": ["F1", "?"], "source": "icastico" },
           "logic": { "keys": ["F1", "?"], "source": "icastico" }
+        },
+        {
+          "id": "library.menu",
+          "title": "Partitur in der Bibliothek: Öffnen, Duplizieren, in eine Sammlung verschieben, Speicherort öffnen, in den Papierkorb",
+          "command": "ui.control",
+          "via": "Bibliothek (Strg+O): Menü ⋯ an der Partitur"
+        },
+        {
+          "id": "library.export",
+          "title": "Exportieren: PDF, MusicXML, MIDI oder Icastico-Datei",
+          "command": "ui.control",
+          "via": "Bibliothek: Menü ⋯ → Exportieren (PDF, MusicXML und MIDI auch mit den Tasten oben)"
+        },
+        {
+          "id": "library.collections",
+          "title": "Sammlungen: Partituren ordnen, Sammlung umbenennen oder (leer) löschen",
+          "command": "ui.control",
+          "via": "Bibliothek: Reiter oben und Menü ⋯ an der Sammlung"
+        },
+        {
+          "id": "library.trash",
+          "title": "Papierkorb: Partitur wiederherstellen, endgültig löschen, Papierkorb leeren",
+          "command": "ui.control",
+          "via": "Bibliothek: Reiter „Papierkorb“"
+        },
+        {
+          "id": "library.search",
+          "title": "Partituren suchen; Pfeile wählen, Enter öffnet, Esc schließt",
+          "command": "ui.control",
+          "via": "Bibliothek: einfach lostippen"
+        },
+        {
+          "id": "library.pdfAll",
+          "title": "Alle Partituren der Ansicht in einem PDF",
+          "command": "ui.control",
+          "via": "Bibliothek: Link „Als PDF speichern …“ unten"
+        },
+        {
+          "id": "library.folder",
+          "title": "Den Ordner der Bibliothek im Explorer / Finder zeigen",
+          "command": "ui.control",
+          "via": "Bibliothek: Link unten"
+        },
+        {
+          "id": "library.news",
+          "title": "Neuigkeiten der letzten Versionen anzeigen",
+          "command": "ui.control",
+          "via": "Bibliothek: Link „Neuigkeiten“ unten; Tastenhilfe (F1): Knopf „Neuigkeiten“"
+        },
+        {
+          "id": "library.updates",
+          "title": "Nach Updates suchen",
+          "command": "ui.control",
+          "via": "Bibliothek: Link unten; der Knopf „Update“ oben erscheint, wenn eine neue Version bereitsteht"
+        },
+        {
+          "id": "help.search",
+          "title": "In der Tastenhilfe suchen",
+          "command": "ui.control",
+          "via": "Suchfeld in der Tastenhilfe (F1)"
+        },
+        {
+          "id": "score.tabInstrument",
+          "title": "Tabulatur als eigene Zeile neben der Notenschrift; Noten mit Strg+C / Strg+V hineinkopieren",
+          "command": "ui.control",
+          "via": "Partitur-Einstellungen (Strg+Komma): „+ Tabulatur“"
         }
       ]
     },
@@ -582,13 +676,41 @@
         },
         {
           "id": "play.metronome",
-          "title": "Metronom an / aus",
-          "logic": { "keys": ["K"], "source": "doku" }
+          "title": "Metronom an / aus (bei der Wiedergabe ein Klick auf jedem Schlag)",
+          "command": "play.metronome",
+          "finale": { "keys": ["M"], "source": "icastico" },
+          "logic": { "keys": ["K"], "source": "doku", "note": "Die Akkordsymbole liegen in dieser Belegung auf Umschalt+K." }
         },
         {
           "id": "play.cycle",
-          "title": "Wiederholbereich (Cycle) an / aus",
+          "title": "Cycle: die markierte Passage (sonst das ganze Stück) immer wieder abspielen – an / aus",
+          "command": "play.cycle",
+          "finale": { "keys": ["Mod+Shift+L"], "source": "icastico" },
           "logic": { "keys": ["C"], "source": "doku" }
+        },
+        {
+          "id": "transport.toStart",
+          "title": "Zum Anfang springen (der Stopp-Knopf springt dorthin, wenn nichts läuft)",
+          "command": "ui.control",
+          "via": "Knopf ⏮ in der oberen Leiste"
+        },
+        {
+          "id": "transport.stepBar",
+          "title": "Einen Takt zurück / vor",
+          "command": "ui.control",
+          "via": "Knöpfe ⏪ und ⏩ in der oberen Leiste"
+        },
+        {
+          "id": "transport.loop",
+          "title": "Dauerschleife: das ganze Stück wiederholen",
+          "command": "ui.control",
+          "via": "Schleifen-Knopf in der oberen Leiste"
+        },
+        {
+          "id": "voice.commands",
+          "title": "Sprachbefehle: Notennamen, Notenwerte, Vorzeichen, Oktave, „zurück“ … bei eingeschalteter Aufnahme sprechen",
+          "command": "ui.control",
+          "via": "Aufnahme (R) einschalten; die Wörter zeigt der Sprachtest (Strg+Umschalt+V)"
         }
       ]
     },
@@ -600,7 +722,7 @@
           "title": "Zeichen an der gewählten Note (nochmal: weg)",
           "command": "mark.toggle",
           "args": { "0": "ppp", "1": "pp", "2": "p", "3": "mp", "4": "mf", "5": "f", "6": "ff", "7": "fff", "8": "sfz", "9": "Crescendo", "10": "Decrescendo", "11": "Staccato", "12": "Staccatissimo", "13": "Tenuto", "14": "Akzent", "15": "Marcato", "16": "Triller", "17": "Mordent", "18": "Pralltriller", "19": "Doppelschlag", "20": "Fermate" },
-          "finale": { "keys": { "1": ["Alt+Shift+P"], "2": ["Alt+P"], "3": ["Alt+Shift+M"], "4": ["Alt+M"], "5": ["Alt+F"], "6": ["Alt+Shift+F"], "8": ["Alt+S"], "9": ["Alt+C"], "10": ["Alt+Shift+C"], "11": ["Alt+Period"], "13": ["Alt+Minus"], "14": ["Alt+A"], "15": ["Alt+Shift+A"], "16": ["Alt+T"], "20": ["Alt+Y"] }, "source": "icastico", "note": "Lautstärken ersetzen sich gegenseitig, ebenso Crescendo/Decrescendo. Alle Zeichen stehen auch in der Palette (Strg+J)." },
+          "finale": { "keys": { "1": ["Alt+Shift+P"], "2": ["Alt+P"], "3": ["Alt+Shift+M"], "4": ["Alt+M"], "5": ["Alt+F"], "6": ["Alt+Shift+F"], "8": ["Alt+S"], "9": ["Alt+C"], "10": ["Alt+Shift+C"], "11": ["Alt+Period"], "13": ["Alt+Minus"], "14": ["Alt+A"], "15": ["Alt+Shift+A"], "16": ["Alt+T"], "20": ["Alt+Y"] }, "source": "icastico", "note": "Lautstärken ersetzen sich gegenseitig, ebenso Crescendo/Decrescendo. Alle Zeichen stehen auch in der Palette (Strg+J); Atemzeichen, Zäsur und Arpeggio nur dort, der Bindebogen auf T." },
           "logic": { "keys": { "1": ["Alt+Shift+P"], "2": ["Alt+P"], "3": ["Alt+Shift+M"], "4": ["Alt+M"], "5": ["Alt+F"], "6": ["Alt+Shift+F"], "8": ["Alt+S"], "9": ["Alt+C"], "10": ["Alt+Shift+C"], "11": ["Alt+Period"], "13": ["Alt+Minus"], "14": ["Alt+A"], "15": ["Alt+Shift+A"], "16": ["Alt+T"], "20": ["Alt+Y"] }, "source": "icastico" }
         },
         {
@@ -608,8 +730,9 @@
           "title": "Zeichen am Takt der gewählten Note: Wiederholung, Klammer, Segno, Coda, Sprung (nochmal: weg)",
           "command": "mark.bar",
           "args": { "0": "Wiederholung Anfang", "1": "Wiederholung Ende", "2": "1. Klammer", "3": "2. Klammer", "4": "3. Klammer", "5": "Segno", "6": "Coda", "7": "To Coda", "8": "Fine", "9": "D.C.", "10": "D.C. al Fine", "11": "D.C. al Coda", "12": "D.S.", "13": "D.S. al Fine", "14": "D.S. al Coda" },
-          "finale": { "keys": {}, "source": "icastico", "note": "Nur über die Palette (Strg+J). Aufeinanderfolgende Takte mit derselben Klammer bilden eine gemeinsame Klammer." },
-          "logic": { "keys": {}, "source": "icastico", "note": "Nur über die Palette (Strg+J)." }
+          "via": "Zeichen-Palette (Strg+J): Zeichen doppelklicken oder auf einen Takt ziehen",
+          "finale": { "keys": {}, "source": "icastico", "note": "Aufeinanderfolgende Takte mit derselben Klammer bilden eine gemeinsame Klammer." },
+          "logic": { "keys": {}, "source": "icastico" }
         },
         {
           "id": "view.voiceTest",
@@ -624,6 +747,12 @@
           "command": "view.symbols",
           "finale": { "keys": ["Mod+J"], "source": "icastico" },
           "logic": { "keys": ["Mod+J"], "source": "icastico" }
+        },
+        {
+          "id": "mark.group",
+          "title": "Klammer oder Akkolade um die Zeilen der Partitur",
+          "command": "mark.group",
+          "via": "Zeichen-Palette (Strg+J): Rubrik „Taktstriche“"
         }
       ]
     }

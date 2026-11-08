@@ -5,7 +5,8 @@
  */
 import { type Fraction, add, le, lt, sub } from '../time';
 import { type NoteEvent, type Part, type Score, eventEnd } from '../model';
-import { type Pitch } from '../pitch';
+import { type Pitch, midiOf } from '../pitch';
+import { playableOnGuitar } from '../tab';
 import { type EditorState, type VoiceRef, freshEventId, getVoice, updateEvents } from './state';
 import { clearRange, insertSorted, shiftFrom } from './voiceOps';
 
@@ -195,14 +196,16 @@ export function pasteClip(s: EditorState, clip: Clip): EditorState {
   let nextId = s.nextId;
   let first: { ref: VoiceRef; id: string } | null = null;
   let pasted = 0;
+  let left = 0; // notes that found no room (more copied voices than the part has)
   clip.voices.forEach((events, i) => {
-    const voice = part.voices[base + i];
+    // A part with fewer voices (a tablature staff has one) takes the extra copied voices into its last voice, where there is room.
+    const overflow = base + i >= part.voices.length;
+    const voice = part.voices[Math.min(base + i, part.voices.length - 1)];
     if (!voice) return;
     const ref: VoiceRef = { partId: part.id, voiceId: voice.id };
-    const made: NoteEvent[] = events.map((ce) => {
+    let made: NoteEvent[] = events.map((ce) => {
       const [id, next] = freshEventId(score, ref, nextId);
       nextId = next;
-      pasted++;
       return {
         id,
         onset: add(where.at, ce.at),
@@ -212,9 +215,19 @@ export function pasteClip(s: EditorState, clip: Clip): EditorState {
         ...(ce.lyric ? { lyric: ce.lyric } : {}),
       };
     });
+    if (overflow) {
+      const kept: NoteEvent[] = [];
+      for (const ev of made) {
+        const taken = [...getVoice(score, ref).voice.events, ...kept];
+        if (taken.some((x) => lt(ev.onset, eventEnd(x)) && lt(x.onset, eventEnd(ev)))) left++;
+        else kept.push(ev);
+      }
+      made = kept;
+    }
+    pasted += made.length;
     if (made.length > 0 && !first) first = { ref, id: made[0]!.id };
     score = updateEvents(score, ref, (list) => {
-      const room = s.input.insert ? shiftFrom(list, where.at, clip.length) : clearRange(list, where.at, end);
+      const room = overflow ? list : s.input.insert ? shiftFrom(list, where.at, clip.length) : clearRange(list, where.at, end);
       return made.reduce<NoteEvent[]>((acc, ev) => insertSorted(acc, ev), [...room]);
     });
   });
@@ -227,6 +240,18 @@ export function pasteClip(s: EditorState, clip: Clip): EditorState {
     range: null,
     caret: s.caret ? { ...s.caret, time: end } : s.caret,
     selection,
-    message: `${pasted} ${pasted === 1 ? 'Note' : 'Noten'} eingefügt`,
+    message: `${pasted} ${pasted === 1 ? 'Note' : 'Noten'} eingefügt${pasteRemarks(score, part.id, where.ref, left)}`,
   };
+}
+
+/** What the user should know after a paste: notes without room, and tones a guitar or tablature staff cannot play. */
+function pasteRemarks(score: Score, partId: string, ref: VoiceRef, left: number): string {
+  const remarks: string[] = [];
+  if (left > 0) remarks.push(`${left} ${left === 1 ? 'Note fand' : 'Noten fanden'} keinen Platz (die Zeile hat weniger Stimmen)`);
+  const part = partOf(score, partId);
+  if (part.instrument === 'guitar' || part.instrument === 'tab') {
+    const out = getVoice(score, ref).voice.events.flatMap((e) => e.tones).filter((t) => !playableOnGuitar(midiOf(t.pitch))).length;
+    if (out > 0) remarks.push(`${out} ${out === 1 ? 'Ton ist' : 'Töne sind'} für die Gitarre zu tief oder zu hoch und ${out === 1 ? 'hat' : 'haben'} keine Bundzahl`);
+  }
+  return remarks.length ? ' – ' + remarks.join('; ') : '';
 }

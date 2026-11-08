@@ -47,6 +47,7 @@ die Datei (Windows/Linux: Programmargument, macOS: Systemereignis).
 | 3 | ab 0.7.0 | `tones` mit Ton-IDs statt `pitches` (ADR 0012); ältere Dateien werden beim Öffnen umgewandelt und vor dem ersten Speichern gesichert |
 | 4 | ab 0.8.0 | optionale Liste `links` (Haltebögen und Gleiten zwischen Tönen, ADR 0014); Version 3 wird unverändert übernommen und vor dem ersten Speichern gesichert |
 | 5 | ab 0.9.0 | optionales `tempo` (Viertel pro Minute, ADR 0015); Version 4 wird unverändert übernommen und vor dem ersten Speichern gesichert |
+| 12 | ab 0.21.0 | neues Instrument `tab` (Tabulaturzeile, ADR 0030); Version 11 wird unverändert übernommen und vor dem ersten Speichern gesichert |
 | 11 | ab 0.20.0 | neue Zeichen-ID `slur` (Bindebogen zur nächsten Note, ADR 0029); Version 10 wird unverändert übernommen und vor dem ersten Speichern gesichert |
 | 10 | ab 0.18.0 | optionale `groups` (Klammer / Akkolade um Zeilen) und neue Zeichen-IDs (Atemzeichen, Zäsur, Arpeggio, Doppelstrich, Schlussstrich, Tempoanweisungen; ADR 0027); Version 9 wird unverändert übernommen und vor dem ersten Speichern gesichert |
 | 9 | ab 0.17.0 | mehrere Gleiten dürfen in einen Ton ankommen (ADR 0026); Version 8 wird unverändert übernommen und vor dem ersten Speichern gesichert |

@@ -759,7 +759,7 @@ try {
   await type('Escape');
   await saved();
   const shaped = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Verlauf-Test.icastico'))[1].contents;
-  check(/"version": 11/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 11)');
+  check(/"version": 12/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 12)');
   await type('Control+Enter');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true', null, { timeout: 30000 });
   await page.waitForTimeout(1500);
@@ -1118,6 +1118,95 @@ try {
   await type('t');
   check((await page.locator('.page g.tie').count()) === 1 && (await page.locator('.page g.slur').count()) === 0, 'T bei gleicher Tonhöhe macht einen Haltebogen (durchgehende Note), keinen Bindebogen');
 
+  // ── Funktionen ohne Taste stehen in der Tastenhilfe; Strg+Entf macht die Note zur Pause ──
+  await newScore('Pause-Test');
+  await type('5', 'c', 'd', 'Escape');
+  await page.locator('.page g.note').first().click({ force: true });
+  await type('Control+Delete');
+  check((await page.locator('.page g.note').count()) === 1 && (await page.locator('.page g.rest').count()) >= 1, 'Strg+Entf macht die gewählte Note zur Pause');
+  // ── Tabulatur als eigenes Instrument: einfügen, Noten hineinkopieren ──
+  await newScore('Tab-Instrument');
+  await type('5', 'c', 'd', 'e', 'g', 'Escape');
+  const tabStaffsBefore = await page.locator('.page g.staff').count();
+  await page.click('#doc-title');
+  await page.waitForSelector('.modal h2:text("Partitur-Einstellungen")');
+  await page.click('.modal [data-instrument="tab"]');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction((n) => document.querySelectorAll('.page g.staff').length > n, tabStaffsBefore);
+  check((await page.locator('.page g.staff').count()) > tabStaffsBefore, 'Tabulatur: „+ Tabulatur“ in den Einstellungen fügt eine eigene Zeile hinzu');
+  await page.locator('.page g.note').first().click({ force: true });
+  await type('Control+a', 'Control+c');
+  await page.locator('.page g.mRest').last().click({ force: true });
+  await type('Control+v');
+  await page.waitForFunction(() => document.querySelectorAll('.page .tabnumber').length >= 4);
+  check((await page.locator('.page .tabnumber').count()) >= 4 && /4 Noten eingefügt/.test(await status()), 'Tabulatur: kopierte Noten lassen sich in die Tabulaturzeile einfügen und erscheinen als Bundzahlen');
+  await page.screenshot({ path: join(outDir, 'tabulatur-instrument.png') });
+  await saved();
+  const tabFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Tab-Instrument.icastico'))[1].contents;
+  check(/"instrument": "tab"/.test(tabFile) && /"version": 12/.test(tabFile), 'Tabulatur: die Zeile steht als Instrument „tab“ in der Datei (Format 12)');
+  await page.locator('.page g.note').first().click({ force: true });
+  await type('Control+Delete');
+  check((await page.locator('.page g.note').count()) >= 1, 'Tabulatur-Zeile: die Noten der anderen Zeile bleiben beim Bearbeiten erhalten');
+
+  // ── Neue Funktionen: Zoom, Metronom, Cycle, Quantisieren, Drucken, Oktave ──
+  await newScore('Funktionen-Test');
+  await type('5', 'c', 'd', 'e', 'f', 'Escape');
+  const pageWidth = async () => (await page.locator('.page svg').first().boundingBox()).width;
+  const normal = await pageWidth();
+  const noteBox = async () => (await page.locator('.page g.note').first().boundingBox()).width;
+  const headNormal = await noteBox();
+  await type('Control+NumpadAdd');
+  await page.waitForTimeout(500);
+  check(/110 %/.test(await status()) && (await noteBox()) > headNormal, 'Zoom: Strg+Plus macht die Notenschrift größer (110 %)');
+  await type('Control+Minus', 'Control+Minus');
+  await page.waitForTimeout(500); // a slow redraw is merged and comes a moment later
+  check(/90 %/.test(await status()) && (await noteBox()) < headNormal, 'Zoom: Strg+Minus macht sie kleiner');
+  await type('Control+0');
+  await page.waitForTimeout(500);
+  check(Math.abs((await noteBox()) - headNormal) < 0.5 && Math.abs((await pageWidth()) - normal) < 1, 'Zoom: Strg+0 stellt die normale Größe wieder her');
+
+  const metro = page.locator('.transport__metronome');
+  await type('m');
+  check((await metro.getAttribute('aria-pressed')) === 'true' && /Metronom an/.test(await status()), 'Metronom: die Taste M schaltet es ein, der Knopf in der oberen Leiste zeigt es');
+  await metro.click();
+  check((await metro.getAttribute('aria-pressed')) === 'false', 'Metronom: der Knopf schaltet es wieder aus');
+
+  const loopButton = page.locator('.transport__loop');
+  await type('Control+Shift+L');
+  check((await loopButton.getAttribute('aria-pressed')) === 'true' && /Wiederholen an/.test(await status()), 'Cycle: Strg+Umschalt+L schaltet das Wiederholen des ganzen Stücks ein');
+  await type('Control+Shift+L');
+  check((await loopButton.getAttribute('aria-pressed')) === 'false', 'Cycle: noch einmal schaltet es aus');
+
+  await type('5', 'g', 'Escape');
+  await type('Alt+x');
+  check(/Oktave höher/.test(await status()), 'Eingabe-Oktave: Alt+X sagt, dass die nächste Note eine Oktave höher kommt');
+  await type('Escape');
+
+  await page.evaluate(() => {
+    window.__printed = 0;
+    window.print = () => {
+      window.__printed = document.querySelectorAll('#print-root .print-page svg').length;
+      window.__printLayout = document.querySelector('#print-root')?.textContent !== undefined;
+    };
+  });
+  await type('Control+p');
+  check((await page.evaluate(() => window.__printed)) >= 1, 'Drucken: Strg+P legt die Seiten der Partitur zum Drucken bereit und öffnet den Druckdialog');
+  await page.emulateMedia({ media: 'print' });
+  check((await page.locator('.workstation').isHidden()) && (await page.locator('#print-root').isVisible()), 'Drucken: im Druck sind nur die Notenseiten zu sehen, nicht die Bedienelemente');
+  await page.emulateMedia({ media: 'screen' });
+  await page.evaluate(() => document.getElementById('print-root')?.remove());
+
+  await newScore('Quantisieren-Test');
+  await type('5', 'c', 'd', 'e', 'Escape');
+  await type('q');
+  await page.waitForSelector('.modal h2:text("Quantisieren")');
+  await page.click('.modal button:has-text("Sechzehntel")');
+  check(/schon im Raster/.test(await status()), 'Quantisieren: Q fragt nach dem Notenwert, Noten, die schon im Raster liegen, bleiben');
+  await type('F1');
+  const helpText = await page.locator('#help').textContent();
+  check(/Einen Takt zurück/.test(helpText) && /Knöpfe ⏪ und ⏩/.test(helpText) && /Klammer oder Akkolade/.test(helpText) && /Menü ⋯ an der Partitur/.test(helpText), 'Tastenhilfe: auch Funktionen mit Knopf, Menü oder Palette stehen drin, mit Hinweis, wo man sie findet');
+  await type('Escape');
+
   // ── Triolen (Alt+9 in der Finale-Belegung) ──
   await newScore('Triolen-Test');
   await type('4', 'Alt+9', 'c', 'd', 'e', 'Alt+9', '5', 'g');
@@ -1153,11 +1242,11 @@ try {
   await type('Control+t');
   check((await page.locator('.page .tabnumber').count()) === 0, 'Tabulatur: Strg+T schaltet sie wieder aus');
 
-  // ── PDF (Strg+P) ──
+  // ── PDF (Strg+Umschalt+F) ──
   await newScore('PDF-Test');
   await type('5', 'c', 'e', 'g');
   const pdfLoading = page.waitForEvent('download');
-  await type('Control+p');
+  await type('Control+Shift+f');
   await page.waitForSelector('.modal h2:text("Als PDF speichern")');
   await page.selectOption('#pdf-format', 'landscape');
   await page.click('.modal button[type="submit"]');
@@ -1165,7 +1254,7 @@ try {
   const pdfPath = await pdfDownload.path();
   const pdfBytes = readFileSync(pdfPath);
   copyFileSync(pdfPath, join(outDir, 'pdf-test.pdf'));
-  check(pdfDownload.suggestedFilename() === 'PDF-Test.pdf' && pdfBytes.subarray(0, 8).toString() === '%PDF-1.4' && pdfBytes.subarray(-6).toString().includes('%%EOF') && pdfBytes.length > 20000, 'PDF: Strg+P speichert „PDF-Test.pdf“ als gültige PDF-Datei (Querformat)');
+  check(pdfDownload.suggestedFilename() === 'PDF-Test.pdf' && pdfBytes.subarray(0, 8).toString() === '%PDF-1.4' && pdfBytes.subarray(-6).toString().includes('%%EOF') && pdfBytes.length > 20000, 'PDF: Strg+Umschalt+F speichert „PDF-Test.pdf“ als gültige PDF-Datei (Querformat)');
   check(pdfBytes.toString('latin1').includes('/MediaBox [0 0 841.89 595.28]'), 'PDF: Querformat ergibt eine Seite 841 × 595 Punkte');
 
   // ── Einzelstimme herausziehen (Strg+Umschalt+X) ──
@@ -1217,7 +1306,7 @@ try {
   await page.screenshot({ path: join(outDir, 'zeichen.png') });
   await saved();
   const signsFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Zeichen-Test.icastico'))[1].contents;
-  check(/"version": 11/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 11)');
+  check(/"version": 12/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 12)');
   await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
   await page.click('.transport__play');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');

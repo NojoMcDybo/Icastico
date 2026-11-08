@@ -386,3 +386,32 @@ describe('chord mode (Logic: the key next to 1)', () => {
     expect(dump(play(at, 'chord G B').score)).toBe('C5:1/4 [G4,B4]:1/4 E5:1/4');
   });
 });
+
+describe('sharp / flat and octave for the next note only', () => {
+  it('a sharp typed before the letter sharpens just that note', () => {
+    let s = play(fresh(), '5');
+    s = runCommand(s, 'input.nextSharp', 0);
+    expect(s.message).toMatch(/Kreuz/);
+    s = play(s, 'F F');
+    expect(dump(s.score)).toBe('F#4:1/4 F4:1/4');
+  });
+
+  it('a flat works the same, and the same key again takes it back', () => {
+    let s = play(fresh(), '5');
+    s = runCommand(runCommand(s, 'input.nextFlat', 0), 'input.nextFlat', 0);
+    expect(s.message).toMatch(/aufgehoben/);
+    expect(dump(play(s, 'B').score)).toBe('B4:1/4');
+    s = runCommand(play(fresh(), '5'), 'input.nextFlat', 0);
+    expect(dump(play(s, 'B').score)).toBe('Bb4:1/4');
+  });
+
+  it('the octave key moves the next note only, and can be pressed twice', () => {
+    let s = play(fresh(), '5 C');
+    s = runCommand(s, 'input.octave', 1);
+    s = play(s, 'D E');
+    expect(dump(s.score)).toBe('C5:1/4 D6:1/4 E6:1/4');
+    s = runCommand(runCommand(s, 'input.octave', -1), 'input.octave', -1);
+    expect(s.message).toMatch(/2 Oktaven tiefer/);
+    expect(dump(play(s, 'F').score)).toMatch(/F4:1\/4$/);
+  });
+});

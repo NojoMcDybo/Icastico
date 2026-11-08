@@ -35,9 +35,11 @@ export interface InstrumentDef {
   readonly range: { readonly low: Pitch; readonly high: Pitch };
   /** General MIDI program (0-based) for playback. */
   readonly midiProgram: number;
+  /** Drawn as a tablature staff (six string lines with fret numbers) instead of notes on a staff (ADR 0030). */
+  readonly tab?: boolean;
 }
 
-export type InstrumentId = 'voice' | 'guitar' | 'piano';
+export type InstrumentId = 'voice' | 'guitar' | 'tab' | 'piano';
 
 const TREBLE: Clef = { shape: 'G', line: 2, octave: 0 };
 const TREBLE_8VB: Clef = { shape: 'G', line: 2, octave: -1 };
@@ -62,6 +64,17 @@ export const INSTRUMENTS: Readonly<Record<InstrumentId, InstrumentDef>> = {
     brace: false,
     range: { low: parsePitch('E2'), high: parsePitch('B5') },
     midiProgram: 24, // Acoustic Guitar (nylon)
+  },
+  tab: {
+    id: 'tab',
+    name: 'Tabulatur',
+    shortName: 'Tab',
+    // Notes are kept as pitches like those of the guitar; only the drawing differs.
+    staves: [{ clef: TREBLE_8VB, center: parsePitch('B3') }],
+    brace: false,
+    range: { low: parsePitch('E2'), high: parsePitch('B5') },
+    midiProgram: 24,
+    tab: true,
   },
   piano: {
     id: 'piano',

@@ -14,6 +14,7 @@ import version7File from './fixtures/version7.icastico?raw';
 import version8File from './fixtures/version8.icastico?raw';
 import version9File from './fixtures/version9.icastico?raw';
 import version10File from './fixtures/version10.icastico?raw';
+import version11File from './fixtures/version11.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -387,5 +388,24 @@ describe('format version 11: the slur sign', () => {
     const voice = part.voices[0]!;
     const score: Score = { ...base, parts: [{ ...part, voices: [{ ...voice, events: voice.events.map((e, i) => (i === 0 ? { ...e, marks: ['slur'] } : e)) }, ...part.voices.slice(1)] }, ...base.parts.slice(1)] };
     expect(parseScoreFile(serializeScore(score, '0')).parts[0]!.voices[0]!.events[0]!.marks).toEqual(['slur']);
+  });
+});
+
+describe('format version 12: the tablature instrument', () => {
+  it('opens files saved by Icastico 0.20.0 (format version 11) and saves them as the current version', () => {
+    const score = parseScoreFile(version11File);
+    expect(fileVersion(version11File)).toBe(11);
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  it('keeps a tablature part with its notes', () => {
+    const base = parseScoreFile(version11File);
+    const part = base.parts[0]!;
+    const score: Score = { ...base, parts: [...base.parts, { ...part, id: 'tab', name: 'Tabulatur', instrument: 'tab', voices: part.voices.slice(0, 1).map((v) => ({ ...v, id: 'tab-v1', events: v.events.map((e) => ({ ...e, id: 'tab-' + e.id, tones: e.tones.map((t) => ({ ...t, id: 'tab-' + t.id })) })) })) }] };
+    const back = parseScoreFile(serializeScore(score, '0'));
+    expect(back.parts[back.parts.length - 1]!.instrument).toBe('tab');
+    expect(back.parts[back.parts.length - 1]!.voices[0]!.events.length).toBe(score.parts[score.parts.length - 1]!.voices[0]!.events.length);
   });
 });

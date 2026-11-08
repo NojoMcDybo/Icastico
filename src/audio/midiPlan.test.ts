@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PlaybackPlan, SoundNote } from '../core/playback';
 import { BASE_CHANNEL, BEND_CENTER, BEND_MAX, BEND_STEP, GLIDE_CHANNELS, type MidiAction, bendValue, midiActions } from './midiPlan';
 
-const PROGRAMS = { voice: 52, guitar: 24, piano: 0 } as const;
+const PROGRAMS = { voice: 52, guitar: 24, tab: 24, piano: 0 } as const;
 const fixed = (start: number, end: number, midi: number, instrument: SoundNote['instrument'] = 'piano'): SoundNote => ({
   instrument,
   start,

@@ -30,6 +30,11 @@ export type UiCommandId =
   | 'view.voiceTest'
   | 'play.record'
   | 'play.loopRange'
+  | 'play.metronome'
+  | 'play.cycle'
+  | 'view.zoom'
+  | 'file.print'
+  | 'edit.quantize'
   | 'edit.copy'
   | 'edit.cut'
   | 'edit.paste'
@@ -50,6 +55,8 @@ export const MOUSE_COMMANDS = new Set([
   'mouse.glideMany',
   'mouse.rollKey',
   'mouse.curvePoint',
+  /** Buttons, menus and fields without a key: listed with `via` (where to find them). */
+  'ui.control',
 ]);
 
 export const UI_COMMANDS: ReadonlySet<string> = new Set<UiCommandId>([
@@ -75,6 +82,11 @@ export const UI_COMMANDS: ReadonlySet<string> = new Set<UiCommandId>([
   'view.voiceTest',
   'play.record',
   'play.loopRange',
+  'play.metronome',
+  'play.cycle',
+  'view.zoom',
+  'file.print',
+  'edit.quantize',
   'edit.copy',
   'edit.cut',
   'edit.paste',
@@ -96,6 +108,8 @@ export interface LibraryFunction {
   readonly title: string;
   /** Present = implemented in Icastico. */
   readonly command?: string;
+  /** Where to find it when it has no key (a button, a menu, the sign palette): shown in the help instead of keys. */
+  readonly via?: string;
   /** Argument → German label, e.g. "5" → "Viertel". */
   readonly args?: Readonly<Record<string, string>>;
   readonly finale?: PresetKeys;
@@ -201,7 +215,12 @@ export function buildKeymap(id: PresetId, library: KeyLibrary = KEY_LIBRARY, mac
     const entries: { keys: string; text: string }[] = [];
     for (const fn of group.functions) {
       const preset = fn[id] ?? (id === 'speedy' ? fn.finale : undefined);
-      if (!fn.command || !preset || keyPairs(preset.keys).every((p) => p.keys.length === 0)) continue;
+      const hasKeys = preset !== undefined && keyPairs(preset.keys).some((p) => p.keys.length > 0);
+      if (fn.command && fn.via && !hasKeys) {
+        entries.push({ keys: '–', text: `${fn.title} – ${fn.via}` });
+        continue;
+      }
+      if (!fn.command || !preset || !hasKeys) continue;
       entries.push(helpEntry(fn, preset, mac));
       if (MOUSE_COMMANDS.has(fn.command)) continue;
       for (const pair of keyPairs(preset.keys)) {
@@ -229,9 +248,12 @@ export function findBinding(keymap: Keymap, combo: string): KeyBinding | undefin
 const SOURCE_MARK: Record<KeySource, string> = { doku: '', annahme: ' *(Annahme)*', icastico: ' *(Icastico)*' };
 
 function docCell(fn: LibraryFunction, preset: PresetKeys | undefined): string {
-  if (!preset) return '–';
-  const pairs = keyPairs(preset.keys).filter((p) => p.keys.length);
-  if (!pairs.length) return preset.note ? `*${preset.note}*` : '–';
+  const pairs = preset ? keyPairs(preset.keys).filter((p) => p.keys.length) : [];
+  if (!preset || !pairs.length) {
+    const where = fn.via ? `${fn.via}` : '';
+    const note = preset?.note ?? '';
+    return where || note ? `*${[where, note].filter(Boolean).join(' – ')}*` : '–';
+  }
   const code = (c: string) => (displayCombo(c).includes('`') ? `\`\` ${displayCombo(c)} \`\`` : `\`${displayCombo(c)}\``);
   const keys = pairs
     .map((p) => {

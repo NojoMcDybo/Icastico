@@ -13,6 +13,9 @@ export const MAX_FRET = 22;
 /** Frets a hand reaches without moving, counted from the index finger. */
 const SPAN = 4;
 
+/** Whether the guitar can play this pitch (MIDI) on some string. */
+export const playableOnGuitar = (midi: number): boolean => midi >= Math.min(...GUITAR_STRINGS) && midi <= Math.max(...GUITAR_STRINGS) + MAX_FRET;
+
 export interface Fingering {
   /** 1 = high E … 6 = low E. */
   readonly string: number;

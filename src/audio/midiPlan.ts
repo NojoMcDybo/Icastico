@@ -25,7 +25,7 @@ export type MidiAction =
   | { readonly t: number; readonly channel: number; readonly type: 'off'; readonly key: number };
 
 /** Channel for the ordinary notes of each instrument (channel 10, index 9, is drums). */
-export const BASE_CHANNEL: Record<InstrumentId, number> = { voice: 0, guitar: 1, piano: 2 };
+export const BASE_CHANNEL: Record<InstrumentId, number> = { voice: 0, guitar: 1, tab: 1, piano: 2 };
 /** Channels handed out to sounds that glide or change their loudness. */
 export const GLIDE_CHANNELS: readonly number[] = [3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
 

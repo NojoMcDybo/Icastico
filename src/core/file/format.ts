@@ -26,9 +26,10 @@ export const FILE_EXTENSION = 'icastico';
  * 8 = optional `marks` per note (special signs) and per score (bar signs: repeats, endings, jumps; ADR 0024),
  * 7 = optional `lyric` per note, `chords` (chord symbols) per score (ADR 0019), `tab` per part (ADR 0022),
  * 10 = optional `groups` and more sign ids (ADR 0027),
- * 11 = the sign id "slur" (Bindebogen, ADR 0029).
+ * 11 = the sign id "slur" (Bindebogen, ADR 0029),
+ * 12 = the instrument "tab" (a tablature staff of its own, ADR 0030).
  */
-export const FORMAT_VERSION = 11;
+export const FORMAT_VERSION = 12;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -305,6 +306,8 @@ const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
   9: (doc) => ({ ...doc, version: 10 }),
   // 10 → 11: one more sign id ("slur"). Version-10 files do not use it.
   10: (doc) => ({ ...doc, version: 11 }),
+  // 11 → 12: one more instrument ("tab"). Version-11 files do not use it.
+  11: (doc) => ({ ...doc, version: 12 }),
 };
 
 /** Applies `fn` to every event object of a (still unvalidated) score; anything unexpected is left for the reader to reject. */

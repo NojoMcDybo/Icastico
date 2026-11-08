@@ -102,6 +102,7 @@ export function exportMusicXml(score: Score, appVersion = ''): ExportResult {
     notes.push('Lautstärke und Lautstärkelinien sind nicht in der Datei.');
   }
   if (links.some((l) => l.curve)) notes.push('Gleit-Verläufe sind nicht in der Datei.');
+  if (score.parts.some((p) => p.instrument === 'tab')) notes.push('Tabulaturzeilen sind als Notenzeile (Gitarre) geschrieben, ohne Bundzahlen.');
 
   // Brackets and braces around parts: a part-group opens before its first part and closes after its last.
   const groupNumber = new Map<string, number>();

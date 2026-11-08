@@ -65,6 +65,14 @@ const jpegOf = (canvas: HTMLCanvasElement): Promise<Uint8Array> =>
     ),
   );
 
+/** The pages of one score as SVG at A4 size, for printing (the system's print dialog can also save a PDF). */
+export function printPages(engraver: Engraver, score: Score, setup: PdfSetup): string[] {
+  const mei = scoreToMei(score);
+  const unitsW = (setup.landscape ? 2970 : 2100) * (100 / setup.scale);
+  const unitsH = (setup.landscape ? 2100 : 2970) * (100 / setup.scale);
+  return [...engraver.engrave(mei.mei, { pageWidth: unitsW, pageHeight: unitsH, scale: setup.scale, tab: mei.tab }).pages];
+}
+
 /** The PDF of one or several scores. Each score is engraved on its own; with `pack`, pages are filled one score after the other. */
 export async function scoresToPdf(engraver: Engraver, scores: readonly Score[], setup: PdfSetup, title: string): Promise<Uint8Array> {
   const pageW = setup.landscape ? Math.round((SHORT_SIDE_PX * A4_POINTS.height) / A4_POINTS.width) : SHORT_SIDE_PX;

@@ -10,7 +10,8 @@ import {
   renderKeyDoc,
   UI_COMMANDS,
 } from './keymaps/library';
-import { COMMANDS } from '../core/editor/commands';
+import { COMMANDS, newScoreState, runCommand, type CommandId } from '../core/editor/commands';
+import { validateScore } from '../core/model';
 
 const ev = (key: string, code: string, mods: Partial<KeyLike> = {}): KeyLike => ({
   key,
@@ -90,6 +91,54 @@ describe('key-binding library', () => {
             if (pair.arg !== undefined) expect(fn.args?.[pair.arg], `${fn.id} arg ${pair.arg}`).toBeDefined();
           }
         }
+      }
+    }
+  });
+
+  it('every function of the program is in the list, and every function without a key says where to find it', () => {
+    const listed = new Set(KEY_LIBRARY.groups.flatMap((g) => g.functions.flatMap((f) => (f.command ? [f.command] : []))));
+    // Reached through the MIDI keyboard and the voice, listed as "MIDI-Keyboard" / "Sprachbefehle".
+    const inside = new Set(['input.midi', 'input.midiAdd', 'input.spelled']);
+    const missing = Object.keys(COMMANDS).filter((c) => !listed.has(c) && !inside.has(c));
+    expect(missing, 'Befehle ohne Eintrag in library.json').toEqual([]);
+    const missingUi = [...UI_COMMANDS].filter((c) => !listed.has(c));
+    expect(missingUi, 'UI-Befehle ohne Eintrag in library.json').toEqual([]);
+    for (const g of KEY_LIBRARY.groups) {
+      for (const fn of g.functions) {
+        if (!fn.command || MOUSE_COMMANDS.has(fn.command) && !fn.via) continue;
+        const hasKeys = [fn.finale, fn.logic, fn.speedy].some((p) => p && keyPairs(p.keys).some((k) => k.keys.length > 0));
+        expect(hasKeys || Boolean(fn.via), `${fn.id}: weder Taste noch "via"`).toBe(true);
+      }
+    }
+  });
+
+  it('functions that have only a button, a menu or the palette show up in the help of every layout', () => {
+    for (const km of [finale, logic, speedy]) {
+      const text = km.help.flatMap((g) => g.entries).map((e) => e.text);
+      expect(text.some((t) => t.startsWith('Einen Takt zurück / vor')), km.name).toBe(true);
+      expect(text.some((t) => t.startsWith('Klammer oder Akkolade')), km.name).toBe(true);
+      expect(text.some((t) => t.startsWith('Zeichen am Takt der gewählten Note')), km.name).toBe(true);
+      expect(text.some((t) => t.startsWith('Exportieren: PDF')), km.name).toBe(true);
+    }
+  });
+
+  it.each([finale, logic, speedy])('$name: every key runs its command on a score without an error and leaves a valid score', (km) => {
+    const fresh = () => {
+      let s = newScoreState();
+      for (const [c, arg] of [['input.duration', 5], ['input.note', 0], ['input.note', 2], ['input.note', 4], ['input.note', 5]] as const) s = runCommand(s, c, arg);
+      return s;
+    };
+    const selected = () => {
+      const s = runCommand(fresh(), 'edit.escape');
+      const first = s.score.parts[0]!.voices[0]!.events[1]!;
+      return { ...s, selection: { kind: 'event' as const, partId: s.score.parts[0]!.id, voiceId: s.score.parts[0]!.voices[0]!.id, eventId: first.id } };
+    };
+    for (const b of km.bindings) {
+      if (!(b.command in COMMANDS)) continue; // the program's own functions (files, windows) are not run here
+      for (const [name, state] of [['mit Eingabe-Cursor', fresh()], ['mit gewählter Note', selected()]] as const) {
+        let next;
+        expect(() => (next = runCommand(state, b.command as CommandId, b.arg)), `${b.combo} (${b.command}) ${name}`).not.toThrow();
+        expect(validateScore(next!.score), `${b.combo} (${b.command}) ${name}`).toEqual([]);
       }
     }
   });

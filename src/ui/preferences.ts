@@ -155,6 +155,47 @@ export function saveRollSynth(on: boolean): void {
   }
 }
 
+const ZOOM_KEY = 'icastico.zoom';
+export const ZOOM_MIN = 50;
+export const ZOOM_MAX = 200;
+
+/** Size of the notation in percent (remembered); 100 = normal. */
+export function loadZoom(): number {
+  try {
+    const n = Number(localStorage.getItem(ZOOM_KEY));
+    return Number.isFinite(n) && n >= ZOOM_MIN && n <= ZOOM_MAX ? Math.round(n) : 100;
+  } catch {
+    return 100;
+  }
+}
+
+export function saveZoom(percent: number): void {
+  try {
+    localStorage.setItem(ZOOM_KEY, String(percent));
+  } catch {
+    // Storage unavailable – it starts at 100 next time.
+  }
+}
+
+const METRONOME_KEY = 'icastico.metronome';
+
+/** Whether the metronome click is on (remembered). */
+export function loadMetronome(): boolean {
+  try {
+    return localStorage.getItem(METRONOME_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveMetronome(on: boolean): void {
+  try {
+    localStorage.setItem(METRONOME_KEY, on ? '1' : '0');
+  } catch {
+    // Storage unavailable – it starts off next time.
+  }
+}
+
 export function loadView(path: string): ViewState {
   try {
     const all = JSON.parse(localStorage.getItem(VIEWS_KEY) ?? '{}') as Record<string, unknown>;

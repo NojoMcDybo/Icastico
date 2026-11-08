@@ -12,6 +12,14 @@ export interface PatchNote {
 /** Newest first. Keep each line to one short sentence. */
 export const PATCH_NOTES: readonly PatchNote[] = [
   {
+    version: '0.21.0',
+    items: [
+      'Tabulatur als eigenes Instrument: über „+ Tabulatur“ in den Partitur-Einstellungen als eigene Zeile neben der Notenschrift; Noten aus anderen Zeilen lassen sich mit Strg+C und Strg+V hineinkopieren.',
+      'Neue Funktionen: Metronom (M), Cycle, Zoom (Strg+Plus / Minus / 0), Quantisieren (Q), Drucken (Strg+P), Kreuz / B und Oktave für die nächste Note.',
+      'PDF speichern liegt jetzt auf Strg+Umschalt+F, weil Strg+P druckt. Alle Funktionen stehen in der Tastenhilfe, auch die ohne Taste mit dem Hinweis, wo man sie findet.',
+    ],
+  },
+  {
     version: '0.20.0',
     items: [
       'Liedtext-Feld (Taste L): den Text mit Bindestrichen eintippen, eine Silbe wählen und die Noten der Reihe nach anklicken – das Feld springt jedes Mal zur nächsten Silbe.',

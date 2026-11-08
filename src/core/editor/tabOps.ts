@@ -49,6 +49,7 @@ export function translateToTab(s: EditorState): EditorState {
   const source = s.score.parts.find((p) => p.id === ref.partId);
   if (!source) return s;
   if (source.instrument === 'guitar') return say(s, 'Das ist schon die Gitarrenzeile – ihre Tabulatur schaltest du mit Strg+T ein.');
+  if (source.instrument === 'tab') return say(s, 'Das ist schon eine Tabulaturzeile.');
   const span = rangeSpan(s);
   const voice = getVoice(s.score, span ?? ref).voice;
   const from: Fraction = span ? span.from : ZERO;
@@ -57,7 +58,8 @@ export function translateToTab(s: EditorState): EditorState {
   if (events.length === 0) return say(s, 'In diesem Bereich gibt es keine Noten.');
 
   let score = s.score;
-  let guitar = score.parts.find((p) => p.instrument === 'guitar');
+  // A tablature line of its own (ADR 0030) is the target if there is no guitar line; otherwise the guitar line gets its tab.
+  let guitar = score.parts.find((p) => p.instrument === 'guitar') ?? score.parts.find((p) => p.instrument === 'tab');
   if (!guitar) {
     const added = addGuitarPart(score);
     score = added.score;
@@ -80,11 +82,11 @@ export function translateToTab(s: EditorState): EditorState {
   if (made.length === 0) return say(s, 'Keiner der Töne liegt im Bereich der Gitarre (E2 bis D6).');
   const end = to ?? add(events[events.length - 1]!.onset, events[events.length - 1]!.duration);
   score = updateEvents(score, target, (list) => made.reduce<NoteEvent[]>((acc, ev) => insertSorted(acc, ev), clearRange(list, from, end)));
-  score = { ...score, parts: score.parts.map((p) => (p.id === guitar!.id ? { ...p, tab: true } : p)) };
+  score = { ...score, parts: score.parts.map((p) => (p.id === guitar!.id && p.instrument === 'guitar' ? { ...p, tab: true } : p)) };
   return {
     ...s,
     score,
     nextId,
-    message: `${copied} ${copied === 1 ? 'Ton' : 'Töne'} in die Gitarrenzeile übersetzt, die Tabulatur zeigt sie${dropped ? ` (${dropped} außerhalb der Gitarre ausgelassen)` : ''}.`,
+    message: `${copied} ${copied === 1 ? 'Ton' : 'Töne'} in die ${guitar.instrument === 'tab' ? 'Tabulaturzeile' : 'Gitarrenzeile'} übersetzt${guitar.instrument === 'tab' ? '' : ', die Tabulatur zeigt sie'}${dropped ? ` (${dropped} außerhalb der Gitarre ausgelassen)` : ''}.`,
   };
 }

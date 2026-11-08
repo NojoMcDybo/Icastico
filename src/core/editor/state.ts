@@ -44,6 +44,10 @@ export interface InputSettings {
    * the arrow keys and the interval keys. Null = not touched yet: the notes before the caret are repeated.
    */
   readonly ghost: readonly Pitch[] | null;
+  /** An accidental for the next note only (Logic: Shift+3 = #): 1 = sharp, −1 = flat; absent = none. */
+  readonly nextAlter?: -1 | 1;
+  /** Octaves the next note is moved from where it would land (Logic: X / Z); absent = none. */
+  readonly octaveShift?: number;
 }
 
 export interface EditorState {

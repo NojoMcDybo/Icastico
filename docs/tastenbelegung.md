@@ -23,9 +23,9 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Ton zum Akkord hinzufügen (darüber) | `Umschalt+C` C, `Umschalt+D` D, `Umschalt+E` E, `Umschalt+F` F, `Umschalt+G` G, `Umschalt+A` A, `Umschalt+B` / `Umschalt+H` H *(Annahme)* | – | (wie Finale) | ✓ |
 | Akkordmodus an/aus (nächste Töne übereinander) | `` ` `` *(Icastico)* – Finale hat das nicht als Taste; wir nehmen dieselbe wie Logic. Alternativ: Umschalt + Buchstabe fügt einen Ton zum Akkord. | `` ` `` – Gemeint ist die Taste links neben der 1 – auf deutschen Tastaturen ist das ^. | (wie Finale) | ✓ |
 | Triolen / Quintolen für die nächsten Noten (noch einmal: aus) | `Alt+0` Septolen, `Alt+8` Quintolen, `Alt+9` Triolen *(Icastico)* – Finale Simple Entry nutzt hier ein Menü; die Tasten sind von uns gewählt. | `9` Triolen – Quintolen und Septolen: Taste von uns. | (wie Finale) | ✓ |
-| Kreuz für die nächste Note | – | `Umschalt+3` – Auf US-Tastaturen ist Umschalt+3 das #. | (wie Finale) | geplant |
-| B für die nächste Note | – | `Umschalt+B` | (wie Finale) | geplant |
-| Eingabe-Oktave höher / tiefer | – | `X` höher, `Umschalt+X` zwei höher, `Z` tiefer, `Umschalt+Z` zwei tiefer – Icastico wählt die Oktave automatisch nah an der vorigen Note. | (wie Finale) | geplant |
+| Kreuz für die nächste Note (vor dem Buchstaben tippen; nochmal: aufheben) | – | `Umschalt+3` – Auf US-Tastaturen ist Umschalt+3 das #. | (wie Finale) | ✓ |
+| B für die nächste Note (vor dem Buchstaben tippen; nochmal: aufheben) | – | `Umschalt+B` | (wie Finale) | ✓ |
+| Oktave für die nächste Note höher / tiefer | `Alt+X` höher, `Alt+Z` tiefer *(Icastico)* – Gilt nur für die nächste Note; sonst wählt Icastico die Oktave nah an der vorigen Note. | `X` höher, `Umschalt+X` zwei höher, `Z` tiefer, `Umschalt+Z` zwei tiefer – Gilt nur für die nächste Note; sonst wählt Icastico die Oktave nah an der vorigen Note. | (wie Finale) | ✓ |
 | Vorschau-Note setzen und weiter (Enter wiederholt sie) | – | – | `Enter` *(Annahme)* – Die Vorschau-Note steht am Eingabe-Cursor; ↑/↓, Ziffernblock und Zahlenreihe ändern sie. Ohne Eingabe beginnt Enter die Eingabe. | ✓ |
 | Notenwert der Vorschau-Note (ohne Eingabe: der gewählten Note) | – | – | `Ziffernblock 1` 64tel, `Ziffernblock 2` 32tel, `Ziffernblock 3` 16tel, `Ziffernblock 4` Achtel, `Ziffernblock 5` Viertel, `Ziffernblock 6` Halbe, `Ziffernblock 7` Ganze *(Annahme)* | ✓ |
 | Ton im Intervall über / unter der Vorschau-Note hinzufügen | – | – | `2` Sekunde darüber, `3` Terz darüber, `4` Quarte darüber, `5` Quinte darüber, `6` Sexte darüber, `7` Septime darüber, `8` Oktave darüber, `Umschalt+2` Sekunde darunter, `Umschalt+3` Terz darunter, `Umschalt+4` Quarte darunter, `Umschalt+5` Quinte darunter, `Umschalt+6` Sexte darunter, `Umschalt+7` Septime darunter, `Umschalt+8` Oktave darunter *(Annahme)* – Obere Zahlenreihe; mit Umschalt nach unten. | ✓ |
@@ -44,7 +44,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Notenwert der Note ändern | `Alt+1` 64tel, `Alt+2` 32tel, `Alt+3` 16tel, `Alt+4` Achtel, `Alt+5` Viertel, `Alt+6` Halbe, `Alt+7` Ganze | `Alt+1` Ganze, `Alt+2` Halbe, `Alt+3` Viertel, `Alt+4` Achtel, `Alt+5` 16tel, `Alt+6` 32tel, `Alt+7` 64tel *(Icastico)* | (wie Finale) | ✓ |
 | Bogen zur nächsten Note: bei gleicher Tonhöhe ein Haltebogen (eine durchgehende Note), sonst ein Bindebogen (nochmal: lösen) | `T` | `Umschalt+T` *(Icastico)* – T ist in Logic die Taste für Fis. | (wie Finale) | ✓ |
 | Gleiten zur nächsten Note (nochmal: lösen). Die Lücke dazwischen ist die Gleitdauer | `Strg+Umschalt+G` *(Icastico)* | `Strg+Umschalt+G` *(Icastico)* | (wie Finale) | ✓ |
-| Note in Pause umwandeln | *In Finale R; hier ist R die Aufnahmetaste, Entf macht dasselbe.* | – | (wie Finale) | ✓ |
+| Note in Pause umwandeln | `Strg+Entf` *(Icastico)* – In Finale R; hier ist R die Aufnahmetaste. Anders als Entf wird auch bei einem gewählten Akkordton die ganze Note zur Pause. | `Strg+Entf` *(Icastico)* | (wie Finale) | ✓ |
 | Note löschen (wird zur Pause) | `Entf` *(Annahme)* | `Entf` | (wie Finale) | ✓ |
 | Letzte Note löschen und zurückgehen | `⌫` *(Annahme)* | `⌫` *(Icastico)* | (wie Finale) | ✓ |
 | Angeklickten Akkordton in eine eigene Stimme lösen | `Strg+Umschalt+D` *(Icastico)* | `Strg+Umschalt+D` *(Icastico)* | (wie Finale) | ✓ |
@@ -70,7 +70,10 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Einfügen (an der Schreibmarke oder der gewählten Note) | `Strg+V` | `Strg+V` | (wie Finale) | ✓ |
 | Ausschneiden (den markierten Bereich oder die gewählte Note) | `Strg+X` | `Strg+X` | (wie Finale) | ✓ |
 | Alle Noten der Stimme markieren | `Strg+A` | `Strg+A` | (wie Finale) | ✓ |
-| Quantisieren (eingespielte Noten ins Raster) | – | `Q` | (wie Finale) | geplant |
+| Quantisieren: eingespielte Noten ins Raster rücken (markierter Bereich, sonst die ganze Zeile) | `Q` *(Icastico)* | `Q` | (wie Finale) | ✓ |
+| Piano-Roll: Synth-Klang an / aus (Orgelklang, nichts klingt aus) | *Knopf „Synth“ in der Leiste der Roll* | *Knopf „Synth“ in der Leiste der Roll* | (wie Finale) | ✓ |
+| Piano-Roll: Höhe ändern (Doppelklick: Standardhöhe) | *Kante über der Roll ziehen oder mit ↑ / ↓* | *Kante über der Roll ziehen oder mit ↑ / ↓* | (wie Finale) | ✓ |
+| Zeile als Noten, als Piano-Roll oder als beides zeigen | *Schalter „Noten · Beides · Roll“ an der Zeile (Strg+Umschalt+P schaltet die Roll um)* | *Schalter „Noten · Beides · Roll“ an der Zeile (Strg+Umschalt+P schaltet die Roll um)* | (wie Finale) | ✓ |
 
 ## Bewegen
 
@@ -79,7 +82,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Vor / zurück | `→` vor, `←` zurück *(Annahme)* | `→` vor, `←` zurück – Logic: nächstes / voriges Ereignis auswählen. | (wie Finale) | ✓ |
 | System wechseln | `Alt+↓` darunter, `Alt+↑` darüber *(Annahme)* | `↓` darunter, `↑` darüber – Logic: Spur darüber / darunter auswählen. | (wie Finale) | ✓ |
 | Eingabe beenden, dann Auswahl aufheben | `Esc` *(Icastico)* | `Esc` *(Icastico)* | (wie Finale) | ✓ |
-| Vergrößern / verkleinern | – | `Strg+→` größer, `Strg+←` kleiner | (wie Finale) | geplant |
+| Notenschrift vergrößern / verkleinern (in 10-%-Schritten) | `Strg+0` normale Größe, `Strg++` größer, `Strg+−` kleiner *(Icastico)* | `Strg+0` normale Größe, `Strg+→` / `Strg++` größer, `Strg+←` / `Strg+−` kleiner – Strg+Pfeil rechts / links wie in Logic; Strg+Plus / Minus wie in anderen Programmen. | (wie Finale) | ✓ |
 
 ## Datei & Ansicht
 
@@ -91,18 +94,29 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Importieren: MusicXML (Finale), MIDI-Datei oder Einzelstimmen-Aufnahme (Logic) | `Strg+Umschalt+I` *(Icastico)* | `Strg+Umschalt+I` *(Icastico)* | (wie Finale) | ✓ |
 | Speichern (Bibliothek speichert auch selbst) | `Strg+S` | `Strg+S` | (wie Finale) | ✓ |
 | Kopie speichern unter … | `Strg+Umschalt+S` | `Strg+Umschalt+S` | (wie Finale) | ✓ |
-| Partitur-Einstellungen (Titel, Tonart, Taktart, Auftakt) | `Strg+,` *(Icastico)* | `Strg+,` *(Icastico)* | (wie Finale) | ✓ |
-| Drucken | `Strg+P` | `Strg+P` | (wie Finale) | geplant |
+| Partitur-Einstellungen (Titel, Tonart, Taktart, Auftakt) | `Strg+,` *(Icastico)* – Auch: den Titel oben oder die Anzeige „Taktart“ anklicken. | `Strg+,` *(Icastico)* – Auch: den Titel oben oder die Anzeige „Taktart“ anklicken. | (wie Finale) | ✓ |
+| Drucken (die Seiten der Partitur im A4-Format; der Druckdialog kann auch ein PDF speichern) | `Strg+P` | `Strg+P` | (wie Finale) | ✓ |
 | Piano-Roll für die gewählte Zeile ein / aus | `Strg+Umschalt+P` *(Icastico)* | `Strg+Umschalt+P` *(Icastico)* – In Logic öffnet P den Piano-Roll-Editor; hier ist P ein Ton. | (wie Finale) | ✓ |
 | Als MusicXML exportieren (für Finale, MuseScore …) | `Strg+Umschalt+E` *(Icastico)* | `Strg+Umschalt+E` *(Icastico)* | (wie Finale) | ✓ |
 | Tabulatur: den markierten Bereich (oder die ganze gewählte Zeile) in die Gitarrenzeile übersetzen; die Gitarrenzeile wird angelegt, wenn es sie noch nicht gibt | `Strg+Umschalt+B` *(Icastico)* | `Strg+Umschalt+B` *(Icastico)* | (wie Finale) | ✓ |
 | Als MIDI-Datei exportieren (zum Abspielen und für Klangprogramme) | `Strg+Umschalt+M` *(Icastico)* | `Strg+Umschalt+M` *(Icastico)* | (wie Finale) | ✓ |
 | Tabulatur unter der Gitarrenzeile an/aus (gibt es noch keine Gitarrenzeile, wird sie hinzugefügt) | `Strg+T` *(Icastico)* | `Strg+T` *(Icastico)* | (wie Finale) | ✓ |
-| Als PDF speichern (A4, Notengröße wählbar) | `Strg+P` *(Icastico)* – Aus der Bibliothek lassen sich mehrere Partituren zusammen als PDF speichern. | `Strg+P` *(Icastico)* | (wie Finale) | ✓ |
+| Als PDF speichern (A4, Notengröße wählbar) | `Strg+Umschalt+F` *(Icastico)* – Strg+P druckt; aus der Bibliothek lassen sich mehrere Partituren zusammen als PDF speichern. | `Strg+Umschalt+F` *(Icastico)* – Strg+P druckt. | (wie Finale) | ✓ |
 | Einzelstimme: ein Instrument als neue Partitur herausziehen | `Strg+Umschalt+X` *(Icastico)* – Die Stimme steht danach als eigene Partitur in der Bibliothek (Titel – Instrument). | `Strg+Umschalt+X` *(Icastico)* | (wie Finale) | ✓ |
 | Liedtext-Feld: Text mit Bindestrichen eintippen, dann Silbe und Noten anklicken | `L` *(Icastico)* – Silbe im Feld anklicken, dann die Noten der Reihe nach: jede bekommt die Silbe, danach springt das Feld zur nächsten. „_“ = Note ohne Silbe; „Ab gewählter Note alle setzen“ legt den Text auf einmal darunter. | `L` *(Icastico)* | (wie Finale) | ✓ |
-| Akkordsymbol an dieser Stelle eingeben (leer = löschen) | `K` *(Icastico)* – Zum Beispiel Am7 oder C/G; das Symbol bleibt an seiner Zeit stehen. | `K` *(Icastico)* | (wie Finale) | ✓ |
+| Akkordsymbol an dieser Stelle eingeben (leer = löschen) | `K` *(Icastico)* – Zum Beispiel Am7 oder C/G; das Symbol bleibt an seiner Zeit stehen. | `Umschalt+K` *(Icastico)* – In dieser Belegung ist K das Metronom. | (wie Finale) | ✓ |
 | Tastenhilfe | `F1` / `?` *(Icastico)* | `F1` / `?` *(Icastico)* | (wie Finale) | ✓ |
+| Partitur in der Bibliothek: Öffnen, Duplizieren, in eine Sammlung verschieben, Speicherort öffnen, in den Papierkorb | *Bibliothek (Strg+O): Menü ⋯ an der Partitur* | *Bibliothek (Strg+O): Menü ⋯ an der Partitur* | (wie Finale) | ✓ |
+| Exportieren: PDF, MusicXML, MIDI oder Icastico-Datei | *Bibliothek: Menü ⋯ → Exportieren (PDF, MusicXML und MIDI auch mit den Tasten oben)* | *Bibliothek: Menü ⋯ → Exportieren (PDF, MusicXML und MIDI auch mit den Tasten oben)* | (wie Finale) | ✓ |
+| Sammlungen: Partituren ordnen, Sammlung umbenennen oder (leer) löschen | *Bibliothek: Reiter oben und Menü ⋯ an der Sammlung* | *Bibliothek: Reiter oben und Menü ⋯ an der Sammlung* | (wie Finale) | ✓ |
+| Papierkorb: Partitur wiederherstellen, endgültig löschen, Papierkorb leeren | *Bibliothek: Reiter „Papierkorb“* | *Bibliothek: Reiter „Papierkorb“* | (wie Finale) | ✓ |
+| Partituren suchen; Pfeile wählen, Enter öffnet, Esc schließt | *Bibliothek: einfach lostippen* | *Bibliothek: einfach lostippen* | (wie Finale) | ✓ |
+| Alle Partituren der Ansicht in einem PDF | *Bibliothek: Link „Als PDF speichern …“ unten* | *Bibliothek: Link „Als PDF speichern …“ unten* | (wie Finale) | ✓ |
+| Den Ordner der Bibliothek im Explorer / Finder zeigen | *Bibliothek: Link unten* | *Bibliothek: Link unten* | (wie Finale) | ✓ |
+| Neuigkeiten der letzten Versionen anzeigen | *Bibliothek: Link „Neuigkeiten“ unten; Tastenhilfe (F1): Knopf „Neuigkeiten“* | *Bibliothek: Link „Neuigkeiten“ unten; Tastenhilfe (F1): Knopf „Neuigkeiten“* | (wie Finale) | ✓ |
+| Nach Updates suchen | *Bibliothek: Link unten; der Knopf „Update“ oben erscheint, wenn eine neue Version bereitsteht* | *Bibliothek: Link unten; der Knopf „Update“ oben erscheint, wenn eine neue Version bereitsteht* | (wie Finale) | ✓ |
+| In der Tastenhilfe suchen | *Suchfeld in der Tastenhilfe (F1)* | *Suchfeld in der Tastenhilfe (F1)* | (wie Finale) | ✓ |
+| Tabulatur als eigene Zeile neben der Notenschrift; Noten mit Strg+C / Strg+V hineinkopieren | *Partitur-Einstellungen (Strg+Komma): „+ Tabulatur“* | *Partitur-Einstellungen (Strg+Komma): „+ Tabulatur“* | (wie Finale) | ✓ |
 
 ## Wiedergabe & Aufnahme
 
@@ -112,17 +126,22 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Den markierten Bereich in Schleife abspielen (noch einmal: Schleife aus) | `Strg+L` *(Icastico)* | `Strg+L` *(Icastico)* | (wie Finale) | ✓ |
 | Aufnahme: Sprache und MIDI-Keyboard hören zu | `R` *(Icastico)* – Vom Owner bestimmt (Plan Sprachbefehle). In Finale macht R aus einer Note eine Pause; das geht hier mit Entf. | `R` | (wie Finale) | ✓ |
 | MIDI-Keyboard: Taste spielen gibt die Note ein (bei laufender Aufnahme; mehrere Tasten zugleich = Akkord) | `MIDI` *(Icastico)* | `MIDI` *(Icastico)* | (wie Finale) | ✓ |
-| Metronom an / aus | – | `K` | (wie Finale) | geplant |
-| Wiederholbereich (Cycle) an / aus | – | `C` | (wie Finale) | geplant |
+| Metronom an / aus (bei der Wiedergabe ein Klick auf jedem Schlag) | `M` *(Icastico)* | `K` – Die Akkordsymbole liegen in dieser Belegung auf Umschalt+K. | (wie Finale) | ✓ |
+| Cycle: die markierte Passage (sonst das ganze Stück) immer wieder abspielen – an / aus | `Strg+Umschalt+L` *(Icastico)* | `C` | (wie Finale) | ✓ |
+| Zum Anfang springen (der Stopp-Knopf springt dorthin, wenn nichts läuft) | *Knopf ⏮ in der oberen Leiste* | *Knopf ⏮ in der oberen Leiste* | (wie Finale) | ✓ |
+| Einen Takt zurück / vor | *Knöpfe ⏪ und ⏩ in der oberen Leiste* | *Knöpfe ⏪ und ⏩ in der oberen Leiste* | (wie Finale) | ✓ |
+| Dauerschleife: das ganze Stück wiederholen | *Schleifen-Knopf in der oberen Leiste* | *Schleifen-Knopf in der oberen Leiste* | (wie Finale) | ✓ |
+| Sprachbefehle: Notennamen, Notenwerte, Vorzeichen, Oktave, „zurück“ … bei eingeschalteter Aufnahme sprechen | *Aufnahme (R) einschalten; die Wörter zeigt der Sprachtest (Strg+Umschalt+V)* | *Aufnahme (R) einschalten; die Wörter zeigt der Sprachtest (Strg+Umschalt+V)* | (wie Finale) | ✓ |
 
 ## Zeichen
 
 | Funktion | Finale | Logic Pro | Finale-Ziffernblock | Icastico |
 |---|---|---|---|---|
-| Zeichen an der gewählten Note (nochmal: weg) | `Alt+Umschalt+P` pp, `Alt+P` p, `Alt+Umschalt+M` mp, `Alt+M` mf, `Alt+F` f, `Alt+Umschalt+F` ff, `Alt+S` sfz, `Alt+C` Crescendo, `Alt+Umschalt+C` Decrescendo, `Alt+.` Staccato, `Alt+−` Tenuto, `Alt+A` Akzent, `Alt+Umschalt+A` Marcato, `Alt+T` Triller, `Alt+Y` Fermate *(Icastico)* – Lautstärken ersetzen sich gegenseitig, ebenso Crescendo/Decrescendo. Alle Zeichen stehen auch in der Palette (Strg+J). | `Alt+Umschalt+P` pp, `Alt+P` p, `Alt+Umschalt+M` mp, `Alt+M` mf, `Alt+F` f, `Alt+Umschalt+F` ff, `Alt+S` sfz, `Alt+C` Crescendo, `Alt+Umschalt+C` Decrescendo, `Alt+.` Staccato, `Alt+−` Tenuto, `Alt+A` Akzent, `Alt+Umschalt+A` Marcato, `Alt+T` Triller, `Alt+Y` Fermate *(Icastico)* | (wie Finale) | ✓ |
-| Zeichen am Takt der gewählten Note: Wiederholung, Klammer, Segno, Coda, Sprung (nochmal: weg) | *Nur über die Palette (Strg+J). Aufeinanderfolgende Takte mit derselben Klammer bilden eine gemeinsame Klammer.* | *Nur über die Palette (Strg+J).* | (wie Finale) | ✓ |
+| Zeichen an der gewählten Note (nochmal: weg) | `Alt+Umschalt+P` pp, `Alt+P` p, `Alt+Umschalt+M` mp, `Alt+M` mf, `Alt+F` f, `Alt+Umschalt+F` ff, `Alt+S` sfz, `Alt+C` Crescendo, `Alt+Umschalt+C` Decrescendo, `Alt+.` Staccato, `Alt+−` Tenuto, `Alt+A` Akzent, `Alt+Umschalt+A` Marcato, `Alt+T` Triller, `Alt+Y` Fermate *(Icastico)* – Lautstärken ersetzen sich gegenseitig, ebenso Crescendo/Decrescendo. Alle Zeichen stehen auch in der Palette (Strg+J); Atemzeichen, Zäsur und Arpeggio nur dort, der Bindebogen auf T. | `Alt+Umschalt+P` pp, `Alt+P` p, `Alt+Umschalt+M` mp, `Alt+M` mf, `Alt+F` f, `Alt+Umschalt+F` ff, `Alt+S` sfz, `Alt+C` Crescendo, `Alt+Umschalt+C` Decrescendo, `Alt+.` Staccato, `Alt+−` Tenuto, `Alt+A` Akzent, `Alt+Umschalt+A` Marcato, `Alt+T` Triller, `Alt+Y` Fermate *(Icastico)* | (wie Finale) | ✓ |
+| Zeichen am Takt der gewählten Note: Wiederholung, Klammer, Segno, Coda, Sprung (nochmal: weg) | *Zeichen-Palette (Strg+J): Zeichen doppelklicken oder auf einen Takt ziehen – Aufeinanderfolgende Takte mit derselben Klammer bilden eine gemeinsame Klammer.* | *Zeichen-Palette (Strg+J): Zeichen doppelklicken oder auf einen Takt ziehen* | (wie Finale) | ✓ |
 | Sprachtest: Wörter einsprechen und Erkenner prüfen (noch ohne Befehle per Sprache) | `Strg+Umschalt+V` *(Icastico)* | `Strg+Umschalt+V` *(Icastico)* | (wie Finale) | ✓ |
 | Zeichen-Palette zeigen / verbergen | `Strg+J` *(Icastico)* | `Strg+J` *(Icastico)* | (wie Finale) | ✓ |
+| Klammer oder Akkolade um die Zeilen der Partitur | *Zeichen-Palette (Strg+J): Rubrik „Taktstriche“* | *Zeichen-Palette (Strg+J): Rubrik „Taktstriche“* | (wie Finale) | ✓ |
 
 ## Quellen
 

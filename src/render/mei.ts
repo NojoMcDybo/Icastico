@@ -154,8 +154,10 @@ interface StaffSlot {
   readonly n: number;
   readonly part: Part;
   readonly staffIndex: number;
-  /** The tablature staff that goes with a guitar staff. */
+  /** The tablature staff that goes with a guitar staff (derived, not part of the model). */
   readonly tab?: boolean;
+  /** The staff of a tablature instrument: a real staff of the model, drawn as strings and fret numbers (ADR 0030). */
+  readonly tabPart?: boolean;
 }
 
 function staffGrpXml(score: Score, slots: StaffSlot[]): string {
@@ -179,7 +181,9 @@ function staffGrpXml(score: Score, slots: StaffSlot[]): string {
       open = part.id;
     }
     const staffDef = (s: StaffSlot, withLabel: boolean, ind: string) =>
-      s.tab
+      s.tabPart
+        ? `${ind}<staffDef n="${s.n}" lines="${GUITAR_STRINGS.length}" keysig.visible="false" meter.visible="false"><label>${esc(part.name)}</label><labelAbbr>${esc(def.shortName)}</labelAbbr></staffDef>`
+        : s.tab
         ? `${ind}<staffDef n="${s.n}" lines="${GUITAR_STRINGS.length}" keysig.visible="false" meter.visible="false"><label>Tab</label><labelAbbr>Tab</labelAbbr></staffDef>`
         : `${ind}<staffDef n="${s.n}" lines="5" ${clefAttrs(def.staves[s.staffIndex]!.clef)}>` +
           (withLabel ? `<label>${esc(part.name)}</label><labelAbbr>${esc(def.shortName)}</labelAbbr>` : '') +
@@ -222,7 +226,7 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
   for (const part of score.parts) {
     getInstrument(part.instrument).staves.forEach((_, staffIndex) => {
       if (options.hiddenStaves?.has(`${part.id}:${staffIndex}`)) return;
-      slots.push({ n: slots.length + 1, part, staffIndex });
+      slots.push({ n: slots.length + 1, part, staffIndex, ...(getInstrument(part.instrument).tab ? { tabPart: true } : {}) });
       if (part.tab && part.instrument === 'guitar' && staffIndex === 0) slots.push({ n: slots.length + 1, part, staffIndex, tab: true });
     });
   }
@@ -371,23 +375,26 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
   const tabNotes = new Map<string, string>();
   const fingerings = new Map<string, ReadonlyMap<string, Fingering>>();
   for (const slot of slots) {
-    if (!slot.tab) continue;
+    if (!slot.tab && !slot.tabPart) continue;
     const events = slot.part.voices.filter((v) => v.staff === slot.staffIndex).flatMap((v) => v.events);
     fingerings.set(slot.part.id, assignFrets([...events].sort((a, b) => compare(a.onset, b.onset))));
   }
 
   /** The notes of one measure of one voice on a tab staff: the same rhythm, at the string lines, numbers drawn later. */
-  const tabItemXml = (item: NotatedItem, fingering: ReadonlyMap<string, Fingering>, indent: string): string => {
-    if (item.kind === 'measureRest') return `${indent}<mRest xml:id="${item.id}-tab"/>`;
-    if (item.kind === 'rest') return `${indent}<${item.invisible ? 'space' : 'rest'} xml:id="${item.id}-tab" ${durAttrs(item.duration)}/>`;
+  const tabItemXml = (item: NotatedItem, fingering: ReadonlyMap<string, Fingering>, indent: string, suffix: string): string => {
+    if (item.kind === 'measureRest') return `${indent}<mRest xml:id="${item.id}${suffix}"/>`;
+    if (item.kind === 'rest') return `${indent}<${item.invisible ? 'space' : 'rest'} xml:id="${item.id}${suffix}" ${durAttrs(item.duration)}/>`;
     const played = item.tones.map((t) => ({ t, f: fingering.get(t.id) })).filter((x): x is { t: Tone; f: Fingering } => x.f !== undefined);
-    if (played.length === 0) return `${indent}<space xml:id="${item.id}-tab" ${durAttrs(item.duration)}/>`;
-    const note = (id: string, f: Fingering) => {
-      tabNotes.set(id, String(f.fret));
-      return `<note xml:id="${id}" ${played.length === 1 ? durAttrs(item.duration) + ' ' : ''}loc="${(GUITAR_STRINGS.length - f.string) * 2}"/>`;
+    if (played.length === 0) return `${indent}<space xml:id="${item.id}${suffix}" ${durAttrs(item.duration)}/>`;
+    // On a tablature staff of its own the notes keep the ids of the model (clicking them selects the note); a chord stays a chord.
+    const asChord = suffix === '' ? item.tones.length > 1 : played.length > 1;
+    const idOf = (t: Tone): string => (!asChord ? `${item.id}${suffix}` : suffix === '' ? chordNoteId(item, t) : `${item.id}-${t.id}${suffix}`);
+    const note = (t: Tone, f: Fingering) => {
+      tabNotes.set(idOf(t), String(f.fret));
+      return `<note xml:id="${idOf(t)}" ${asChord ? '' : durAttrs(item.duration) + ' '}loc="${(GUITAR_STRINGS.length - f.string) * 2}"/>`;
     };
-    if (played.length === 1) return `${indent}${note(`${item.id}-tab`, played[0]!.f)}`;
-    return `${indent}<chord xml:id="${item.id}-tab" ${durAttrs(item.duration)}>${played.map((x) => note(`${item.id}-${x.t.id}-tab`, x.f)).join('')}</chord>`;
+    if (!asChord) return `${indent}${note(played[0]!.t, played[0]!.f)}`;
+    return `${indent}<chord xml:id="${item.id}${suffix}" ${durAttrs(item.duration)}>${played.map((x) => note(x.t, x.f)).join('')}</chord>`;
   };
 
   // Bar signs (ADR 0024): the signs of every bar, found by the start time of the bar they belong to.
@@ -429,7 +436,7 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
         const beams = beamGroups(items, m);
         const brackets = tupletGroups(items);
         const suffix = slot.tab ? '-tab' : '';
-        const fingering = slot.tab ? (fingerings.get(slot.part.id) ?? new Map<string, Fingering>()) : null;
+        const fingering = slot.tab || slot.tabPart ? (fingerings.get(slot.part.id) ?? new Map<string, Fingering>()) : null;
         items.forEach((item, i) => {
           const beam = beams.find(([a, b]) => i >= a && i <= b);
           const inBeam = beam !== undefined;
@@ -438,7 +445,7 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
           if (beam && i === beam[0]) body.push(`            <beam xml:id="${item.id}${suffix}-beam">`);
           const indent = inBeam ? '              ' : '            ';
           if (fingering) {
-            body.push(tabItemXml(item, fingering, indent));
+            body.push(tabItemXml(item, fingering, indent, suffix));
           } else {
             const first = item.kind === 'note' && !item.tiedFromPrevious;
             const verse = first ? (syllables.get(item.eventId) ?? '') : '';

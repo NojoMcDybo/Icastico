@@ -17,6 +17,8 @@ export interface TransportHost {
   step(direction: number): void;
   /** Returns whether looping is on now. */
   toggleLoop(): boolean;
+  /** Returns whether the metronome click is on now. */
+  toggleMetronome(): boolean;
   setTempo(bpm: number): void;
   /** Dragging the tempo up and down (like Logic): one undo step for the whole drag. */
   beginTempoDrag(): void;
@@ -32,6 +34,7 @@ export interface TransportInfo {
   readonly time: Fraction;
   readonly playing: boolean;
   readonly loop: boolean;
+  readonly metronome: boolean;
   readonly recording: boolean;
   readonly disabled: boolean;
 }
@@ -43,6 +46,7 @@ const ICONS = {
   play: '<path d="M7 5v14l12-7z" />',
   stop: '<rect x="6" y="6" width="12" height="12" rx="2" />',
   record: '<circle cx="12" cy="12" r="6" />',
+  metronome: '<path d="M9 4h6l3 16H6zM12 16l4-9" fill="none" />',
   loop: '<path d="M17 3l3 3-3 3M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 0 1-3 3H4" fill="none" />',
 } as const;
 
@@ -74,6 +78,7 @@ export class Transport {
   private readonly recordButton = button('record', 'Aufnahme: Sprache und MIDI-Keyboard hören zu (R)', 'transport__record');
   private readonly stopButton = button('stop', 'Anhalten (Strg+Eingabe) – noch einmal: zum Anfang', 'transport__stop');
   private readonly loopButton = button('loop', 'Wiederholen: die ganze Partitur immer wieder', 'transport__loop');
+  private readonly metronomeButton = button('metronome', 'Metronom: bei der Wiedergabe auf jedem Schlag ein Klick (M)', 'transport__metronome');
   private readonly bar = cell('TAKT', 'span');
   private readonly beat = cell('SCHLAG', 'span');
   private readonly tempo = cell('TEMPO', 'button');
@@ -98,11 +103,13 @@ export class Transport {
     this.recordButton.setAttribute('aria-pressed', 'false');
     this.loopButton.addEventListener('click', () => this.loopButton.setAttribute('aria-pressed', String(host.toggleLoop())));
     this.loopButton.setAttribute('aria-pressed', 'false');
-    this.buttons.push(start, back, forward, this.playButton, this.stopButton, this.recordButton, this.loopButton);
+    this.metronomeButton.addEventListener('click', () => this.metronomeButton.setAttribute('aria-pressed', String(host.toggleMetronome())));
+    this.metronomeButton.setAttribute('aria-pressed', 'false');
+    this.buttons.push(start, back, forward, this.playButton, this.stopButton, this.recordButton, this.loopButton, this.metronomeButton);
 
     const group = document.createElement('div');
     group.className = 'transport__buttons';
-    group.append(start, back, this.playButton, this.stopButton, forward, this.recordButton, this.loopButton);
+    group.append(start, back, this.playButton, this.stopButton, forward, this.recordButton, this.loopButton, this.metronomeButton);
 
     const lcd = document.createElement('div');
     lcd.className = 'lcd';
@@ -167,6 +174,7 @@ export class Transport {
     for (const b of this.buttons) b.disabled = info.disabled;
     for (const c of [this.tempo.el, this.meter.el, this.key.el]) (c as HTMLButtonElement).disabled = info.disabled;
     this.loopButton.setAttribute('aria-pressed', String(info.loop));
+    this.metronomeButton.setAttribute('aria-pressed', String(info.metronome));
   }
 
   /** The tempo number turns into a little input; Enter keeps it, Esc leaves it as it was. */

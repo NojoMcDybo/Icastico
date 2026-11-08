@@ -2405,3 +2405,36 @@ button.lcd__cell:nth-child(3) {
 .is-lyric-assign .page g.note {
   cursor: cell;
 }
+
+/* Printing: only the pages of the score, one per sheet (ADR 0030) */
+#print-root {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  body > *:not(#print-root) {
+    display: none !important;
+  }
+
+  #print-root {
+    display: block;
+    background: #fff;
+  }
+
+  .print-page {
+    width: 100%;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .print-page svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+}

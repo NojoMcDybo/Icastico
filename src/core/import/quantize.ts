@@ -95,12 +95,18 @@ const snapTo = (beats: number, trip: boolean, g: Grid, bias = 0): Fraction => {
   return frac(Math.max(0, Math.round(beats / step + bias)), trip ? g.tripDen : g.binDen);
 };
 
-/** Quantises notes to exact times. Notes that end up with no length get one step. Sorted by onset, then pitch. */
-export function quantize(notes: readonly PlayedNote[], options: QuantizeOptions = DEFAULT_QUANTIZE): { notes: QuantNote[]; tripletBeats: number } {
+/** Start and end of something played, in quarter-note beats. */
+export interface Timed {
+  readonly start: number;
+  readonly end: number;
+}
+
+/** Exact start and length for every item, in the order given. The core of `quantize`; the editor uses it on notes that are already in the score. */
+export function quantizeTimes(items: readonly Timed[], options: QuantizeOptions = DEFAULT_QUANTIZE): { times: { onset: Fraction; duration: Fraction }[]; tripletBeats: number } {
   const g = gridOf(options);
-  const trips = options.triplets ? tripletWindows(notes.map((n) => n.start), g) : new Set<number>();
-  const out: QuantNote[] = [];
-  for (const n of notes) {
+  const trips = options.triplets ? tripletWindows(items.map((n) => n.start), g) : new Set<number>();
+  const times: { onset: Fraction; duration: Fraction }[] = [];
+  for (const n of items) {
     const startTrip = trips.has(windowOf(n.start));
     const onset = snapTo(n.start, startTrip, g);
     let duration: Fraction | null = null;
@@ -113,10 +119,17 @@ export function quantize(notes: readonly PlayedNote[], options: QuantizeOptions 
         break;
       }
     }
-    out.push({ onset, duration: duration ?? frac(1, g.binDen), midi: n.midi, ...(n.volume !== undefined ? { volume: n.volume } : {}) });
+    times.push({ onset, duration: duration ?? frac(1, g.binDen) });
   }
+  return { times, tripletBeats: trips.size };
+}
+
+/** Quantises notes to exact times. Notes that end up with no length get one step. Sorted by onset, then pitch. */
+export function quantize(notes: readonly PlayedNote[], options: QuantizeOptions = DEFAULT_QUANTIZE): { notes: QuantNote[]; tripletBeats: number } {
+  const { times, tripletBeats } = quantizeTimes(notes, options);
+  const out: QuantNote[] = notes.map((n, i) => ({ ...times[i]!, midi: n.midi, ...(n.volume !== undefined ? { volume: n.volume } : {}) }));
   out.sort((a, b) => a.onset.n * b.onset.d - b.onset.n * a.onset.d || a.midi - b.midi);
-  return { notes: out, tripletBeats: trips.size };
+  return { notes: out, tripletBeats };
 }
 
 interface Ev {

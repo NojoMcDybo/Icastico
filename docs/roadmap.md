@@ -14,7 +14,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Verovio-Rendering, Klick auf Note → Modell-Event (mit Toleranz)
 - [x] Demo-Partitur „Erste Skizze“
 
-## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.20.0)
+## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.21.0)
 
 - [x] Command-System (reine Funktionen) mit Undo/Redo
 - [x] Eingabe-Cursor (blinkend; gestrichelt im Einfügemodus), springt hinter Schlüssel/Taktart
@@ -105,6 +105,8 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Export-Untermenü im Bibliotheks-Menü (PDF, MusicXML, MIDI, Icastico-Datei), MIDI-Export; Patch-Notes-Popup nach Updates; Suche in der Tastenhilfe; Quintenzirkel mit zwei Ringen
 - [x] Import aus Logic: MIDI-Datei (Spuren, Tempo, Taktart, Tonart) und Einzelstimmen-Aufnahme (WAV, AIFF, MP3, M4A) → Partitur; gemeinsame Quantisierung (Raster, Triolen, Stimmen, Handtrennung), Import-Fenster, Tonhöhenerkennung YIN (ADR 0028)
 - [x] Liedtext-Feld (Taste L): Text mit Bindestrichen tippen, Silbe wählen, Noten anklicken – das Feld springt zur nächsten Silbe; Bindebogen mit T (gleiche Tonhöhe = Haltebogen, sonst Legato-Bogen, Dateiformat 11); Vorschau-Note klingt erst bei Enter; Komma des Ziffernblocks punktiert auch in der Logic-Belegung (ADR 0029)
+- [x] Tastenliste vollständig: jede Funktion hat einen Eintrag (Taste oder „via“: Knopf, Menü, Palette), Tests melden künftig Funktionen ohne Eintrag und führen jede Taste einmal aus; Strg+Entf = ganze Note zur Pause
+- [x] Tabulatur als eigenes Instrument (neben der Notenschrift, Noten hineinkopieren; Dateiformat 12) und die acht geplanten Funktionen: Kreuz/B und Oktave für die nächste Note, Metronom, Cycle, Zoom, Quantisieren, Drucken (ADR 0030)
 - [ ] Finale-Dateien (`.musx`) direkt lesen – verschlüsseltes Binärformat, bewusst zurückgestellt (ADR 0021)
 - [ ] Seitenlayout von Hand (Umbrüche, Systemabstand, Kopf-/Fußzeile), mehrere Strophen, Tabulatur-Spieltechniken
 
