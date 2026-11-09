@@ -98,3 +98,40 @@ describe('a tablature line shows numbers, not note values (ADR 0032)', () => {
     expect(numbers).toContain('5');
   });
 });
+
+describe('TAB letters and the tuning in the printed score (ADR 0033)', () => {
+  let engraver: Engraver;
+  beforeAll(async () => {
+    engraver = await Engraver.create();
+  });
+  const tabScore = (tuning?: readonly number[]) => {
+    const { score, partId } = addInstrument(emptyScore(), 'tab');
+    return { ...score, parts: score.parts.map((p) => (p.id === partId ? { ...p, ...(tuning ? { tuning } : {}), voices: [{ ...p.voices[0]!, events: parseLine('E3:1/4 A3:1/4', 'tab-v1') }] } : p)) };
+  };
+  const svgOf = (s: ReturnType<typeof tabScore>) => {
+    const r = scoreToMei(s);
+    const { pages } = engraver.engrave(r.mei, { tab: r.tab, tabStaffs: r.tabStaffs });
+    return pages[0]!;
+  };
+
+  it('writes T A B in place of a clef at the start of the tab staff', () => {
+    const svg = svgOf(tabScore());
+    expect((svg.match(/class="tabclef"/g) ?? []).length).toBe(3);
+    expect(svg).not.toMatch(/class="tabtuning"/); // standard tuning: nothing to say
+  });
+
+  it('names a tuning that is not the standard one, once, above the first line', () => {
+    const svg = svgOf(tabScore([64, 59, 55, 50, 45, 38]));
+    expect((svg.match(/class="tabtuning"/g) ?? []).length).toBe(1);
+    expect(svg).toMatch(/>Drop D</);
+  });
+
+  it('a tuning of its own is written as the six string names', () => {
+    expect(svgOf(tabScore([64, 59, 55, 50, 45, 37]))).toMatch(/>Cis A d g h e</);
+  });
+
+  it('barlines run through all staves of the system', () => {
+    const r = scoreToMei(tabScore());
+    expect(r.mei).toMatch(/<staffGrp bar\.thru="true">/);
+  });
+});

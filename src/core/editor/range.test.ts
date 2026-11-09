@@ -134,7 +134,7 @@ describe('pasting into a tablature staff (ADR 0030)', () => {
     expect(validateScore(pasted.score)).toEqual([]);
   });
 
-  it('a clip of two voices (piano) goes into the one voice of the tab staff, notes that do not fit are counted', () => {
+  it('a clip of two voices (piano) goes into the one voice of the tab staff: notes that start together become one chord, none is lost', () => {
     const base = withTab(newScoreState());
     const piano = base.score.parts.find((p) => p.id === 'piano')!;
     const hand = (id: string, midiOctave: number, staff: number) => ({
@@ -146,8 +146,27 @@ describe('pasting into a tablature staff (ADR 0030)', () => {
     const clip = copyClip(run({ ...s, range: null } as EditorState, 'range.all'))!;
     const ref = tabRef(s);
     const pasted = pasteClip({ ...s, range: null, caret: null, selection: { kind: 'gap', ...ref, time: frac(0) } }, clip);
-    expect(getVoice(pasted.score, ref).voice.events).toHaveLength(1);
-    expect(pasted.message).toMatch(/1 Note fand keinen Platz/);
+    const got = getVoice(pasted.score, ref).voice.events;
+    expect(got).toHaveLength(1);
+    expect(got[0]!.tones.map((t) => t.pitch.octave).sort()).toEqual([3, 4]); // C3 and C4 in one chord
+    expect(validateScore(pasted.score)).toEqual([]);
+  });
+
+  it('a long bass note under a melody is cut where the next melody note starts, not thrown away', () => {
+    const base = withTab(newScoreState());
+    const piano = base.score.parts.find((p) => p.id === 'piano')!;
+    const note = (id: string, at: [number, number], dur: [number, number], octave: number) => ({ id, onset: frac(...at), duration: frac(...dur), tones: [{ id: id + '-t1', pitch: { step: 'C' as const, alter: 0, octave } }] });
+    const right = { ...piano.voices[0]!, events: [note('r1', [0, 1], [1, 4], 4), note('r2', [1, 4], [1, 4], 4)] };
+    const left = { ...piano.voices[1]!, events: [note('l1', [0, 1], [1, 1], 3)] };
+    const score = { ...base.score, parts: base.score.parts.map((p) => (p.id === 'piano' ? { ...p, voices: [right, left] } : p)) };
+    const s = { ...base, score, selection: { kind: 'event' as const, partId: 'piano', voiceId: right.id, eventId: 'r1' } };
+    const clip = copyClip(run({ ...s, range: null } as EditorState, 'range.all'))!;
+    const ref = tabRef(s);
+    const pasted = pasteClip({ ...s, range: null, caret: null, selection: { kind: 'gap', ...ref, time: frac(0) } }, clip);
+    const got = getVoice(pasted.score, ref).voice.events;
+    expect(got.map((e) => e.tones.length)).toEqual([2, 1]);
+    expect(got[0]!.duration).toEqual(frac(1, 4));
+    expect(validateScore(pasted.score)).toEqual([]);
   });
 
   it('says which tones a guitar cannot play', () => {

@@ -78,6 +78,9 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Tabulatur: die markierte Zahl auf eine andere Saite legen (der Ton bleibt, der Bund passt sich an) | *↑ / ↓ bei einer markierten Note der Tabulaturzeile* | *↑ / ↓ bei einer markierten Note der Tabulaturzeile* | (wie Finale) | ✓ |
 | Akkord: einzelne Töne durchgehen und mit ↑ / ↓ verändern | *Alt+↑ / Alt+↓ bei einem markierten Akkord (Mac: ⌥); danach wirkt ↑ / ↓ nur auf diesen Ton* | *Alt+↑ / Alt+↓ bei einem markierten Akkord (Mac: ⌥); danach wirkt ↑ / ↓ nur auf diesen Ton* | (wie Finale) | ✓ |
 | Markierte Noten in eine andere Zeile ziehen (z. B. in die Tabulatur): sie werden dort zur gleichen Zeit eingefügt | *Mit der Maus: markierte Noten greifen und auf die andere Zeile ziehen* | *Mit der Maus: markierte Noten greifen und auf die andere Zeile ziehen* | (wie Finale) | ✓ |
+| Liedtext in der Partitur: eine Silbe anklicken (Umschalt+Klick: bis zu dieser Silbe), dann löschen, kopieren, ausschneiden, einfügen | *Silbe unter den Noten anklicken: Entf nimmt sie weg, Strg+C / Strg+X kopiert / schneidet aus, Strg+V legt sie ab der gewählten Note auf die Noten* | *Silbe unter den Noten anklicken: Entf nimmt sie weg, Strg+C / Strg+X kopiert / schneidet aus, Strg+V legt sie ab der gewählten Note auf die Noten* | (wie Finale) | ✓ |
+| Eine Silbe auf eine andere Note verschieben | *Mit der Maus: die Silbe unter den Noten greifen und auf die andere Note ziehen* | *Mit der Maus: die Silbe unter den Noten greifen und auf die andere Note ziehen* | (wie Finale) | ✓ |
+| Das Liedtext-Fenster verschieben | *Mit der Maus: den Kopf des Liedtext-Fensters (Titel) greifen und ziehen; die Stelle wird gemerkt* | *Mit der Maus: den Kopf des Liedtext-Fensters (Titel) greifen und ziehen; die Stelle wird gemerkt* | (wie Finale) | ✓ |
 
 ## Bewegen
 
@@ -99,13 +102,13 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Speichern (Bibliothek speichert auch selbst) | `Strg+S` | `Strg+S` | (wie Finale) | ✓ |
 | Kopie speichern unter … | `Strg+Umschalt+S` | `Strg+Umschalt+S` | (wie Finale) | ✓ |
 | Partitur-Einstellungen (Titel, Tonart, Taktart, Auftakt) | `Strg+,` *(Icastico)* – Auch: den Titel oben oder die Anzeige „Taktart“ anklicken. | `Strg+,` *(Icastico)* – Auch: den Titel oben oder die Anzeige „Taktart“ anklicken. | (wie Finale) | ✓ |
-| Drucken (die Seiten der Partitur im A4-Format; der Druckdialog kann auch ein PDF speichern) | `Strg+P` | `Strg+P` | (wie Finale) | ✓ |
+| Drucken / PDF: Dialog mit Seitenvorschau (Seite, Notengröße, Takte pro Zeile), dann drucken oder als PDF speichern | `Strg+P` | `Strg+P` | (wie Finale) | ✓ |
 | Piano-Roll für die gewählte Zeile ein / aus | `Strg+Umschalt+P` *(Icastico)* | `Strg+Umschalt+P` *(Icastico)* – In Logic öffnet P den Piano-Roll-Editor; hier ist P ein Ton. | (wie Finale) | ✓ |
 | Als MusicXML exportieren (für Finale, MuseScore …) | `Strg+Umschalt+E` *(Icastico)* | `Strg+Umschalt+E` *(Icastico)* | (wie Finale) | ✓ |
 | Tabulatur: den markierten Bereich (oder die ganze gewählte Zeile) in die Gitarrenzeile übersetzen; die Gitarrenzeile wird angelegt, wenn es sie noch nicht gibt | `Strg+Umschalt+B` *(Icastico)* | `Strg+Umschalt+B` *(Icastico)* | (wie Finale) | ✓ |
 | Als MIDI-Datei exportieren (zum Abspielen und für Klangprogramme) | `Strg+Umschalt+M` *(Icastico)* | `Strg+Umschalt+M` *(Icastico)* | (wie Finale) | ✓ |
 | Tabulatur unter der Gitarrenzeile an/aus (gibt es noch keine Gitarrenzeile, wird sie hinzugefügt) | `Strg+T` *(Icastico)* | `Strg+T` *(Icastico)* | (wie Finale) | ✓ |
-| Als PDF speichern (A4, Notengröße wählbar) | `Strg+Umschalt+F` *(Icastico)* – Strg+P druckt; aus der Bibliothek lassen sich mehrere Partituren zusammen als PDF speichern. | `Strg+Umschalt+F` *(Icastico)* – Strg+P druckt. | (wie Finale) | ✓ |
+| Als PDF speichern (derselbe Dialog wie beim Drucken, mit Seitenvorschau) | `Strg+Umschalt+F` *(Icastico)* – Strg+P öffnet denselben Dialog; aus der Bibliothek lassen sich mehrere Partituren zusammen als PDF speichern. | `Strg+Umschalt+F` *(Icastico)* – Strg+P öffnet denselben Dialog. | (wie Finale) | ✓ |
 | Einzelstimme: ein Instrument als neue Partitur herausziehen | `Strg+Umschalt+X` *(Icastico)* – Die Stimme steht danach als eigene Partitur in der Bibliothek (Titel – Instrument). | `Strg+Umschalt+X` *(Icastico)* | (wie Finale) | ✓ |
 | Liedtext-Feld: Text mit Bindestrichen eintippen, dann Silbe und Noten anklicken | `L` *(Icastico)* – Silbe im Feld anklicken, dann die Noten der Reihe nach: jede bekommt die Silbe, danach springt das Feld zur nächsten. „_“ = Note ohne Silbe; „Ab gewählter Note alle setzen“ legt den Text auf einmal darunter. | `L` *(Icastico)* | (wie Finale) | ✓ |
 | Akkordsymbol an dieser Stelle eingeben (leer = löschen) | `K` *(Icastico)* – Zum Beispiel Am7 oder C/G; das Symbol bleibt an seiner Zeit stehen. | `Umschalt+K` *(Icastico)* – In dieser Belegung ist K das Metronom. | (wie Finale) | ✓ |

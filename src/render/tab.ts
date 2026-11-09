@@ -31,3 +31,52 @@ export function applyTabNumbers(svg: string, numbers: ReadonlyMap<string, string
   }
   return out;
 }
+
+export interface TabStaff {
+  /** MEI staff number. */
+  readonly n: number;
+  /** The tuning to print above the staff, or null for standard tuning. */
+  readonly label: string | null;
+}
+
+const FONT = 'Segoe UI, Helvetica, Arial, sans-serif';
+const escXml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/**
+ * The letters T A B in place of a clef at the start of every system of a tablature staff, and the tuning above the
+ * first one (Verovio's own tab clef only exists in its string-based tablature mode, which this staff does not use).
+ */
+export function applyTabClefs(svg: string, staffs: readonly TabStaff[]): string {
+  if (staffs.length === 0) return svg;
+  const systems = [...svg.matchAll(/<g id="[^"]*" class="system"/g)].map((m) => m.index!);
+  let out = '';
+  let from = 0;
+  let first = true;
+  systems.forEach((begin, i) => {
+    const end = systems[i + 1] ?? svg.length;
+    let chunk = svg.slice(begin, end);
+    const measure = chunk.indexOf('class="measure"');
+    if (measure >= 0) {
+      for (const staff of staffs) {
+        const at = chunk.slice(measure).search(new RegExp(String.raw`<g id="m\d+-s${staff.n}" class="staff"`));
+        if (at < 0) continue;
+        const lines = [...chunk.slice(measure + at).matchAll(/<path d="M(\d+) (\d+) L\d+ \d+"[^>]*?(?:\/>|><\/path>)/g)].slice(0, 6);
+        if (lines.length < 6) continue;
+        const x = Number(lines[0]![1]);
+        const top = Number(lines[0]![2]);
+        const insertAt = measure + at + lines[5]!.index! + lines[5]![0].length;
+        const cx = x + 380;
+        const letters = ['T', 'A', 'B']
+          .map((c, k) => `<text x="${cx}" y="${top + 275 + k * 290}" font-size="320" font-weight="bold" text-anchor="middle" font-family="${FONT}" class="tabclef">${c}</text>`)
+          .join('');
+        const patch = `<rect x="${cx - 200}" y="${top + 30}" width="400" height="840" fill="#fff" />`;
+        const tuning = first && staff.label ? `<text x="${x + 100}" y="${top - 100}" font-size="200" font-style="italic" font-family="${FONT}" class="tabtuning">${escXml(staff.label)}</text>` : '';
+        chunk = chunk.slice(0, insertAt) + patch + letters + tuning + chunk.slice(insertAt);
+        if (staff.label) first = false;
+      }
+    }
+    out += svg.slice(from, begin) + chunk;
+    from = end;
+  });
+  return out + svg.slice(from);
+}

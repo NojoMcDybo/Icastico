@@ -40,6 +40,21 @@ export const validTuning = (t: readonly number[]): boolean => t.length === GUITA
 /** The preset a tuning equals, if it is one. */
 export const presetOf = (t: Tuning): TuningPreset | undefined => TUNINGS.find((p) => p.strings.every((m, i) => m === t[i]));
 
+const NAMES_DE = ['c', 'cis', 'd', 'dis', 'e', 'f', 'fis', 'g', 'gis', 'a', 'b', 'h'];
+
+/** German name of a pitch as guitarists write string names: capital below the d string, small from there on ("E A d g h e"). */
+export function noteNameDe(midi: number): string {
+  const name = NAMES_DE[((midi % 12) + 12) % 12]!;
+  return midi < 50 ? name.charAt(0).toUpperCase() + name.slice(1) : name;
+}
+
+/** What the score says about a tuning: the preset's name, else the six string names (lowest string first). Null for standard tuning; short enough to stand above the start of a staff. */
+export function tuningLabel(t: Tuning): string | null {
+  const preset = presetOf(t);
+  if (preset?.id === 'standard') return null;
+  return preset ? preset.name.replace(/\s*\(.*\)$/, '') : [...t].reverse().map(noteNameDe).join(' ');
+}
+
 /** The tuning a part uses. */
 export const tuningOf = (part: { readonly tuning?: Tuning }): Tuning => part.tuning ?? GUITAR_STRINGS;
 

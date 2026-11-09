@@ -8,7 +8,7 @@
  * notation does not show. Chord symbols and lyrics are written (ADR 0019).
  */
 import { type Fraction, add, frac, le, lt, sub } from '../time';
-import { type Pitch } from '../pitch';
+import { type Pitch, spellMidi } from '../pitch';
 import { getInstrument } from '../instruments';
 import { type Measure, type Part, type Score, type Voice, DEFAULT_TEMPO, measuresOf, systemBreaks, validateScore } from '../model';
 import {
@@ -60,6 +60,15 @@ function divisionsFor(score: Score, measures: readonly Measure[]): number {
 function pitchXml(p: Pitch, octaveShift: number): string {
   const alter = p.alter !== 0 ? `<alter>${p.alter}</alter>` : '';
   return `<pitch><step>${p.step}</step>${alter}<octave>${p.octave + octaveShift}</octave></pitch>`;
+}
+
+/** The tuning of a guitar or tablature part as MusicXML staff details: line 1 is the lowest string, pitches written like the notes. */
+function staffDetailsXml(tuning: readonly number[], octaveShift: number): string {
+  const strings = [...tuning].reverse().map((midi, i) => {
+    const p = spellMidi(midi + 12 * octaveShift, 0);
+    return `<staff-tuning line="${i + 1}"><tuning-step>${p.step}</tuning-step>${p.alter !== 0 ? `<tuning-alter>${p.alter}</tuning-alter>` : ''}<tuning-octave>${p.octave}</tuning-octave></staff-tuning>`;
+  });
+  return `<staff-details><staff-lines>${tuning.length}</staff-lines>${strings.join('')}</staff-details>`;
 }
 
 /** "Am7/G" → MusicXML <harmony>; null when the text does not start with a note name. */
@@ -147,6 +156,7 @@ export function exportMusicXml(score: Score, appVersion = ''): ExportResult {
       if (mi === 0) {
         if (manyStaves) attrs.push(`<staves>${def.staves.length}</staves>`);
         def.staves.forEach((st, i) => attrs.push(clefXml(i + 1, st.clef.shape, st.clef.line, st.clef.octave, manyStaves)));
+        if (part.tuning && (part.instrument === 'guitar' || part.instrument === 'tab')) attrs.push(staffDetailsXml(part.tuning, -def.staves[0]!.clef.octave));
       }
       const kinds = (score.marks ?? []).filter((b) => le(m.start, b.at) && lt(b.at, m.end)).map((b) => b.kind as string);
       const volta = Math.max(0, ...kinds.map(voltaNumber));

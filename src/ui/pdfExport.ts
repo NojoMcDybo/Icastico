@@ -13,6 +13,15 @@ export interface PdfSetup {
   readonly scale: number;
   /** Put short scores one below the other on shared pages instead of starting a page for each. */
   readonly pack: boolean;
+  /** Bars per line for this print only: absent = as the score says, 0 = automatic. */
+  readonly perSystem?: number;
+}
+
+/** The score as it is printed: with the bars per line of the setup, if it has one (the score itself is not changed). */
+function shaped(score: Score, setup: PdfSetup): Score {
+  if (setup.perSystem === undefined) return score;
+  const { layout: _own, ...rest } = score;
+  return setup.perSystem > 0 ? { ...rest, layout: { perSystem: setup.perSystem } } : rest;
 }
 
 export const SIZES: readonly { readonly label: string; readonly scale: number }[] = [
@@ -67,10 +76,10 @@ const jpegOf = (canvas: HTMLCanvasElement): Promise<Uint8Array> =>
 
 /** The pages of one score as SVG at A4 size, for printing (the system's print dialog can also save a PDF). */
 export function printPages(engraver: Engraver, score: Score, setup: PdfSetup): string[] {
-  const mei = scoreToMei(score);
+  const mei = scoreToMei(shaped(score, setup));
   const unitsW = (setup.landscape ? 2970 : 2100) * (100 / setup.scale);
   const unitsH = (setup.landscape ? 2100 : 2970) * (100 / setup.scale);
-  return [...engraver.engrave(mei.mei, { pageWidth: unitsW, pageHeight: unitsH, scale: setup.scale, tab: mei.tab }).pages];
+  return [...engraver.engrave(mei.mei, { pageWidth: unitsW, pageHeight: unitsH, scale: setup.scale, tab: mei.tab, tabStaffs: mei.tabStaffs }).pages];
 }
 
 /** The PDF of one or several scores. Each score is engraved on its own; with `pack`, pages are filled one score after the other. */
@@ -108,10 +117,10 @@ export async function scoresToPdf(engraver: Engraver, scores: readonly Score[], 
   };
 
   for (const score of scores) {
-    const mei = scoreToMei(score);
+    const mei = scoreToMei(shaped(score, setup));
     const engraved = engraver.engrave(mei.mei, setup.pack
-      ? { pageWidth: unitsW, scale: setup.scale, tab: mei.tab }
-      : { pageWidth: unitsW, pageHeight: unitsH, scale: setup.scale, tab: mei.tab });
+      ? { pageWidth: unitsW, scale: setup.scale, tab: mei.tab, tabStaffs: mei.tabStaffs }
+      : { pageWidth: unitsW, pageHeight: unitsH, scale: setup.scale, tab: mei.tab, tabStaffs: mei.tabStaffs });
     const blocks: Block[] = engraved.pages.map((svg) => ({ svg, ...sizeOf(svg) }));
     for (const block of blocks) {
       if (setup.pack) {

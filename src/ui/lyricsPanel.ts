@@ -13,6 +13,7 @@ export interface LyricsHost {
 }
 
 const KEY = 'icastico.lyricsDraft';
+const POS_KEY = 'icastico.lyricsPosition';
 
 const read = (): string => {
   try {
@@ -29,6 +30,15 @@ const write = (text: string): void => {
   }
 };
 
+const readPosition = (): { x: number; y: number } | null => {
+  try {
+    const p = JSON.parse(localStorage.getItem(POS_KEY) ?? 'null') as { x?: unknown; y?: unknown } | null;
+    return p && typeof p.x === 'number' && typeof p.y === 'number' ? { x: p.x, y: p.y } : null;
+  } catch {
+    return null;
+  }
+};
+
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...children: (Node | string)[]): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   Object.assign(node, props);
@@ -41,6 +51,7 @@ export class LyricsPanel {
   private readonly text: HTMLTextAreaElement;
   private readonly chipBox: HTMLElement;
   private readonly status: HTMLElement;
+  private readonly head: HTMLElement;
   private chips: string[] = [];
   private current = 0;
   private done = new Set<number>();
@@ -56,6 +67,9 @@ export class LyricsPanel {
     const again = el('button', { type: 'button', className: 'pill', textContent: 'Von vorn', title: 'Wieder bei der ersten Silbe anfangen' });
     this.el = el('section', { className: 'lyrics', hidden: true }, el('div', { className: 'lyrics__head' }, el('strong', { textContent: 'Liedtext' }), this.status, close), this.text, this.chipBox, el('div', { className: 'lyrics__foot' }, all, again));
     this.el.setAttribute('aria-label', 'Liedtext');
+    this.head = this.el.querySelector<HTMLElement>('.lyrics__head')!;
+    this.head.title = 'Zum Verschieben hier greifen und ziehen';
+    this.head.addEventListener('pointerdown', (e) => this.beginMove(e));
 
     this.text.addEventListener('input', () => {
       write(this.text.value);
@@ -89,6 +103,8 @@ export class LyricsPanel {
   show(): void {
     if (!this.text.value) this.text.value = read() || this.host.existingText();
     this.el.hidden = false;
+    const saved = readPosition();
+    if (saved) this.place(saved.x, saved.y);
     this.parse(true);
     this.text.focus();
   }
@@ -101,6 +117,38 @@ export class LyricsPanel {
   toggle(): void {
     if (this.isOpen) this.hide();
     else this.show();
+  }
+
+  /** Puts the window at a place, kept inside the screen. */
+  private place(x: number, y: number): void {
+    const box = this.el.getBoundingClientRect();
+    const left = Math.max(0, Math.min(window.innerWidth - Math.min(box.width, window.innerWidth), x));
+    const top = Math.max(0, Math.min(window.innerHeight - 60, y));
+    Object.assign(this.el.style, { left: `${left}px`, top: `${top}px`, bottom: 'auto', transform: 'none' });
+  }
+
+  /** The window is dragged by its head (not by the buttons); where it was left is remembered. */
+  private beginMove(e: PointerEvent): void {
+    if (e.button !== 0 || (e.target as Element).closest('button')) return;
+    e.preventDefault();
+    const box = this.el.getBoundingClientRect();
+    const dx = e.clientX - box.left;
+    const dy = e.clientY - box.top;
+    const move = (m: PointerEvent) => this.place(m.clientX - dx, m.clientY - dy);
+    const end = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+      const at = this.el.getBoundingClientRect();
+      try {
+        localStorage.setItem(POS_KEY, JSON.stringify({ x: at.left, y: at.top }));
+      } catch {
+        // not remembered
+      }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
   }
 
   /** The syllable for the clicked note; moves on to the next one. */

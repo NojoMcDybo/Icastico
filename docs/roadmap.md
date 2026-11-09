@@ -14,7 +14,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Verovio-Rendering, Klick auf Note → Modell-Event (mit Toleranz)
 - [x] Demo-Partitur „Erste Skizze“
 
-## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.22.0)
+## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.23.0)
 
 - [x] Command-System (reine Funktionen) mit Undo/Redo
 - [x] Eingabe-Cursor (blinkend; gestrichelt im Einfügemodus), springt hinter Schlüssel/Taktart
@@ -108,6 +108,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Tastenliste vollständig: jede Funktion hat einen Eintrag (Taste oder „via“: Knopf, Menü, Palette), Tests melden künftig Funktionen ohne Eintrag und führen jede Taste einmal aus; Strg+Entf = ganze Note zur Pause
 - [x] Tabulatur als eigenes Instrument (neben der Notenschrift, Noten hineinkopieren; Dateiformat 12) und die acht geplanten Funktionen: Kreuz/B und Oktave für die nächste Note, Metronom, Cycle, Zoom, Quantisieren, Drucken (ADR 0030)
 - [x] Rückmeldungen nach 0.21.0: Akkordtöne einzeln mit Alt+↑/↓ wählen und mit ↑/↓ ändern; Segno, Coda, Sprünge und Tempoanweisungen genau auf der Note (Format 13); Takte pro Zeile und Zeilenumbrüche aus MusicXML (Format 14); Tabulatur mit Stimmungen (Drop D, offene Stimmungen, jede Saite einzeln), Bundzahl tippen, ↑/↓ auf andere Saite, markierte Noten in die Tabulatur ziehen, keine Notenwerte in der Tabulaturzeile (Format 15; ADR 0031, 0032)
+- [x] Rückmeldungen nach 0.22.0: Liedtext-Fenster verschiebbar, Silben in der Partitur wählen, löschen, kopieren, ausschneiden, verschieben; Drucken und PDF in einem Dialog mit Seitenvorschau und Takten pro Zeile; Taktstriche durch alle Zeilen; „TAB“ statt Schlüssel und die Stimmung über der Tabulaturzeile (auch in MusicXML); Kopieren und Ziehen in die Tabulatur verliert keine Noten mehr; ein Akkordton wird allein markiert (ADR 0033)
 - [ ] Finale-Dateien (`.musx`) direkt lesen – verschlüsseltes Binärformat, bewusst zurückgestellt (ADR 0021)
 - [ ] Seitenlayout von Hand (Umbrüche, Systemabstand, Kopf-/Fußzeile), mehrere Strophen, Tabulatur-Spieltechniken
 

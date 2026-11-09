@@ -11,6 +11,7 @@
  */
 import { type Fraction, ZERO, add, compare, eq, frac, le, lt, sub } from '../time';
 import { type Pitch, STEPS, midiOf, spellMidi } from '../pitch';
+import { GUITAR_STRINGS, validTuning } from '../tab';
 import { type InstrumentId, getInstrument } from '../instruments';
 import {
   type StaffGroup,
@@ -217,6 +218,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
     const comingMarks: string[] = []; // dynamics and wedges written before the note they belong to
     let voltaOpen = 0;
     let voltaClose = false;
+    let tuning: number[] | undefined; // a guitar tuning other than the standard one, highest string first
 
     measures.forEach((measureEl, mi) => {
       const here = starts[mi] ?? measureStart;
@@ -255,6 +257,18 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
           if (tr) {
             transpose = Math.round(intOf(childText(tr, 'chromatic'), 0)) + 12 * Math.round(intOf(childText(tr, 'octave-change'), 0));
             hasTranspose = true;
+          }
+          // The tuning of the strings: line 1 is the lowest string; the pitches are written like the notes.
+          const tunings = childrenNamed(child(el, 'staff-details') ?? el, 'staff-tuning');
+          if (instrument === 'guitar' && tunings.length === GUITAR_STRINGS.length) {
+            const shift = hasTranspose ? transpose : -12;
+            const midis = [...tunings]
+              .sort((a, b) => intOf(b.attrs.line, 0) - intOf(a.attrs.line, 0))
+              .map((t) => {
+                const step = childText(t, 'tuning-step');
+                return step && STEP_SET.has(step) ? midiOf({ step: step as Pitch['step'], alter: Math.round(intOf(childText(t, 'tuning-alter'), 0)), octave: Math.round(intOf(childText(t, 'tuning-octave'), 4)) }) + shift : Number.NaN;
+              });
+            if (validTuning(midis) && midis.some((m, i) => m !== GUITAR_STRINGS[i])) tuning = midis;
           }
         } else if (el.name === 'backup') {
           cursor -= Math.round(intOf(childText(el, 'duration'), 0));
@@ -433,7 +447,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
       if (!voices.some((v) => v.staff === s)) voices.push({ id: `${partId}-s${s + 1}v1`, staff: s, events: [] });
     }
     voices.sort((a, b) => a.staff - b.staff);
-    parts.push({ id: partId, name: info.name || def.name, instrument, voices });
+    parts.push({ id: partId, name: info.name || def.name, instrument, ...(tuning ? { tuning } : {}), voices });
     partOfSource.set(sourceId, partId);
   });
 

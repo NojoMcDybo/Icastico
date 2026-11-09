@@ -15,7 +15,7 @@ import { type Fraction, compare, div, gt, le, lt, sub, frac } from '../core/time
 import { barSign, noteSymbol, voltaNumber } from '../core/symbols';
 import { getInstrument, type Clef } from '../core/instruments';
 import { keyAlteration, type Pitch } from '../core/pitch';
-import { GUITAR_STRINGS, assignFrets, tuningOf, type Fingering } from '../core/tab';
+import { GUITAR_STRINGS, assignFrets, tuningLabel, tuningOf, type Fingering } from '../core/tab';
 import {
   beamGroups,
   notateVoice,
@@ -65,8 +65,12 @@ export interface MeiResult {
   readonly tab: ReadonlyMap<string, string>;
   /** xml:id → model reference. */
   readonly elements: ReadonlyMap<string, ElementRef>;
+  /** xml:id of a lyric syllable as drawn → the note it sits under (ADR 0033). */
+  readonly syllables: ReadonlyMap<string, ElementRef>;
   /** The staves that were engraved, top to bottom. */
   readonly staffs: readonly StaffInfo[];
+  /** The tablature staves (MEI staff number) with the tuning to print above them, if it is not the standard one. */
+  readonly tabStaffs: readonly { readonly n: number; readonly label: string | null }[];
 }
 
 const esc = (s: string): string =>
@@ -109,11 +113,11 @@ class AccidentalState {
 const chordNoteId = (item: NotatedNote, tone: Tone): string => `${item.id}-${tone.id}`;
 
 /** Where a lyric syllable sits in its word, from the "-" at the end of the syllables (MEI wordpos). */
-function lyricXml(syllable: string, previousContinues: boolean): { xml: string; continues: boolean } {
+function lyricXml(syllable: string, previousContinues: boolean, id: string): { xml: string; continues: boolean } {
   const continues = syllable.endsWith('-');
   const text = continues ? syllable.slice(0, -1) : syllable;
   const wordpos = continues ? (previousContinues ? 'm' : 'i') : previousContinues ? 't' : null;
-  const attrs = wordpos ? ` wordpos="${wordpos}"${continues ? ' con="d"' : ''}` : '';
+  const attrs = ` xml:id="${id}"${wordpos ? ` wordpos="${wordpos}"${continues ? ' con="d"' : ''}` : ''}`;
   return { xml: `<verse n="1"><syl${attrs}>${esc(text)}</syl></verse>`, continues };
 }
 
@@ -161,7 +165,8 @@ interface StaffSlot {
 }
 
 function staffGrpXml(score: Score, slots: StaffSlot[]): string {
-  const lines: string[] = ['      <staffGrp>'];
+  // bar.thru: the barlines run through all staves of the system, not just through the braced ones.
+  const lines: string[] = ['      <staffGrp bar.thru="true">'];
   // A bracket or brace the user put around neighbouring parts (the first part of a group opens it, its last closes it).
   const groupOf = (id: string) => (score.groups ?? []).find((g) => g.parts.includes(id));
   let open: string | null = null;
@@ -182,9 +187,9 @@ function staffGrpXml(score: Score, slots: StaffSlot[]): string {
     }
     const staffDef = (s: StaffSlot, withLabel: boolean, ind: string) =>
       s.tabPart
-        ? `${ind}<staffDef n="${s.n}" lines="${GUITAR_STRINGS.length}" keysig.visible="false" meter.visible="false"><label>${esc(part.name)}</label><labelAbbr>${esc(def.shortName)}</labelAbbr></staffDef>`
+        ? `${ind}<staffDef n="${s.n}" lines="${GUITAR_STRINGS.length}" clef.shape="TAB" clef.line="3" keysig.visible="false" meter.visible="false"><label>${esc(part.name)}</label><labelAbbr>${esc(def.shortName)}</labelAbbr></staffDef>`
         : s.tab
-        ? `${ind}<staffDef n="${s.n}" lines="${GUITAR_STRINGS.length}" keysig.visible="false" meter.visible="false"><label>Tab</label><labelAbbr>Tab</labelAbbr></staffDef>`
+        ? `${ind}<staffDef n="${s.n}" lines="${GUITAR_STRINGS.length}" clef.shape="TAB" clef.line="3" keysig.visible="false" meter.visible="false"><label>Tab</label><labelAbbr>Tab</labelAbbr></staffDef>`
         : `${ind}<staffDef n="${s.n}" lines="5" ${clefAttrs(def.staves[s.staffIndex]!.clef)}>` +
           (withLabel ? `<label>${esc(part.name)}</label><labelAbbr>${esc(def.shortName)}</labelAbbr>` : '') +
           `</staffDef>`;
@@ -357,6 +362,7 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
 
   // Lyrics: the syllable is written on the first drawn piece of its note; "-" chains syllables into words.
   const syllables = new Map<string, string>();
+  const syllableRefs = new Map<string, ElementRef>();
   for (const part of score.parts) {
     for (const voice of part.voices) {
       let continues = false;
@@ -364,9 +370,12 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
         if (ev.lyric === undefined) {
           continue;
         }
-        const r = lyricXml(ev.lyric, continues);
+        const r = lyricXml(ev.lyric, continues, `syl-${ev.id}`);
         continues = r.continues;
         syllables.set(ev.id, r.xml);
+        const drawn = pieces.get(ev.id);
+        const ref = drawn && elements.get(drawn.first.id);
+        if (ref) syllableRefs.set(`syl-${ev.id}`, ref);
       }
     }
   }
@@ -507,7 +516,9 @@ ${body.join('\n')}
   return {
     mei,
     elements,
+    syllables: syllableRefs,
     tab: tabNotes,
     staffs: slots.filter((s) => !s.tab).map((s) => ({ n: s.n, partId: s.part.id, staffIndex: s.staffIndex })),
+    tabStaffs: slots.filter((s) => s.tab || s.tabPart).map((s) => ({ n: s.n, label: tuningLabel(tuningOf(s.part)) })),
   };
 }

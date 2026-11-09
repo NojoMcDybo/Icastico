@@ -5,6 +5,7 @@
  * Rendering is skipped when only caret/selection changed (decorate only).
  */
 import { LyricsPanel } from './lyricsPanel';
+import { type SyllableClip, chosenNotes, clearSyllables, copySyllables, moveSyllable, pasteSyllables } from '../core/editor/lyricOps';
 import { type CommandId, chordSymbolText, dropBarSign, dropNoteSign, eraseBarSign, eraseNoteSign, ghostPitches, signsAtFocus, lyricsText, newScoreState, runCommand, setChordSymbol, setLyricOf, setLyrics } from '../core/editor/commands';
 import { demoScore } from '../core/demo';
 import { History } from '../core/editor/history';
@@ -22,7 +23,7 @@ import { pdfDialog } from './pdfDialog';
 import { type PaletteKind, SymbolPalette } from './symbolPalette';
 import { BAR_SIGNS, NOTE_SYMBOLS, barSign, canSitOnNote, noteSymbol, voltaNumber } from '../core/symbols';
 import { type PlayMap, playMapOf } from '../core/playOrder';
-import { printPages, scoresToPdf } from './pdfExport';
+import { type PdfSetup, printPages, scoresToPdf } from './pdfExport';
 import { quantizeEvents } from '../core/editor/quantizeOp';
 import type { Subdivision } from '../core/import/quantize';
 import { exportMusicXml, type ExportResult } from '../core/export/musicxml';
@@ -120,6 +121,8 @@ interface DocumentLocation {
 const AUTOSAVE_DELAY = 1000;
 
 /** Commands that make sense without an open score. */
+/** What works on a chosen syllable instead of on the notes. */
+const SYLLABLE_COMMANDS = new Set<string>(['edit.delete', 'edit.backspace', 'edit.copy', 'edit.cut', 'edit.paste']);
 const WITHOUT_DOCUMENT = new Set<string>(['file.new', 'file.open', 'library.toggle', 'view.help', 'view.voiceTest']);
 
 const isInside = (root: string, path: string): boolean => {
@@ -216,6 +219,9 @@ export class Workstation {
   private loopingRange = false;
   /** A placed sign that was clicked: Backspace takes it away, dragging moves it. */
   private selectedSign: SignDrag | null = null;
+  /** A syllable chosen in the score (ADR 0033): Delete, copy, cut and paste then work on syllables, dragging moves one. */
+  private syllable: { readonly eventId: string } | null = null;
+  private syllableClip: SyllableClip | null = null;
   private litEvents = new Set<string>();
   /** The lyrics field: type the text, then click syllable and notes (ADR 0029). */
   private readonly lyrics: LyricsPanel;
@@ -515,6 +521,10 @@ export class Workstation {
 
   run(command: CommandId | UiCommandId, arg = 0): void {
     if (this.empty && !WITHOUT_DOCUMENT.has(command)) return;
+    if (this.syllable) {
+      if (this.syllableMode() && SYLLABLE_COMMANDS.has(command)) return this.syllableCommand(command);
+      this.syllable = null; // any other command lets go of the syllable
+    }
     switch (command) {
       case 'library.toggle':
         void this.library?.toggle();
@@ -597,7 +607,7 @@ export class Workstation {
         void this.quantizeDialog();
         return;
       case 'file.exportPdf':
-        void this.exportPdf([this.history.committed.score], this.history.committed.score.title);
+        this.printScore();
         return;
       case 'text.lyrics':
         this.lyrics.toggle();
@@ -890,11 +900,24 @@ export class Workstation {
     this.load({ ...createEditorState(part), message: 'Einzelstimme angelegt: ' + part.title }, location);
   }
 
-  /** One or several scores as a PDF of A4 pages (ADR 0023). */
+  /** Drucken / PDF (ADR 0033): one dialog with a preview of the pages; the pages go to the printer or into a PDF file (ADR 0023). */
   async exportPdf(scores: readonly Score[], title: string): Promise<void> {
-    const setup = await pdfDialog({ title: scores.length > 1 ? 'Als PDF speichern: ' + title : 'Als PDF speichern', scoreCount: scores.length, initial: loadPdfSetup() });
-    if (!setup) return this.update();
-    savePdfSetup(setup);
+    const first = scores[0];
+    if (!first) return;
+    const choice = await pdfDialog({
+      title: scores.length > 1 ? 'Drucken / PDF: ' + title : 'Drucken / PDF',
+      scoreCount: scores.length,
+      initial: loadPdfSetup(),
+      canPrint: scores.length === 1,
+      preview: (setup) => printPages(this.engraver, first, { ...setup, pack: false }),
+    });
+    if (!choice) return this.update();
+    const { setup } = choice;
+    savePdfSetup({ landscape: setup.landscape, scale: setup.scale, pack: setup.pack });
+    if (choice.action === 'print') {
+      this.printPagesOf(first, setup);
+      return this.update();
+    }
     let pdf: Uint8Array;
     try {
       pdf = await this.withBusy(() => scoresToPdf(this.engraver, scores, setup, title), 'PDF konnte nicht erzeugt werden') ?? new Uint8Array();
@@ -1106,6 +1129,8 @@ export class Workstation {
     if (e.button !== 0 || this.empty || this.drag) return;
     if (this.spaceHeld) return this.playFromClick(e);
     if (e.shiftKey) return; // Shift + click marks a passage (see onClick), it does not pick a note up
+    const syllable = this.syllableUnder(e);
+    if (syllable) return this.beginSyllableDrag(syllable, e);
     const sign = this.signUnder(e);
     if (sign) return this.beginSignDrag(sign, e); // a placed sign is picked up, not the note next to it
     const ref = this.hitTest(e);
@@ -1139,6 +1164,137 @@ export class Workstation {
     this.el.pages.setPointerCapture(e.pointerId);
   }
 
+  // ── Syllables of the lyrics in the score (ADR 0033) ───────────────────────
+
+  /** The syllable under the pointer: the note it sits under. */
+  private syllableUnder(e: MouseEvent): ElementRef | undefined {
+    const syllables = this.result?.syllables;
+    if (!syllables) return undefined;
+    for (let n = e.target as Element | null; n && n !== this.el.pages; n = n.parentElement) {
+      const ref = n.id ? syllables.get(n.id) : undefined;
+      if (ref) return ref;
+    }
+    // A syllable's box is wider than its letters (the hyphen after it): the empty part of the box counts too, unless a note is hit.
+    if ((e.target as Element | null)?.closest?.('g.note, g.chord, g.rest, g.mRest')) return undefined;
+    for (const [id, ref] of syllables) {
+      const r = document.getElementById(id)?.getBoundingClientRect();
+      if (r && e.clientX >= r.left - 2 && e.clientX <= r.right + 2 && e.clientY >= r.top - 2 && e.clientY <= r.bottom + 2) return ref;
+    }
+    return undefined;
+  }
+
+  /** Whether a syllable is chosen right now (its note is still the selected one). */
+  private syllableMode(): boolean {
+    const sel = this.state.selection;
+    return this.syllable !== null && sel?.kind === 'event' && sel.eventId === this.syllable.eventId;
+  }
+
+  /** A click on a syllable chooses it (Shift: all syllables from the chosen one to this one). */
+  private pickSyllable(ref: ElementRef, extend: boolean): void {
+    const s = this.state;
+    const voice = { partId: ref.partId, voiceId: ref.voiceId };
+    if (extend && this.syllableMode() && s.selection?.kind === 'event' && s.selection.voiceId === ref.voiceId) {
+      this.history.apply(rangeTo(s, voice, ref.eventId!));
+      return this.update();
+    }
+    this.syllable = { eventId: ref.eventId! };
+    this.history.apply({ ...s, caret: null, range: null, selection: { kind: 'event', ...voice, eventId: ref.eventId! }, input: { ...s.input, ghost: null }, message: 'Silbe gewählt – Entf nimmt sie weg, Strg+C / Strg+X / Strg+V kopiert, schneidet aus, fügt ein; auf eine andere Note ziehen verschiebt sie.' });
+    this.update();
+  }
+
+  private syllableCommand(command: string): void {
+    const s = this.state;
+    switch (command) {
+      case 'edit.delete':
+      case 'edit.backspace':
+        this.history.apply(clearSyllables(s));
+        break;
+      case 'edit.copy':
+      case 'edit.cut': {
+        const clip = copySyllables(s);
+        if (!clip) return this.say('Erst eine Silbe anklicken.');
+        this.syllableClip = clip;
+        const text = clip.map((x) => x ?? '_').join(' ');
+        void navigator.clipboard?.writeText(text).catch(() => undefined);
+        const n = clip.filter((x) => x !== null).length;
+        const done = `${n} ${n === 1 ? 'Silbe' : 'Silben'} ${command === 'edit.cut' ? 'ausgeschnitten' : 'kopiert'} – mit Strg+V ab der gewählten Note einfügen.`;
+        this.history.apply(command === 'edit.cut' ? { ...clearSyllables(s), message: done } : { ...s, message: done });
+        break;
+      }
+      default:
+        if (!this.syllableClip) return this.say('Die Zwischenablage ist leer – erst Silben kopieren oder ausschneiden.');
+        this.history.apply(pasteSyllables(s, this.syllableClip));
+    }
+    this.update();
+  }
+
+  /** Pressing on a syllable and dragging it onto another note moves it there; a plain click chooses it (see onClick). */
+  private beginSyllableDrag(ref: ElementRef, e: PointerEvent): void {
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const text = this.state.score.parts.find((p) => p.id === ref.partId)?.voices.find((v) => v.id === ref.voiceId)?.events.find((x) => x.id === ref.eventId)?.lyric;
+    let ghost: HTMLElement | null = null;
+    let lit: Element | null = null;
+    const light = (target: Element | null) => {
+      if (lit === target) return;
+      lit?.classList.remove('is-sign-target');
+      target?.classList.add('is-sign-target');
+      lit = target;
+    };
+    /** Another note of the same voice under the pointer. */
+    const noteAt = (m: MouseEvent): [string, ElementRef] | undefined => {
+      const hit = this.el.pages.contains(m.target as Node) ? this.hitEntry(m) : undefined;
+      return hit && hit[1].voiceId === ref.voiceId && hit[1].eventId && hit[1].eventId !== ref.eventId && hit[1].kind !== 'chordNote' ? hit : undefined;
+    };
+    const move = (m: PointerEvent) => {
+      if (!ghost) {
+        if (Math.hypot(m.clientX - startX, m.clientY - startY) < 6) return;
+        ghost = document.createElement('div');
+        ghost.className = 'sign-ghost';
+        ghost.textContent = text ?? '';
+        document.body.append(ghost);
+      }
+      ghost.style.transform = `translate(${m.clientX + 10}px, ${m.clientY + 10}px)`;
+      const hit = noteAt(m);
+      light(hit ? document.getElementById(hit[0]) : null);
+    };
+    const end = (up: PointerEvent | null) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', cancel);
+      light(null);
+      if (!ghost) return; // never moved: an ordinary click (onClick)
+      ghost.remove();
+      this.swallowClick = true;
+      window.setTimeout(() => (this.swallowClick = false), 80);
+      const hit = up ? noteAt(up) : undefined;
+      if (!hit) return;
+      this.history.apply(moveSyllable(this.state, { partId: ref.partId, voiceId: ref.voiceId }, ref.eventId!, hit[1].eventId!));
+      this.syllable = { eventId: hit[1].eventId! };
+      this.update();
+    };
+    const cancel = () => end(null);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', cancel);
+  }
+
+  /** The staff under the pointer and the voice that notes dropped on it go into (the first voice of that staff). */
+  private staffUnder(e: MouseEvent): { partId: string; voiceId: string; el: Element } | undefined {
+    let best: { n: number; el: Element; distance: number } | undefined;
+    for (const g of this.el.pages.querySelectorAll('g.staff')) {
+      const n = Number(/^m\d+-s(\d+)$/.exec(g.id)?.[1] ?? Number.NaN);
+      const r = g.getBoundingClientRect();
+      if (!Number.isFinite(n) || e.clientX < r.left - 6 || e.clientX > r.right + 6 || e.clientY < r.top - 6 || e.clientY > r.bottom + 6) continue;
+      const distance = Math.abs(e.clientY - (r.top + r.bottom) / 2);
+      if (!best || distance < best.distance) best = { n, el: g, distance };
+    }
+    const slot = best && this.result?.staffs.find((x) => x.n === best.n);
+    const part = slot && this.state.score.parts.find((p) => p.id === slot.partId);
+    const voice = part && (part.voices.find((v) => v.staff === slot.staffIndex && v.events.length > 0) ?? part.voices.find((v) => v.staff === slot.staffIndex));
+    return best && part && voice ? { partId: part.id, voiceId: voice.id, el: best.el } : undefined;
+  }
+
   /** The marked notes follow the pointer; where they are let go of on another line they are copied, at the same time (ADR 0032). */
   private beginRangeDrag(span: NonNullable<ReturnType<typeof rangeSpan>>, e: PointerEvent): void {
     const startX = e.clientX;
@@ -1151,7 +1307,11 @@ export class Workstation {
       target?.classList.add('is-sign-target');
       lit = target;
     };
-    const elsewhere = (hit: [string, ElementRef] | undefined) => (hit && (hit[1].partId !== span.partId || hit[1].voiceId !== span.voiceId) ? hit : undefined);
+    // The staff under the pointer is the target, anywhere on it – also between the notes and on an empty bar (e.g. a tablature line).
+    const elsewhere = (e: MouseEvent) => {
+      const staff = this.el.pages.contains(e.target as Node) ? this.staffUnder(e) : undefined;
+      return staff && (staff.partId !== span.partId || staff.voiceId !== span.voiceId) ? staff : undefined;
+    };
     const move = (m: PointerEvent) => {
       if (!ghost) {
         if (Math.hypot(m.clientX - startX, m.clientY - startY) < 6) return;
@@ -1161,8 +1321,7 @@ export class Workstation {
         document.body.append(ghost);
       }
       ghost.style.transform = `translate(${m.clientX + 10}px, ${m.clientY + 10}px)`;
-      const hit = elsewhere(this.el.pages.contains(m.target as Node) ? this.hitEntry(m) : undefined);
-      light(hit ? document.getElementById(hit[0]) : null);
+      light(elsewhere(m)?.el ?? null);
     };
     const end = (up: PointerEvent | null) => {
       window.removeEventListener('pointermove', move);
@@ -1173,10 +1332,9 @@ export class Workstation {
       ghost.remove();
       this.swallowClick = true;
       window.setTimeout(() => (this.swallowClick = false), 80);
-      const hit = up && this.el.pages.contains(up.target as Node) ? elsewhere(this.hitEntry(up)) : undefined;
+      const target = up ? elsewhere(up) : undefined;
       const clip = copyClip(this.state);
-      if (!hit || !clip) return;
-      const target = hit[1];
+      if (!target || !clip) return;
       const placed = { ...this.state, range: null, caret: null, selection: { kind: 'gap' as const, partId: target.partId, voiceId: target.voiceId, time: span.from } };
       this.history.apply(pasteClip(placed, clip));
       this.update();
@@ -1556,6 +1714,9 @@ export class Workstation {
     if (this.selectedSign) {
       this.selectedSign = null; // a click elsewhere lets go of the sign
     }
+    const clicked = this.syllableUnder(e);
+    if (clicked) return this.pickSyllable(clicked, e.shiftKey);
+    this.syllable = null;
     const ref = this.hitTest(e);
     const s = this.state;
     if (!ref) {
@@ -1925,14 +2086,20 @@ export class Workstation {
     return this.metronome;
   }
 
-  /** Prints the score: the pages go into a hidden sheet that only the print layout shows, then the system's print dialog opens. */
+  /** Strg+P: the print dialog with the preview (the same one as for the PDF). */
   private printScore(): void {
     if (this.empty) return;
+    const score = this.history.committed.score;
+    void this.exportPdf([score], score.title);
+  }
+
+  /** Prints pages: they go into a hidden sheet that only the print layout shows, then the system's print dialog opens. */
+  private printPagesOf(score: Score, setup: PdfSetup): void {
     try {
       document.getElementById('print-root')?.remove();
       const root = document.createElement('div');
       root.id = 'print-root';
-      for (const svg of printPages(this.engraver, this.history.committed.score, { ...loadPdfSetup(), pack: false })) {
+      for (const svg of printPages(this.engraver, score, { ...setup, pack: false })) {
         const page = document.createElement('div');
         page.className = 'print-page';
         page.innerHTML = svg;
@@ -2202,6 +2369,7 @@ export class Workstation {
       pageWidth: Math.round((width * 100) / scale),
       scale,
       tab: result.tab,
+      tabStaffs: result.tabStaffs,
     });
     if (log) console.warn('[Verovio]', log);
     this.el.pages.replaceChildren(
@@ -2234,16 +2402,21 @@ export class Workstation {
     }
 
     const sel = s.selection;
-    if (sel) {
+    const syllables = this.syllableMode() ? chosenNotes(s) : null;
+    if (syllables) for (const e of syllables.events) document.getElementById(`syl-${e.id}`)?.classList.add('is-selected');
+    if (sel && !syllables) {
+      // One tone of a chord chosen: only its notehead is marked, not the whole chord.
+      const oneTone = sel.kind === 'event' && sel.toneId ? [...elements].find(([, r]) => r.kind === 'chordNote' && r.eventId === sel.eventId && r.toneId === sel.toneId) : undefined;
+      if (oneTone) document.getElementById(oneTone[0])?.classList.add('is-selected');
       for (const [id, ref] of elements) {
-        if (ref.voiceId !== sel.voiceId || ref.kind === 'chordNote') continue;
+        if (oneTone || ref.voiceId !== sel.voiceId || ref.kind === 'chordNote') continue;
         const hit =
           sel.kind === 'event' ? ref.eventId === sel.eventId : ref.kind !== 'note' && eq(ref.onset, sel.time);
         if (hit) document.getElementById(id)?.classList.add('is-selected');
         if (hit && sel.kind === 'gap') break;
       }
     }
-    const span = rangeSpan(s);
+    const span = syllables ? null : rangeSpan(s);
     if (span) {
       for (const [id, ref] of elements) {
         if (ref.partId === span.partId && ref.kind !== 'chordNote' && le(span.from, ref.onset) && lt(ref.onset, span.to)) document.getElementById(id)?.classList.add('is-range');

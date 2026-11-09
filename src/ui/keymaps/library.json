@@ -431,6 +431,24 @@
           "title": "Markierte Noten in eine andere Zeile ziehen (z. B. in die Tabulatur): sie werden dort zur gleichen Zeit eingefügt",
           "command": "ui.control",
           "via": "Mit der Maus: markierte Noten greifen und auf die andere Zeile ziehen"
+        },
+        {
+          "id": "lyric.pick",
+          "title": "Liedtext in der Partitur: eine Silbe anklicken (Umschalt+Klick: bis zu dieser Silbe), dann löschen, kopieren, ausschneiden, einfügen",
+          "command": "ui.control",
+          "via": "Silbe unter den Noten anklicken: Entf nimmt sie weg, Strg+C / Strg+X kopiert / schneidet aus, Strg+V legt sie ab der gewählten Note auf die Noten"
+        },
+        {
+          "id": "lyric.move",
+          "title": "Eine Silbe auf eine andere Note verschieben",
+          "command": "ui.control",
+          "via": "Mit der Maus: die Silbe unter den Noten greifen und auf die andere Note ziehen"
+        },
+        {
+          "id": "lyric.window",
+          "title": "Das Liedtext-Fenster verschieben",
+          "command": "ui.control",
+          "via": "Mit der Maus: den Kopf des Liedtext-Fensters (Titel) greifen und ziehen; die Stelle wird gemerkt"
         }
       ]
     },
@@ -524,7 +542,7 @@
         },
         {
           "id": "file.print",
-          "title": "Drucken (die Seiten der Partitur im A4-Format; der Druckdialog kann auch ein PDF speichern)",
+          "title": "Drucken / PDF: Dialog mit Seitenvorschau (Seite, Notengröße, Takte pro Zeile), dann drucken oder als PDF speichern",
           "command": "file.print",
           "finale": { "keys": ["Mod+P"], "source": "doku" },
           "logic": { "keys": ["Mod+P"], "source": "doku" }
@@ -566,10 +584,10 @@
         },
         {
           "id": "file.exportPdf",
-          "title": "Als PDF speichern (A4, Notengröße wählbar)",
+          "title": "Als PDF speichern (derselbe Dialog wie beim Drucken, mit Seitenvorschau)",
           "command": "file.exportPdf",
-          "finale": { "keys": ["Mod+Shift+F"], "source": "icastico", "note": "Strg+P druckt; aus der Bibliothek lassen sich mehrere Partituren zusammen als PDF speichern." },
-          "logic": { "keys": ["Mod+Shift+F"], "source": "icastico", "note": "Strg+P druckt." }
+          "finale": { "keys": ["Mod+Shift+F"], "source": "icastico", "note": "Strg+P öffnet denselben Dialog; aus der Bibliothek lassen sich mehrere Partituren zusammen als PDF speichern." },
+          "logic": { "keys": ["Mod+Shift+F"], "source": "icastico", "note": "Strg+P öffnet denselben Dialog." }
         },
         {
           "id": "file.extractPart",

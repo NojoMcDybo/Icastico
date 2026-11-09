@@ -12,6 +12,15 @@ export interface PatchNote {
 /** Newest first. Keep each line to one short sentence. */
 export const PATCH_NOTES: readonly PatchNote[] = [
   {
+    version: '0.23.0',
+    items: [
+      'Strg+P und „Als PDF speichern“ öffnen denselben Dialog: Seitenvorschau, Seite, Notengröße und Takte pro Zeile live anpassen, dann drucken oder als PDF speichern.',
+      'Liedtext: das Fenster lässt sich verschieben; Silben in der Partitur anklicken, mit Entf löschen, mit Strg+C / X / V kopieren oder verschieben, per Ziehen auf eine andere Note setzen.',
+      'Taktstriche und Wiederholungszeichen laufen durch alle Zeilen; die Tabulatur zeigt T A B statt eines Schlüssels und darüber die Stimmung (auch in MusicXML).',
+      'Kopieren und Ziehen in die Tabulatur verliert keine Noten mehr; ein angeklickter Akkordton wird allein markiert.',
+    ],
+  },
+  {
     version: '0.22.0',
     items: [
       'Tabulatur: Stimmung wählen (Drop D, offene Stimmungen, jede Saite einzeln); Zahl tippen ändert den Bund, ↑ / ↓ wechselt die Saite.',

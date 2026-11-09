@@ -212,3 +212,37 @@ describe('line breaks (ADR 0031)', () => {
     expect(importMusicXml(xml).score.layout).toEqual({ breaks: [2] });
   });
 });
+
+describe('the tuning of a guitar (ADR 0033)', () => {
+  const guitar = (tuning?: readonly number[]) => {
+    const base = emptyScore();
+    const events = parseLine('D2:1/4 A2:1/4 D3:1/4 G3:1/4', 'g');
+    return { ...base, parts: base.parts.map((p) => (p.instrument === 'guitar' ? { ...p, ...(tuning ? { tuning } : {}), voices: [{ ...p.voices[0]!, events }] } : p)) } as Score;
+  };
+
+  it('Drop D is written as staff details and read back', () => {
+    const drop = [64, 59, 55, 50, 45, 38];
+    const { xml } = exportMusicXml(guitar(drop));
+    expect(xml).toMatch(/<staff-lines>6<\/staff-lines>/);
+    expect(xml).toMatch(/<staff-tuning line="1"><tuning-step>D<\/tuning-step><tuning-octave>3<\/tuning-octave>/); // the lowest string, written like the notes (an octave up)
+    const back = importMusicXml(xml).score;
+    expect(back.parts.find((p) => p.instrument === 'guitar')!.tuning).toEqual(drop);
+    expect(validateScore(back)).toEqual([]);
+  });
+
+  it('standard tuning writes nothing and reads back as no tuning', () => {
+    expect(exportMusicXml(guitar()).xml).not.toMatch(/staff-tuning/);
+    expect(importMusicXml(exportMusicXml(guitar()).xml).score.parts.find((p) => p.instrument === 'guitar')!.tuning).toBeUndefined();
+  });
+
+  it('an explicit standard tuning is not kept as a custom one', () => {
+    const back = importMusicXml(exportMusicXml(guitar([64, 59, 55, 50, 45, 40])).xml).score;
+    expect(back.parts.find((p) => p.instrument === 'guitar')!.tuning).toBeUndefined();
+  });
+
+  it('a file with a tuning of its own (Open G with a flat) comes through', () => {
+    const open = [62, 59, 55, 50, 43, 38]; // D G d g h d
+    const back = importMusicXml(exportMusicXml(guitar(open)).xml).score;
+    expect(back.parts.find((p) => p.instrument === 'guitar')!.tuning).toEqual(open);
+  });
+});

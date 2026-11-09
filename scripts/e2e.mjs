@@ -1190,7 +1190,11 @@ try {
     };
   });
   await type('Control+p');
-  check((await page.evaluate(() => window.__printed)) >= 1, 'Drucken: Strg+P legt die Seiten der Partitur zum Drucken bereit und öffnet den Druckdialog');
+  await page.waitForSelector('.modal h2:text("Drucken / PDF")');
+  await page.waitForSelector('.print__page svg');
+  check((await page.locator('.print__page').count()) >= 1 && (await page.locator('#pdf-print').isVisible()) && (await page.locator('#pdf-save').isVisible()), 'Drucken: Strg+P öffnet den Dialog mit Seitenvorschau, „Drucken“ und „PDF speichern“');
+  await page.click('#pdf-print');
+  check((await page.evaluate(() => window.__printed)) >= 1, 'Drucken: „Drucken“ legt die Seiten der Partitur zum Drucken bereit und öffnet den Druckdialog');
   await page.emulateMedia({ media: 'print' });
   check((await page.locator('.workstation').isHidden()) && (await page.locator('#print-root').isVisible()), 'Drucken: im Druck sind nur die Notenseiten zu sehen, nicht die Bedienelemente');
   await page.emulateMedia({ media: 'screen' });
@@ -1289,8 +1293,102 @@ try {
   check(/"tuning": \[64, 59, 55, 50, 45, 38\]/.test(tuneFile) && /"string": 1/.test(tuneFile), 'Tabulatur: Stimmung „Drop D“ und die gewählte Saite stehen in der Datei');
   await page.screenshot({ path: join(outDir, 'tabulatur-bearbeiten.png') });
 
+  // ── Drucken / PDF: Vorschau passt sich live an ──
+  await newScore('Vorschau-Test');
+  await type('5', ...Array(24).fill('c'), 'Escape');
+  await page.evaluate(() => { window.print = () => undefined; });
+  await type('Control+p');
+  await page.waitForSelector('.print__page svg');
+  const systemsInPreview = () => page.locator('.print__page').first().locator('g.system').count();
+  const before2 = await systemsInPreview();
+  await page.selectOption('#pdf-perline', '2');
+  await page.waitForFunction((n) => document.querySelector('.print__page g.system') && document.querySelectorAll('.print__page:first-child g.system').length !== n, before2);
+  check((await systemsInPreview()) === 4, 'Vorschau: „2 Takte pro Zeile“ zeichnet die Seite sofort neu (acht Takte, vier Zeilen)');
+  check((await page.locator('.page g.system').count()) < 4, 'Vorschau: die Partitur selbst bleibt unverändert');
+  await page.screenshot({ path: join(outDir, 'druckvorschau.png') });
+  await type('Escape');
+  check((await page.locator('.modal').count()) === 0, 'Vorschau: Esc schließt den Dialog ohne etwas zu tun');
+
+  // ── Liedtext: Fenster verschieben, Silben wählen, löschen, kopieren, verschieben ──
+  await newScore('Silben-Test');
+  await type('4', 'c', 'd', 'e', 'f', 'g', 'a', 'Escape');
+  await page.locator('.page g.note').first().click({ force: true });
+  await type('l');
+  await page.fill('.lyrics__text', 'Gu-ten A-bend gu-te');
+  await page.click('.lyrics .pill:has-text("Ab gewählter Note alle setzen")');
+  const syllables = async () => (await page.locator('.page g.syl').allTextContents()).map((t) => t.split(String.fromCharCode(10)).join('').split(' ').join(''));
+  check((await syllables()).join(',') === 'Gu,ten,A,bend,gu,te', 'Liedtext: der Text liegt als Silben unter den Noten');
+  const lyricsHead = await page.locator('.lyrics__head').boundingBox();
+  await page.mouse.move(lyricsHead.x + 60, lyricsHead.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(lyricsHead.x + 200, lyricsHead.y - 250, { steps: 8 });
+  await page.mouse.up();
+  const lyricsBox = await page.locator('.lyrics').boundingBox();
+  check(Math.abs(lyricsBox.y - (lyricsHead.y - 250 - 12)) < 40 && lyricsBox.x > lyricsHead.x + 100, 'Liedtext: das Fenster lässt sich am Kopf verschieben');
+  await page.click('.lyrics__close');
+  await page.locator('.page g.syl').nth(1).click({ force: true });
+  check((await page.locator('.page g.syl.is-selected').count()) === 1 && (await page.locator('.page g.note.is-selected').count()) === 0, 'Liedtext: ein Klick wählt die Silbe, nicht die Note');
+  await type('Control+c');
+  await page.locator('.page g.syl').nth(4).click({ force: true });
+  await type('Control+v');
+  check((await syllables()).join(',') === 'Gu,ten,A,bend,ten,te', 'Liedtext: Strg+C / Strg+V kopiert eine Silbe auf eine andere Note');
+  await page.locator('.page g.syl').nth(0).click({ force: true });
+  await page.locator('.page g.syl').nth(1).click({ force: true, modifiers: ['Shift'] });
+  check((await page.locator('.page g.syl.is-selected').count()) === 2, 'Liedtext: Umschalt+Klick wählt mehrere Silben');
+  await type('Control+x');
+  check((await syllables()).join(',') === 'A,bend,ten,te', 'Liedtext: Strg+X schneidet die gewählten Silben aus');
+  await type('Control+v');
+  check((await syllables()).join(',') === 'Gu,ten,A,bend,ten,te', 'Liedtext: Strg+V legt sie wieder ab der gewählten Note ab');
+  await type('Delete');
+  check((await syllables()).join(',') === 'A,bend,ten,te', 'Liedtext: Entf nimmt die gewählten Silben weg, die Noten bleiben');
+  check((await notes()) === 6, 'Liedtext: die Noten sind unverändert');
+  await type('Control+z');
+  const sylBox = await page.locator('.page g.syl').nth(1).boundingBox();
+  const lyricTargetBox = await page.locator('.page g.note').nth(5).boundingBox();
+  await page.mouse.move(sylBox.x + sylBox.width / 2, sylBox.y + sylBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(lyricTargetBox.x + lyricTargetBox.width / 2, lyricTargetBox.y + lyricTargetBox.height / 2, { steps: 10 });
+  await page.mouse.up();
+  check((await syllables()).join(',') === 'Gu,A,bend,ten,ten', 'Liedtext: eine Silbe lässt sich auf eine andere Note ziehen');
+  await page.screenshot({ path: join(outDir, 'silben.png') });
+
+  // ── Akkord: ein angeklickter Ton wird allein markiert ──
+  await newScore('Akkordton-Markierung');
+  await type('5', 'Backquote', 'c', 'e', 'g', 'Escape');
+  await page.locator('.page g.chord g.note').nth(1).click({ force: true });
+  check((await page.locator('.page .is-selected').count()) === 1 && (await page.locator('.page g.chord.is-selected').count()) === 0, 'Akkord: ein angeklickter Ton ist allein markiert, nicht der ganze Akkord');
+  await type('ArrowUp');
+  check((await page.locator('.page .is-selected').count()) === 1, 'Akkord: nach dem Verschieben bleibt nur dieser Ton markiert');
+
+  // ── Tabulatur: kopieren in die Tabulatur, auch aus zwei Stimmen; Ziehen auf eine freie Stelle der Zeile ──
+  await newScore('Tab-Ziehen');
+  await type('4', 'c', 'd', 'e', 'f', 'g', 'a', 'b', 'c', 'Escape');
+  await page.click('#doc-title');
+  await page.waitForSelector('.modal h2:text("Partitur-Einstellungen")');
+  await page.click('.modal [data-instrument="tab"]');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction(() => document.querySelectorAll('.page g.mRest').length > 0);
+  await page.click('#doc-title');
+  await page.waitForSelector('.modal h2:text("Partitur-Einstellungen")');
+  await page.locator('.tuning select:not(.tuning__string)').last().selectOption('dropD');
+  await page.click('.modal button[type="submit"]');
+  await page.locator('.page g.note').first().click({ force: true });
+  await type('Control+a');
+  const dragFrom = await page.locator('.page g.note').first().boundingBox();
+  const tabStaffBox = await page.locator('.page g.staff').last().boundingBox();
+  await page.mouse.move(dragFrom.x + dragFrom.width / 2, dragFrom.y + dragFrom.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(tabStaffBox.x + tabStaffBox.width * 0.6, tabStaffBox.y + tabStaffBox.height / 2, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForFunction(() => document.querySelectorAll('.page .tabnumber').length >= 8);
+  check((await page.locator('.page .tabnumber').count()) === 8 && /8 Noten eingefügt/.test(await status()), 'Tabulatur: markierte Noten lassen sich auf eine beliebige Stelle der Tabulaturzeile ziehen');
+  check((await page.locator('.page .tabclef').count()) === 3, 'Tabulatur: am Zeilenanfang stehen die Buchstaben T A B statt eines Notenschlüssels');
+  check((await page.locator('.page .tabtuning').count()) === 1 && /Drop D/.test(await page.locator('.page .tabtuning').textContent()), 'Tabulatur: die Stimmung „Drop D“ steht über der Zeile');
+  await page.screenshot({ path: join(outDir, 'tabulatur-ziehen.png') });
+
   await type('F1');
   const helpText = await page.locator('#help').textContent();
+
   check(/Einen Takt zurück/.test(helpText) && /Knöpfe ⏪ und ⏩/.test(helpText) && /Klammer oder Akkolade/.test(helpText) && /Menü ⋯ an der Partitur/.test(helpText), 'Tastenhilfe: auch Funktionen mit Knopf, Menü oder Palette stehen drin, mit Hinweis, wo man sie findet');
   await type('Escape');
 
@@ -1334,9 +1432,9 @@ try {
   await type('5', 'c', 'e', 'g');
   const pdfLoading = page.waitForEvent('download');
   await type('Control+Shift+f');
-  await page.waitForSelector('.modal h2:text("Als PDF speichern")');
+  await page.waitForSelector('.modal h2:text("Drucken / PDF")');
   await page.selectOption('#pdf-format', 'landscape');
-  await page.click('.modal button[type="submit"]');
+  await page.click('#pdf-save');
   const pdfDownload = await pdfLoading;
   const pdfPath = await pdfDownload.path();
   const pdfBytes = readFileSync(pdfPath);
@@ -1508,7 +1606,7 @@ try {
   await page.evaluate(() => localStorage.setItem('icastico.seenVersion', '0.15.0'));
   await page.reload();
   await page.waitForSelector('.patchnotes', { timeout: 30000 });
-  check((await page.locator('.patchnotes li').count()) >= 2 && /Version 0.22.0/.test(await page.locator('.patchnotes').textContent()), 'Update: ein Popup listet die neuen Funktionen der Versionen seit dem letzten Start');
+  check((await page.locator('.patchnotes li').count()) >= 2 && /Version 0.23.0/.test(await page.locator('.patchnotes').textContent()), 'Update: ein Popup listet die neuen Funktionen der Versionen seit dem letzten Start');
   await page.click('.patchnotes button:has-text("Verstanden")');
   await page.waitForSelector('.patchnotes', { state: 'detached' });
   check((await page.evaluate(() => localStorage.getItem('icastico.seenVersion'))) !== '0.15.0', 'Update: die Version wird gemerkt, das Popup kommt nicht noch einmal');

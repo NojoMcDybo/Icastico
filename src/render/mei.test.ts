@@ -112,9 +112,9 @@ describe('lyrics and chord symbols (ADR 0019)', () => {
 
   it('writes syllables with word positions and chord symbols at their beat', () => {
     const { mei } = scoreToMei(withText());
-    expect(mei).toMatch(/<syl wordpos="i" con="d">Hel<\/syl>/);
-    expect(mei).toMatch(/<syl wordpos="t">lo<\/syl>/);
-    expect(mei).toMatch(/<syl>Welt<\/syl>/);
+    expect(mei).toMatch(/<syl xml:id="syl-[^"]+" wordpos="i" con="d">Hel<\/syl>/);
+    expect(mei).toMatch(/<syl xml:id="syl-[^"]+" wordpos="t">lo<\/syl>/);
+    expect(mei).toMatch(/<syl xml:id="syl-[^"]+">Welt<\/syl>/);
     expect(mei).toMatch(/<harm [^>]*tstamp="1\.0000">Am7<\/harm>/);
     expect(mei).toMatch(/<harm [^>]*tstamp="1\.0000">D\/F#<\/harm>/); // bar 2, beat 1
   });
