@@ -178,6 +178,8 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
 
   // Global structure from the first part.
   const meter: MeterChange[] = [];
+  /** Bars (0-based) that start a new line or page in the file (taken from the first part). */
+  const lineBreaks: number[] = [];
   const keys: KeyChange[] = [];
   let tempo: number | undefined;
   let pickup: Fraction | undefined;
@@ -363,8 +365,10 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
           const ending = child(el, 'ending');
           if (ending?.attrs.type === 'start') voltaOpen = Math.min(3, Math.max(1, parseInt(ending.attrs.number ?? '1', 10) || 1));
           else if (ending) voltaClose = true;
-        } else if (el.name === 'print' || el.name === 'figured-bass') {
-          // layout only
+        } else if (el.name === 'print') {
+          if (partIndex === 0 && mi > 0 && (el.attrs['new-system'] === 'yes' || el.attrs['new-page'] === 'yes')) lineBreaks.push(mi);
+        } else if (el.name === 'figured-bass') {
+          // not taken over
         }
       }
 
@@ -469,6 +473,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
     ...(tempo !== undefined && tempo !== DEFAULT_TEMPO ? { tempo } : {}),
     ...(links.length ? { links } : {}),
     ...(groups.length ? { groups } : {}),
+    ...(lineBreaks.length ? { layout: { breaks: lineBreaks } } : {}),
     ...(barMarks.size ? { marks: [...barMarks.values()].sort((a, b) => compare(a.at, b.at) || BAR_SIGNS.findIndex((x) => x.id === a.kind) - BAR_SIGNS.findIndex((x) => x.id === b.kind)) } : {}),
     ...(chordSymbols.size ? { chords: [...chordSymbols.values()].sort((a, b) => compare(a.at, b.at)) } : {}),
     parts,

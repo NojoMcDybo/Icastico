@@ -40,6 +40,8 @@ Was wird dadurch leichter, was schwerer?
 | 0010 | [Installer, Desktop-Verknüpfung, automatische Updates](0010-updates.md) | angenommen |
 | 0025 | [Sprachtest: Vosk im Fenster](0025-sprachtest.md) | angenommen |
 | 0027 | [Bereiche, Transponieren, mehr Zeichen, Tabulatur, Export](0027-bereich-transponieren-zeichen.md) | angenommen |
+| 0032 | [Tabulatur: Stimmung, Bund und Saite, Noten hineinziehen; Akkordtöne einzeln](0032-tabulatur-stimmung-bund-und-ziehen.md) | angenommen |
+| 0031 | [Sprünge genau auf der Note; Takte pro Zeile](0031-sprunege-auf-noten-und-zeilenumbrueche.md) | angenommen |
 | 0030 | [Tabulatur als Instrument, Oktave/Vorzeichen für die nächste Note, Metronom, Cycle, Zoom, Quantisieren, Drucken](0030-tabulatur-instrument-und-schlussfunktionen.md) | angenommen |
 | 0029 | [Liedtext-Feld, Bindebogen mit T, stille Vorschau-Note](0029-liedtext-feld-und-bindebogen.md) | angenommen |
 | 0028 | [MIDI und Einzelstimmen-Aufnahmen importieren (Quantisierung)](0028-midi-und-aufnahmen-importieren.md) | angenommen |

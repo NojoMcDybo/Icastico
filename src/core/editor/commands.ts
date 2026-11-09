@@ -11,8 +11,8 @@
  * - Overwrite by default (insert mode shifts the following music instead).
  */
 import { type Fraction, ZERO, add, compare, eq, frac, gt, isDyadic, le, lt, sub } from '../time';
-import { STEPS, keyAlteration, midiOf, type Pitch } from '../pitch';
-import { type BarSign, BAR_SIGNS, GROUP_SIGNS, NOTE_SYMBOLS, barSign, toggleNoteSymbol } from '../symbols';
+import { STEPS, keyAlteration, midiOf, pitchToString, type Pitch } from '../pitch';
+import { type BarSign, BAR_SIGNS, GROUP_SIGNS, NOTE_SYMBOLS, barSign, canSitOnNote, toggleNoteSymbol } from '../symbols';
 import { type BarMark, type StaffGroup, type ChordSymbol, type Link, type LinkKind, type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, measuresOf } from '../model';
 import { decomposeNote, writtenValue } from '../notation/notate';
 import { emptyScore } from '../templates';
@@ -35,6 +35,7 @@ import {
 import { applyRollEdit } from './rollEdits';
 import { deleteRange, extendRange, rangeSpan, selectAllNotes } from './range';
 import { toggleTabAnywhere, translateToTab } from './tabOps';
+import { moveToString, setFret } from './tabEdit';
 import { freshLinkId, linksOf, withLinks, withValidLinks } from './linkOps';
 import { clearRange, insertSorted, makeRoom } from './voiceOps';
 
@@ -206,18 +207,24 @@ function focusBar(s: EditorState) {
 /** The signs on the selected note and on its bar – what the palette lights. */
 export function signsAtFocus(s: EditorState): { note: readonly string[]; bar: readonly string[]; group: readonly string[] } {
   const bar = focusBar(s);
+  const inBar = (at: Fraction) => le(bar.start, at) && lt(at, bar.end);
   const ref = s.selection ?? s.caret;
   return {
     note: target(s)?.event.marks ?? [],
-    bar: (s.score.marks ?? []).filter((m) => eq(m.at, bar.start)).map((m) => m.kind),
+    bar: (s.score.marks ?? []).filter((m) => inBar(m.at)).map((m) => m.kind),
     group: ref ? (s.score.groups ?? []).filter((g) => g.parts.includes(ref.partId)).map((g) => g.symbol) : [],
   };
 }
 
-/** The score with this bar sign put on the bar starting at `at` (replacing its exclusive neighbours) or taken off. */
-function withBarSign(score: Score, sign: BarSign, at: Fraction, on: boolean): Score {
-  const kept = (score.marks ?? []).filter((m) => !(eq(m.at, at) && (m.kind === sign.id || (sign.exclusive && barSign(m.kind)?.exclusive === sign.exclusive))));
-  const next: BarMark[] = on ? [...kept, { at, kind: sign.id }] : kept;
+/**
+ * The score with this bar sign put on the bar that contains `at` (replacing its exclusive neighbours) or taken off.
+ * With `exact` (segno, coda, jumps, tempo words) it sits exactly at `at`, the time of a note; else `at` is the start of the bar.
+ */
+function withBarSign(score: Score, sign: BarSign, at: Fraction, on: boolean, exact = false): Score {
+  const bar = measuresOf(score, 1, at).find((m) => le(m.start, at) && lt(at, m.end));
+  const sameBar = (t: Fraction) => (bar ? le(bar.start, t) && lt(t, bar.end) : eq(t, at));
+  const kept = (score.marks ?? []).filter((m) => !(sameBar(m.at) && (m.kind === sign.id || (sign.exclusive && barSign(m.kind)?.exclusive === sign.exclusive))));
+  const next: BarMark[] = on ? [...kept, { at, kind: sign.id, ...(exact && canSitOnNote(sign.id) ? { exact: true } : {}) }] : kept;
   next.sort((a, b) => compare(a.at, b.at) || BAR_SIGNS.findIndex((x) => x.id === a.kind) - BAR_SIGNS.findIndex((x) => x.id === b.kind));
   const { marks: _old, ...rest } = score;
   return next.length ? { ...rest, marks: next } : rest;
@@ -228,9 +235,11 @@ function toggleBarSign(s: EditorState, index: number): EditorState {
   const sign = BAR_SIGNS[index];
   if (!sign) return s;
   const bar = focusBar(s);
-  const present = (s.score.marks ?? []).some((m) => m.kind === sign.id && eq(m.at, bar.start));
+  const present = (s.score.marks ?? []).some((m) => m.kind === sign.id && le(bar.start, m.at) && lt(m.at, bar.end));
   const where = bar.number === 0 ? 'Auftakt' : `Takt ${bar.number}`;
-  return { ...s, score: withBarSign(s.score, sign, bar.start, !present), message: `${sign.label}, ${where}: ${present ? 'entfernt' : 'gesetzt'}` };
+  // Segno, coda, jumps and tempo words go exactly where the selected note is.
+  const noteTime = canSitOnNote(sign.id) && s.selection?.kind === 'event' ? selectionTime(s.score, s.selection) : null;
+  return { ...s, score: withBarSign(s.score, sign, noteTime ?? bar.start, !present, noteTime !== null), message: `${sign.label}, ${where}: ${present ? 'entfernt' : 'gesetzt'}` };
 }
 
 /**
@@ -280,13 +289,13 @@ export function eraseBarSign(s: EditorState, kind: string, at: Fraction): Editor
 }
 
 /** Drag and drop of a bar sign onto the bar starting at `to`; `from` is the bar it is moved away from. */
-export function dropBarSign(s: EditorState, kind: string, to: Fraction, from?: Fraction): EditorState {
+export function dropBarSign(s: EditorState, kind: string, to: Fraction, from?: Fraction, exact = false): EditorState {
   const sign = barSign(kind);
   if (!sign) return s;
   let score = s.score;
-  if (from && !eq(from, to)) score = withBarSign(score, sign, from, false);
-  score = withBarSign(score, sign, to, true);
-  const bar = measuresOf(score, 1, to).find((m) => eq(m.start, to));
+  if (from) score = withBarSign(score, sign, from, false);
+  score = withBarSign(score, sign, to, true, exact);
+  const bar = measuresOf(score, 1, to).find((m) => le(m.start, to) && lt(to, m.end));
   const where = !bar ? '' : bar.number === 0 ? ', Auftakt' : `, Takt ${bar.number}`;
   return { ...s, score, message: `${sign.label}${where}: ${from ? 'verschoben' : 'gesetzt'}` };
 }
@@ -768,6 +777,9 @@ function backspace(s: EditorState): EditorState {
 }
 
 function step(s: EditorState, delta: number): EditorState {
+  // On a tablature line a number moves to the next string instead (the sound stays).
+  const onString = moveToString(s, delta);
+  if (onString) return onString;
   return replacePitches(s, (p, ev) => stepPitch(p, delta, keyAt(s.score, ev.onset)));
 }
 
@@ -908,7 +920,27 @@ function navHorizontal(s0: EditorState, dir: number): EditorState {
   return pick ? { ...s, selection: selectEvent(ref, pick), message: null } : s;
 }
 
+/**
+ * Alt+↑/↓ on a chord first walks through its tones (like in Finale): the first press selects the top (↑) or bottom (↓) tone,
+ * the next ones the neighbours; ↑ / ↓ alone then changes just that tone. Beyond the last tone the key switches the staff.
+ */
+function stepChordTone(s: EditorState, dir: number): EditorState | null {
+  const sel = s.selection;
+  if (s.caret || sel?.kind !== 'event') return null;
+  const event = findEvent(s.score, sel, sel.eventId);
+  if (!event || event.tones.length < 2) return null;
+  const tones = [...event.tones].sort((a, b) => midiOf(a.pitch) - midiOf(b.pitch));
+  const up = dir < 0;
+  const at = sel.toneId ? tones.findIndex((t) => t.id === sel.toneId) : -1;
+  const pick = at < 0 ? (up ? tones.length - 1 : 0) : at + (up ? 1 : -1);
+  const tone = tones[pick];
+  if (!tone) return null; // past the top / bottom tone: on to the next staff
+  return { ...s, selection: { ...sel, toneId: tone.id }, message: `Akkordton ${pitchToString(tone.pitch)} gewählt – ↑ / ↓ ändert nur diesen Ton, Alt+↑ / ↓ wählt den nächsten.` };
+}
+
 function navStaff(s: EditorState, dir: number): EditorState {
+  const inChord = stepChordTone(s, dir);
+  if (inChord) return inChord;
   // One stop per staff (its first voice): detached voices are reached by clicking, not by walking through them.
   const staffOf = (r: VoiceRef) => `${r.partId}:${getVoice(s.score, r).voice.staff}`;
   const all = allVoiceRefs(s.score);
@@ -1040,6 +1072,7 @@ export const COMMANDS = {
   'mark.bar': { title: 'Zeichen am Takt (Wiederholung, Klammer, Segno, Coda, Sprung)', run: toggleBarSign },
   'edit.tab': { title: 'Tabulatur an/aus', run: toggleTab },
   'input.tuplet': { title: 'Triolen / Quintolen / Septolen', run: toggleTuplet },
+  'tab.fret': { title: 'Bundzahl in der Tabulatur setzen', run: (s, arg) => setFret(s, arg ?? 0) },
   'input.nextSharp': { title: 'Kreuz für die nächste Note', run: (s) => nextAccidental(s, 1) },
   'input.nextFlat': { title: 'B für die nächste Note', run: (s) => nextAccidental(s, -1) },
   'input.octave': { title: 'Oktave für die nächste Note', run: nextOctave },

@@ -12,6 +12,16 @@ export interface PatchNote {
 /** Newest first. Keep each line to one short sentence. */
 export const PATCH_NOTES: readonly PatchNote[] = [
   {
+    version: '0.22.0',
+    items: [
+      'Tabulatur: Stimmung wählen (Drop D, offene Stimmungen, jede Saite einzeln); Zahl tippen ändert den Bund, ↑ / ↓ wechselt die Saite.',
+      'Markierte Noten lassen sich mit der Maus in die Tabulatur ziehen; die Tabulaturzeile zeigt keine Notenwerte.',
+      'Akkorde: Alt+↑ / ↓ wählt die einzelnen Töne, ↑ / ↓ ändert danach nur diesen Ton.',
+      'Segno, Coda, Sprünge und Tempoanweisungen stehen genau auf der Note, auf die du sie setzt.',
+      'Takte pro Zeile in den Partitur-Einstellungen; Zeilenumbrüche aus MusicXML-Dateien bleiben erhalten.',
+    ],
+  },
+  {
     version: '0.21.0',
     items: [
       'Tabulatur als eigenes Instrument: über „+ Tabulatur“ in den Partitur-Einstellungen als eigene Zeile neben der Notenschrift; Noten aus anderen Zeilen lassen sich mit Strg+C und Strg+V hineinkopieren.',

@@ -3,6 +3,7 @@
  * global settings afterwards (title, key, meter, upbeat).
  */
 import { type Fraction, ZERO, eq, frac, gt, lt } from './time';
+import { presetOf, validTuning } from './tab';
 import { type InstrumentId, getInstrument } from './instruments';
 import {
   type KeyChange,
@@ -109,8 +110,12 @@ export interface ScoreChanges {
   readonly meter?: TimeSignature;
   /** Instruments to add at the bottom (a guitar may come with its tablature). */
   readonly addInstruments?: readonly { readonly instrument: InstrumentId; readonly tab?: boolean }[];
+  /** Bars per line: a number (1–16), 0 = automatic; absent = as it is (kept line breaks of an imported file stay). */
+  readonly perSystem?: number;
   /** Tablature on / off per existing guitar line (part id → on). */
   readonly tab?: Readonly<Record<string, boolean>>;
+  /** Tuning per guitar or tablature line (part id → six open strings, highest first); the standard tuning is stored as none. */
+  readonly tuning?: Readonly<Record<string, readonly number[]>>;
 }
 
 /** Drops entries that repeat the value of the entry before them. */
@@ -148,7 +153,22 @@ export function applyScoreChanges(score: Score, changes: ScoreChanges): { score:
       }),
     };
   }
+  for (const [partId, tuning] of Object.entries(changes.tuning ?? {})) {
+    if (!validTuning(tuning)) return { error: 'Die Stimmung braucht sechs Saiten mit Tönen zwischen C1 und E6.' };
+    next = {
+      ...next,
+      parts: next.parts.map((p) => {
+        if (p.id !== partId || (p.instrument !== 'guitar' && p.instrument !== 'tab')) return p;
+        const { tuning: _old, ...rest } = p;
+        return presetOf(tuning)?.id === 'standard' ? rest : { ...rest, tuning: [...tuning] };
+      }),
+    };
+  }
   for (const add of changes.addInstruments ?? []) next = addInstrument(next, add.instrument, add.tab ?? false).score;
+  if (changes.perSystem !== undefined) {
+    const { layout: _old, ...rest } = next;
+    next = changes.perSystem >= 1 ? { ...rest, layout: { perSystem: changes.perSystem } } : rest;
+  }
 
   const from = changes.fromMeasure ?? 1;
   const measures = measuresOf(next);

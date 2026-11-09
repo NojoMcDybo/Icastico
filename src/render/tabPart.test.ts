@@ -49,3 +49,52 @@ describe('a tablature instrument (ADR 0030)', () => {
     expect(engraver.engrave(result.mei).log).toBe('');
   });
 });
+
+describe('a tablature line shows numbers, not note values (ADR 0032)', () => {
+  let engraver: Engraver;
+  beforeAll(async () => {
+    engraver = await Engraver.create();
+  });
+
+  function tabScore(tuning?: readonly number[]) {
+    const base = emptyScore();
+    const { score: withTab, partId } = addInstrument(base, 'tab');
+    const events = parseLine('E2:1/8 A2:1/8 [E2,B2]:1/4 G3:1/2', 'tab-v1');
+    return { ...withTab, parts: withTab.parts.map((p) => (p.id === partId ? { ...p, ...(tuning ? { tuning } : {}), voices: [{ ...p.voices[0]!, events }] } : p)) };
+  }
+  const draw = (s: ReturnType<typeof tabScore>) => {
+    const r = scoreToMei(s);
+    const { pages, log } = engraver.engrave(r.mei);
+    expect(log).toBe('');
+    return { svg: applyTabNumbers(pages[0]!, r.tab), mei: r.mei, tab: r.tab };
+  };
+  const tabStaff = (svg: string) => svg.slice(svg.lastIndexOf('class="staff"'));
+
+  it('draws no stems, flags or beams on the tab line, while the other lines keep theirs', () => {
+    const s = tabScore();
+    const out = draw(s);
+    const tabOnly = tabStaff(out.svg);
+    expect(tabOnly).not.toMatch(/class="stem"/);
+    expect(tabOnly).not.toMatch(/class="flag"/);
+    expect(tabOnly).not.toMatch(/class="beam"/);
+    expect((tabOnly.match(/class="tabnumber"/g) ?? []).length).toBe(5);
+  });
+
+  it('a different tuning changes the numbers: in Drop D the low string is a whole tone lower', () => {
+    const standard = [...draw(tabScore()).tab.values()];
+    const drop = [...draw(tabScore([64, 59, 55, 50, 45, 38])).tab.values()];
+    expect(standard).not.toEqual(drop);
+    // E2 is the open low string in standard tuning (0) and the second fret in Drop D
+    expect(standard).toContain('0');
+    expect(drop).toContain('2');
+  });
+
+  it('a string that was chosen is kept', () => {
+    const base = tabScore();
+    const part = base.parts.find((p) => p.instrument === 'tab')!;
+    const moved = { ...base, parts: base.parts.map((p) => (p.id === part.id ? { ...p, voices: [{ ...p.voices[0]!, events: p.voices[0]!.events.map((e, i) => (i === 3 ? { ...e, tones: e.tones.map((t) => ({ ...t, string: 4 })) } : e)) }] } : p)) };
+    // G3 (midi 55) on string 4 (d, 50) is fret 5; automatically it would be the open string 3
+    const numbers = [...scoreToMei(moved).tab.values()];
+    expect(numbers).toContain('5');
+  });
+});

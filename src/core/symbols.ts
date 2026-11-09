@@ -139,6 +139,12 @@ export const BAR_SIGN_IDS: readonly string[] = BAR_SIGNS.map((s) => s.id);
 const byBarSign = new Map(BAR_SIGNS.map((s) => [s.id as string, s]));
 export const barSign = (id: string): BarSign | undefined => byBarSign.get(id);
 
+/** Signs that can stand at an exact note (segno, coda, jumps, tempo words); barlines, repeats and endings belong to a bar. */
+export const canSitOnNote = (kind: string): boolean => {
+  const c = barSign(kind)?.category;
+  return c === 'jump' || c === 'tempo';
+};
+
 /** Which volta number (1–3) a bar sign is, else 0. */
 export const voltaNumber = (kind: string): number => (kind === 'volta1' ? 1 : kind === 'volta2' ? 2 : kind === 'volta3' ? 3 : 0);
 export const isJumpBack = (kind: string): boolean => barSign(kind)?.exclusive === 'jump';

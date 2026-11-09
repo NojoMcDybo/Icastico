@@ -6,6 +6,9 @@ import { type InstrumentId, INSTRUMENTS } from '../core/instruments';
 import type { TimeSignature } from '../core/model';
 import { type Fraction, eq, fracToString, parseFrac } from '../core/time';
 import { type ScoreChanges, type ScoreSetup, keyName, pickupChoices } from '../core/templates';
+import { TUNINGS, presetOf } from '../core/tab';
+import { spellMidi } from '../core/pitch';
+import { germanName } from './transposeDialog';
 
 export interface EditInitial {
   readonly title: string;
@@ -18,8 +21,11 @@ export interface EditInitial {
   readonly lastMeasure: number;
   readonly fifths: number;
   readonly meter: TimeSignature;
+  /** Bars per line now (0 = automatic) and whether the line breaks come from an imported file. */
+  readonly perSystem: number;
+  readonly importedBreaks: boolean;
   /** The lines the score has now (for adding more instruments and switching the guitar tablature). */
-  readonly parts: readonly { readonly id: string; readonly name: string; readonly instrument: InstrumentId; readonly tab: boolean }[];
+  readonly parts: readonly { readonly id: string; readonly name: string; readonly instrument: InstrumentId; readonly tab: boolean; readonly tuning: readonly number[] }[];
 }
 
 type Options =
@@ -170,6 +176,46 @@ export function scoreDialog(options: Options): Promise<ScoreSetup | ScoreChanges
       form.append(row('Instrumente', el('div', {}, have, adding, more, el('p', { className: 'form__hint', textContent: 'Neue Zeilen kommen unten dazu. Entfernen geht hier noch nicht.' }))));
     }
 
+    // Tuning of every guitar and tablature line: a preset, or each string set by hand (Drop D, open tunings …)
+    const tuningFields = new Map<string, HTMLSelectElement[]>();
+    const guitars = isNew ? [] : options.initial.parts.filter((p) => p.instrument === 'guitar' || p.instrument === 'tab');
+    if (guitars.length > 0) {
+      const box = el('div', { className: 'tunings' });
+      for (const p of guitars) {
+        const preset = el('select');
+        preset.setAttribute('aria-label', `${p.name}: Stimmung`);
+        for (const t of TUNINGS) preset.append(el('option', { value: t.id, textContent: t.name }));
+        preset.append(el('option', { value: 'custom', textContent: 'Eigene Stimmung' }));
+        const strings = p.tuning.map((midi, i) => {
+          const sel = el('select', { className: 'tuning__string' });
+          sel.setAttribute('aria-label', `${p.name}: Saite ${i + 1}`);
+          for (let m = 28; m <= 79; m++) sel.append(el('option', { value: String(m), textContent: germanName(spellMidi(m, 0)) }));
+          sel.value = String(midi);
+          return sel;
+        });
+        const current = () => strings.map((s) => Number(s.value));
+        const show = () => (preset.value = presetOf(current())?.id ?? 'custom');
+        show();
+        preset.addEventListener('change', () => {
+          const chosen = TUNINGS.find((t) => t.id === preset.value);
+          if (chosen) chosen.strings.forEach((m, i) => (strings[i]!.value = String(m)));
+        });
+        for (const s of strings) s.addEventListener('change', show);
+        tuningFields.set(p.id, strings);
+        box.append(el('div', { className: 'tuning' }, el('strong', { textContent: p.name }), preset, el('span', { className: 'tuning__strings' }, ...strings)));
+      }
+      box.append(el('p', { className: 'form__hint', textContent: 'Saite 1 ist die höchste. Die Töne der Noten bleiben, nur die Bundzahlen ändern sich.' }));
+      form.append(row('Stimmung', box));
+    }
+
+    // Bars per line (an existing score): automatic, or a fixed number
+    const init0 = options.mode === 'edit' ? options.initial : { perSystem: 0, importedBreaks: false };
+    const perLine = el('select', { id: 'f-perline' });
+    perLine.append(el('option', { value: 'keep', textContent: init0.importedBreaks ? 'wie in der importierten Datei' : init0.perSystem > 0 ? `${init0.perSystem} (wie bisher)` : 'automatisch (so viele wie passen) – wie bisher' }));
+    if (init0.importedBreaks || init0.perSystem > 0) perLine.append(el('option', { value: '0', textContent: 'automatisch (so viele wie passen)' }));
+    for (let n = 1; n <= 8; n++) if (!(init0.perSystem === n && !init0.importedBreaks)) perLine.append(el('option', { value: String(n), textContent: n === 1 ? '1 Takt' : `${n} Takte` }));
+    if (!isNew) form.append(row('Takte pro Zeile', perLine, 'f-perline'));
+
     // Key
     const key = el('select', { id: 'f-key' });
     for (let f = -7; f <= 7; f++) key.append(el('option', { value: String(f), textContent: keyName(f) }));
@@ -307,10 +353,18 @@ export function scoreDialog(options: Options): Promise<ScoreSetup | ScoreChanges
         ...(Number(key.value) !== i.fifths ? { fifths: Number(key.value) } : {}),
         ...(meter.count !== i.meter.count || meter.unit !== i.meter.unit ? { meter } : {}),
         ...(!eq(pickupValue, i.pickup) ? { pickup: pickupValue } : {}),
+        ...(perLine.value !== 'keep' ? { perSystem: Number(perLine.value) } : {}),
         ...(addedInstruments.length > 0 ? { addInstruments: addedInstruments.map((a) => ({ instrument: a.instrument, tab: a.tab })) } : {}),
       };
       const tabChanges = Object.fromEntries(i.parts.filter((p) => tabBoxes.get(p.id) && tabBoxes.get(p.id)!.checked !== p.tab).map((p) => [p.id, tabBoxes.get(p.id)!.checked]));
       if (Object.keys(tabChanges).length > 0) (changes as { tab?: Record<string, boolean> }).tab = tabChanges;
+      const tuningChanges = Object.fromEntries(
+        guitars.flatMap((p) => {
+          const values = (tuningFields.get(p.id) ?? []).map((s) => Number(s.value));
+          return values.length === p.tuning.length && values.some((m, k) => m !== p.tuning[k]) ? [[p.id, values] as const] : [];
+        }),
+      );
+      if (Object.keys(tuningChanges).length > 0) (changes as { tuning?: Record<string, readonly number[]> }).tuning = tuningChanges;
       const problem = options.check(changes);
       if (problem) {
         error.textContent = problem;

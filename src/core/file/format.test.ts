@@ -15,6 +15,9 @@ import version8File from './fixtures/version8.icastico?raw';
 import version9File from './fixtures/version9.icastico?raw';
 import version10File from './fixtures/version10.icastico?raw';
 import version11File from './fixtures/version11.icastico?raw';
+import version12File from './fixtures/version12.icastico?raw';
+import version13File from './fixtures/version13.icastico?raw';
+import version14File from './fixtures/version14.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -407,5 +410,75 @@ describe('format version 12: the tablature instrument', () => {
     const back = parseScoreFile(serializeScore(score, '0'));
     expect(back.parts[back.parts.length - 1]!.instrument).toBe('tab');
     expect(back.parts[back.parts.length - 1]!.voices[0]!.events.length).toBe(score.parts[score.parts.length - 1]!.voices[0]!.events.length);
+  });
+});
+
+describe('format version 13: bar signs exactly on a note', () => {
+  it('opens files saved by Icastico 0.21.0 (format version 12) and saves them as the current version', () => {
+    const score = parseScoreFile(version12File);
+    expect(fileVersion(version12File)).toBe(12);
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  it('keeps a jump or tempo word placed on a note, and refuses that for a repeat sign', () => {
+    const base = parseScoreFile(version12File);
+    const score: Score = { ...base, marks: [{ at: frac(3, 4), kind: 'dc', exact: true }, { at: frac(0), kind: 'repeatStart' }] };
+    const back = parseScoreFile(serializeScore(score, '0'));
+    expect(back.marks).toEqual([{ at: frac(0), kind: 'repeatStart' }, { at: frac(3, 4), kind: 'dc', exact: true }]);
+    expect(() => parseScoreFile(serializeScore({ ...base, marks: [{ at: frac(0), kind: 'repeatStart', exact: true }] }, '0'))).toThrow(/gehört an einen Takt/);
+  });
+});
+
+describe('format version 14: line breaks', () => {
+  it('opens files saved by Icastico 0.21.0 (format version 13) and saves them as the current version', () => {
+    const score = parseScoreFile(version13File);
+    expect(fileVersion(version13File)).toBe(13);
+    expect(score.layout).toBeUndefined();
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  it('keeps the bars per line and the imported breaks, and refuses nonsense', () => {
+    const base = parseScoreFile(version13File);
+    expect(parseScoreFile(serializeScore({ ...base, layout: { perSystem: 3 } }, '0')).layout).toEqual({ perSystem: 3 });
+    expect(parseScoreFile(serializeScore({ ...base, layout: { breaks: [4, 8] } }, '0')).layout).toEqual({ breaks: [4, 8] });
+    expect(() => parseScoreFile(serializeScore({ ...base, layout: { perSystem: 0 } }, '0'))).toThrow(/Takte pro Zeile/);
+    expect(() => parseScoreFile(serializeScore({ ...base, layout: { breaks: [4, 2] } }, '0'))).toThrow(/aufsteigende/);
+  });
+});
+
+describe('format version 15: tunings and chosen strings', () => {
+  it('opens files saved by Icastico 0.21.0 (format version 14) and saves them as the current version', () => {
+    const score = parseScoreFile(version14File);
+    expect(fileVersion(version14File)).toBe(14);
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  function withTab(tuning?: number[], string?: number): Score {
+    const base = parseScoreFile(version14File);
+    const voice = base.parts[0]!.voices[0]!;
+    const events = voice.events.map((e, i) => (i === 0 && string !== undefined ? { ...e, tones: e.tones.map((t) => ({ ...t, string })) } : e));
+    const part = { ...base.parts[0]!, id: 'tab', name: 'Tabulatur', instrument: 'tab' as const, ...(tuning ? { tuning } : {}), voices: [{ ...voice, id: 'tab-v1', events: events.map((e) => ({ ...e, id: 'tab-' + e.id, tones: e.tones.map((t) => ({ ...t, id: 'tab-' + t.id })) })) }] };
+    return { ...base, parts: [...base.parts, part] };
+  }
+
+  it('keeps a tuning and the string of a tone', () => {
+    const back = parseScoreFile(serializeScore(withTab([64, 59, 55, 50, 45, 38], 3), '0'));
+    const tab = back.parts[back.parts.length - 1]!;
+    expect(tab.tuning).toEqual([64, 59, 55, 50, 45, 38]);
+    expect(tab.voices[0]!.events[0]!.tones[0]!.string).toBe(3);
+  });
+
+  it('refuses a tuning with the wrong number of strings, or on an instrument that has none', () => {
+    expect(() => parseScoreFile(serializeScore(withTab([64, 59, 55]), '0'))).toThrow(/Stimmung/);
+    const base = parseScoreFile(version14File);
+    const piano = base.parts.find((p) => p.instrument === 'piano') ?? base.parts[0]!;
+    expect(() => parseScoreFile(serializeScore({ ...base, parts: base.parts.map((p) => (p === piano ? { ...p, tuning: [64, 59, 55, 50, 45, 40] } : p)) }, '0'))).toThrow(/Stimmung/);
+    expect(() => parseScoreFile(serializeScore(withTab(undefined, 9), '0'))).toThrow(/Saite/);
   });
 });

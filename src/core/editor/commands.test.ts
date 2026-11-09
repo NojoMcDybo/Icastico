@@ -4,7 +4,8 @@ import { pitchToString } from '../pitch';
 import { eventEnd, validateScore, type Score } from '../model';
 import { emptyScore } from '../templates';
 import { parseLine } from '../line';
-import { type CommandId, runCommand, spellPitchClass } from './commands';
+import { type CommandId, dropBarSign, runCommand, spellPitchClass } from './commands';
+import { BAR_SIGNS } from '../symbols';
 import { applyRollEdit } from './rollEdits';
 import { createEditorState, getVoice, type EditorState, type VoiceRef } from './state';
 import { History } from './history';
@@ -413,5 +414,67 @@ describe('sharp / flat and octave for the next note only', () => {
     s = runCommand(runCommand(s, 'input.octave', -1), 'input.octave', -1);
     expect(s.message).toMatch(/2 Oktaven tiefer/);
     expect(dump(play(s, 'F').score)).toMatch(/F4:1\/4$/);
+  });
+});
+
+describe('Alt+arrows walk through the tones of a chord', () => {
+  function chord(): EditorState {
+    let s = play(fresh(), '5 C +E +G esc');
+    return { ...s, selection: { kind: 'event', ...VOICE, eventId: 'voice-v1-n1' } };
+  }
+  const tone = (s: EditorState) => (s.selection?.kind === 'event' ? s.selection.toneId : undefined);
+  const pitches = (s: EditorState) => s.score.parts[0]!.voices[0]!.events[0]!.tones.map((t) => t.pitch.step + t.pitch.octave).join(' ');
+
+  it('Alt+↑ selects the top tone, then the ones below; Alt+↓ goes the other way', () => {
+    let s = runCommand(chord(), 'nav.staff', -1);
+    expect(s.message).toMatch(/Akkordton G/);
+    const top = tone(s);
+    expect(top).toBeDefined();
+    s = runCommand(s, 'nav.staff', 1);
+    expect(s.message).toMatch(/Akkordton E/);
+    s = runCommand(s, 'nav.staff', 1);
+    expect(s.message).toMatch(/Akkordton C/);
+    s = runCommand(s, 'nav.staff', -1);
+    expect(s.message).toMatch(/Akkordton E/);
+  });
+
+  it('↑ / ↓ then changes only the chosen tone', () => {
+    let s = runCommand(runCommand(chord(), 'nav.staff', 1), 'nav.staff', -1); // the bottom tone, then the middle one
+    s = runCommand(s, 'edit.step', 1);
+    expect(pitches(s)).toBe('C5 F5 G5');
+  });
+
+  it('past the last tone the key switches the staff as before, and a single note does that at once', () => {
+    let s = runCommand(runCommand(chord(), 'nav.staff', -1), 'nav.staff', -1); // top tone, then nothing higher
+    expect(s.selection?.kind === 'event' ? s.selection.partId : '').toBe('voice');
+    const single = { ...play(fresh(), '5 C esc'), selection: { kind: 'event' as const, ...VOICE, eventId: 'voice-v1-n1' } };
+    expect(tone(runCommand(single, 'nav.staff', 1))).toBeUndefined();
+  });
+});
+
+describe('jumps and tempo words stand exactly on the note (ADR 0031)', () => {
+  const marks = (s: EditorState) => s.score.marks ?? [];
+
+  it('dropped on a note they sit at that note, one of each kind per bar', () => {
+    const s0 = play(fresh(), '5 C D E F esc');
+    let s = dropBarSign(s0, 'dc', frac(3, 4), undefined, true);
+    expect(marks(s)).toEqual([{ at: frac(3, 4), kind: 'dc', exact: true }]);
+    s = dropBarSign(s, 'dc', frac(1, 4), frac(3, 4), true); // moved to another note of the same bar
+    expect(marks(s)).toEqual([{ at: frac(1, 4), kind: 'dc', exact: true }]);
+    s = dropBarSign(s, 'dcFine', frac(2, 4), undefined, true); // an exclusive neighbour replaces it
+    expect(marks(s)).toEqual([{ at: frac(2, 4), kind: 'dcFine', exact: true }]);
+  });
+
+  it('a repeat sign always belongs to the bar, even when dropped on a note', () => {
+    const s = dropBarSign(play(fresh(), '5 C D E F esc'), 'repeatEnd', frac(0), undefined, true);
+    expect(marks(s)).toEqual([{ at: frac(0), kind: 'repeatEnd' }]);
+  });
+
+  it('the palette puts it on the selected note', () => {
+    const s0 = { ...play(fresh(), '5 C D E F esc'), selection: { kind: 'event' as const, ...VOICE, eventId: 'voice-v1-n3' } };
+    const index = BAR_SIGNS.findIndex((x) => x.id === 'segno');
+    const s = runCommand(s0, 'mark.bar', index);
+    expect(marks(s)).toEqual([{ at: frac(2, 4), kind: 'segno', exact: true }]);
+    expect(marks(runCommand(s, 'mark.bar', index))).toEqual([]); // again: gone
   });
 });

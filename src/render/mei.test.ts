@@ -3,6 +3,7 @@ import { scoreToMei } from './mei';
 import { Engraver } from './verovio';
 import { demoScore } from '../core/demo';
 import { frac } from '../core/time';
+import { parseLine } from '../core/line';
 import { emptyScore } from '../core/templates';
 import { runCommand } from '../core/editor/commands';
 import { createEditorState, getVoice, type EditorState } from '../core/editor/state';
@@ -427,5 +428,45 @@ describe('barlines, breath signs and groups (ADR 0027)', () => {
     const { log, pages } = engraver.engrave(mei);
     expect(log).toBe('');
     expect(pages[0]!.match(/class="slur"/g)).toHaveLength(2);
+  });
+});
+
+describe('signs exactly on a note (ADR 0031)', () => {
+  it('a segno on a note stands at its beat, one that belongs to the bar stays at the first beat; the words follow the note too', () => {
+    const base = emptyScore();
+    const voice = base.parts[0]!.voices[0]!;
+    const events = parseLine('C5:1/4 D5:1/4 E5:1/4 F5:1/4', 'e');
+    const withMusic = { ...base, parts: base.parts.map((p, i) => (i === 0 ? { ...p, voices: [{ ...voice, events }] } : p)) };
+    const exact = scoreToMei({ ...withMusic, marks: [{ at: frac(2, 4), kind: 'segno', exact: true }, { at: frac(1, 4), kind: 'ritard', exact: true }] }).mei;
+    expect(exact).toMatch(/<dir xml:id="segno-0"[^>]*tstamp="3.0000"/);
+    expect(exact).toMatch(/<dir xml:id="dir-ritard-0"[^>]*tstamp="2.0000"/);
+    const legacy = scoreToMei({ ...withMusic, marks: [{ at: frac(0), kind: 'segno' }, { at: frac(0), kind: 'ritard' }] }).mei;
+    expect(legacy).toMatch(/<dir xml:id="segno-0"[^>]*tstamp="1"/);
+    expect(legacy).toMatch(/<dir xml:id="dir-ritard-0"[^>]*tstamp="4"/);
+  });
+});
+
+describe('line breaks (ADR 0031)', () => {
+  let engraver: Engraver;
+  beforeAll(async () => {
+    engraver = await Engraver.create();
+  });
+  const eight = () => {
+    const base = emptyScore();
+    const voice = base.parts[0]!.voices[0]!;
+    const events = parseLine('C5:1/1 D5:1/1 E5:1/1 F5:1/1 G5:1/1 A5:1/1 B5:1/1 C6:1/1', 'e');
+    return { ...base, parts: base.parts.map((p, i) => (i === 0 ? { ...p, voices: [{ ...voice, events }] } : p)) };
+  };
+  const systems = (score: ReturnType<typeof eight>) => {
+    const { pages, log } = engraver.engrave(scoreToMei(score).mei, { pageWidth: 3000, scale: 40 });
+    expect(log).toBe('');
+    return pages.join('').match(/class="system"/g)?.length ?? 0;
+  };
+
+  it('bars per line and imported breaks decide where a new line starts; nothing set = as many as fit', () => {
+    expect(systems({ ...eight(), layout: { perSystem: 2 } })).toBe(4);
+    expect(systems({ ...eight(), layout: { perSystem: 4 } })).toBe(2);
+    expect(systems({ ...eight(), layout: { breaks: [3] } })).toBe(2);
+    expect(systems(eight())).toBe(1); // wide page: all eight bars fit on one line
   });
 });

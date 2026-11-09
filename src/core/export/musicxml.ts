@@ -10,7 +10,7 @@
 import { type Fraction, add, frac, le, lt, sub } from '../time';
 import { type Pitch } from '../pitch';
 import { getInstrument } from '../instruments';
-import { type Measure, type Part, type Score, type Voice, DEFAULT_TEMPO, measuresOf, validateScore } from '../model';
+import { type Measure, type Part, type Score, type Voice, DEFAULT_TEMPO, measuresOf, systemBreaks, validateScore } from '../model';
 import {
   type NotatedItem,
   type NotatedNote,
@@ -93,6 +93,7 @@ export function exportMusicXml(score: Score, appVersion = ''): ExportResult {
   const divisions = divisionsFor(score, measures);
   const units = (t: Fraction): number => Math.round((t.n * 4 * divisions) / t.d);
 
+  const lineBreaks = new Set(systemBreaks(score, measures.length));
   const links = score.links ?? [];
   const tieOut = new Set(links.filter((l) => l.kind === 'tie').map((l) => l.from));
   const tieIn = new Set(links.filter((l) => l.kind === 'tie').map((l) => l.to));
@@ -138,6 +139,7 @@ export function exportMusicXml(score: Score, appVersion = ''): ExportResult {
       const prev = measures[mi - 1];
       const length = units(sub(m.end, m.start));
       out.push(`    <measure number="${m.number}"${m.number === 0 ? ' implicit="yes"' : ''}>`);
+      if (partIndex === 0 && lineBreaks.has(mi)) out.push('      <print new-system="yes"/>');
       const attrs: string[] = [];
       if (mi === 0) attrs.push(`<divisions>${divisions}</divisions>`);
       if (!prev || prev.fifths !== m.fifths) attrs.push(`<key><fifths>${m.fifths}</fifths></key>`);

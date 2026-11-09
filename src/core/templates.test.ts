@@ -179,3 +179,13 @@ describe('adding instruments to an existing score', () => {
     expect(off.score.parts[1]!.tab).toBeUndefined();
   });
 });
+
+describe('bars per line in the score settings', () => {
+  it('sets, changes and clears the bars per line (0 = automatic), also over imported breaks', () => {
+    const base = createScore(DEFAULT_SETUP);
+    const set = ok(applyScoreChanges({ ...base, layout: { breaks: [3, 6] } }, { perSystem: 4 }));
+    expect(set.layout).toEqual({ perSystem: 4 });
+    expect(ok(applyScoreChanges(set, { perSystem: 0 })).layout).toBeUndefined();
+    expect(ok(applyScoreChanges({ ...base, layout: { breaks: [3] } }, {})).layout).toEqual({ breaks: [3] });
+  });
+});

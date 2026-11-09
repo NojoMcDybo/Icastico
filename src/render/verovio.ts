@@ -42,7 +42,8 @@ export class Engraver {
       scale: options.scale ?? 40,
       pageHeight: options.pageHeight ?? 2970,
       adjustPageHeight: options.pageHeight === undefined,
-      breaks: 'auto',
+      // Line breaks written into the music (ADR 0031) are kept exactly; without any, as many bars as fit.
+      breaks: mei.includes('<sb ') ? 'encoded' : 'auto',
       header: 'auto',
       footer: 'none',
       svgViewBox: true,

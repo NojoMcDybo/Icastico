@@ -20,7 +20,7 @@ import { convertImport } from './importFile';
 import { extractPart } from '../core/extract';
 import { pdfDialog } from './pdfDialog';
 import { type PaletteKind, SymbolPalette } from './symbolPalette';
-import { BAR_SIGNS, NOTE_SYMBOLS, barSign, noteSymbol, voltaNumber } from '../core/symbols';
+import { BAR_SIGNS, NOTE_SYMBOLS, barSign, canSitOnNote, noteSymbol, voltaNumber } from '../core/symbols';
 import { type PlayMap, playMapOf } from '../core/playOrder';
 import { printPages, scoresToPdf } from './pdfExport';
 import { quantizeEvents } from '../core/editor/quantizeOp';
@@ -34,6 +34,9 @@ import { secondsOf, tempoOf, timeAt } from '../core/playback';
 import { durationName } from '../core/notation/notate';
 import { type Pitch, STEPS, midiOf, pitchToString } from '../core/pitch';
 import { type Fraction, ZERO, eq, le, lt, toNumber } from '../core/time';
+import { tuningOf } from '../core/tab';
+import { tabTarget } from '../core/editor/tabEdit';
+import { MAX_FRET } from '../core/tab';
 import { applyScoreChanges, createScore, emptyScore, keyName as germanKeyName } from '../core/templates';
 import { openKeyPicker } from './keyPicker';
 import { dirOf, fileNameOf, preferredFileName } from '../library/library';
@@ -221,6 +224,8 @@ export class Workstation {
   private loop = false;
   /** The metronome click during playback (remembered). */
   private metronome = loadMetronome();
+  /** The digits typed for a tablature fret and when (two in a row make a two-digit fret). */
+  private fretTyped = { text: '', at: 0 };
   /** Size of the notation in percent. */
   private zoom = loadZoom();
   private renderedZoom = 0;
@@ -482,6 +487,7 @@ export class Workstation {
       return;
     }
     if (!combo) return;
+    if (this.typeFret(e, combo)) return;
     const numpad = numpadComboOf(e);
     const binding = (numpad ? findBinding(this.keymap, numpad) : undefined) ?? findBinding(this.keymap, combo);
     if (!binding) return;
@@ -492,6 +498,19 @@ export class Workstation {
       return;
     }
     this.run(binding.command, binding.arg ?? 0);
+  }
+
+  /** A number typed on a selected tablature note sets its fret; two digits in a row make 10 – 22. */
+  private typeFret(e: KeyboardEvent, combo: string): boolean {
+    if (e.repeat || !/^[0-9]$/.test(combo) || !tabTarget(this.state)) return false;
+    e.preventDefault();
+    const now = performance.now();
+    const joined = now - this.fretTyped.at < 800 ? this.fretTyped.text + combo : combo;
+    const text = Number(joined) <= MAX_FRET ? joined : combo;
+    this.fretTyped = { text, at: now };
+    this.history.apply(runCommand(this.state, 'tab.fret', Number(text)));
+    this.update();
+    return true;
   }
 
   run(command: CommandId | UiCommandId, arg = 0): void {
@@ -1030,7 +1049,9 @@ export class Workstation {
         lastMeasure: content[content.length - 1]!.number,
         fifths: keyAt(score, at),
         meter: meterAt(score, at),
-        parts: score.parts.map((p) => ({ id: p.id, name: p.name, instrument: p.instrument, tab: p.tab === true })),
+        perSystem: score.layout?.perSystem ?? 0,
+        importedBreaks: (score.layout?.breaks?.length ?? 0) > 0,
+        parts: score.parts.map((p) => ({ id: p.id, name: p.name, instrument: p.instrument, tab: p.tab === true, tuning: tuningOf(p) })),
       },
       check: (c) => {
         const r = applyScoreChanges(this.state.score, c);
@@ -1090,6 +1111,9 @@ export class Workstation {
     const ref = this.hitTest(e);
     if (!ref) return this.beginFrame(e); // empty paper: dragging draws a frame that marks the notes inside
     if (!ref.eventId) return;
+    const span = rangeSpan(this.state);
+    // A marked passage is picked up as a whole: dropped on another line it is copied there (e.g. into the tablature).
+    if (span && ref.partId === span.partId && ref.voiceId === span.voiceId && le(span.from, ref.onset) && lt(ref.onset, span.to)) return this.beginRangeDrag(span, e);
     const s = this.history.state;
     const voice = { partId: ref.partId, voiceId: ref.voiceId };
     const targets: { ref: ElementRef; rect: DOMRect }[] = [];
@@ -1113,6 +1137,54 @@ export class Workstation {
       preview: null,
     };
     this.el.pages.setPointerCapture(e.pointerId);
+  }
+
+  /** The marked notes follow the pointer; where they are let go of on another line they are copied, at the same time (ADR 0032). */
+  private beginRangeDrag(span: NonNullable<ReturnType<typeof rangeSpan>>, e: PointerEvent): void {
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let ghost: HTMLElement | null = null;
+    let lit: Element | null = null;
+    const light = (target: Element | null) => {
+      if (lit === target) return;
+      lit?.classList.remove('is-sign-target');
+      target?.classList.add('is-sign-target');
+      lit = target;
+    };
+    const elsewhere = (hit: [string, ElementRef] | undefined) => (hit && (hit[1].partId !== span.partId || hit[1].voiceId !== span.voiceId) ? hit : undefined);
+    const move = (m: PointerEvent) => {
+      if (!ghost) {
+        if (Math.hypot(m.clientX - startX, m.clientY - startY) < 6) return;
+        ghost = document.createElement('div');
+        ghost.className = 'sign-ghost';
+        ghost.textContent = `${span.notes} ${span.notes === 1 ? 'Note' : 'Noten'}`;
+        document.body.append(ghost);
+      }
+      ghost.style.transform = `translate(${m.clientX + 10}px, ${m.clientY + 10}px)`;
+      const hit = elsewhere(this.el.pages.contains(m.target as Node) ? this.hitEntry(m) : undefined);
+      light(hit ? document.getElementById(hit[0]) : null);
+    };
+    const end = (up: PointerEvent | null) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', cancel);
+      light(null);
+      if (!ghost) return; // never moved: an ordinary click
+      ghost.remove();
+      this.swallowClick = true;
+      window.setTimeout(() => (this.swallowClick = false), 80);
+      const hit = up && this.el.pages.contains(up.target as Node) ? elsewhere(this.hitEntry(up)) : undefined;
+      const clip = copyClip(this.state);
+      if (!hit || !clip) return;
+      const target = hit[1];
+      const placed = { ...this.state, range: null, caret: null, selection: { kind: 'gap' as const, partId: target.partId, voiceId: target.voiceId, time: span.from } };
+      this.history.apply(pasteClip(placed, clip));
+      this.update();
+    };
+    const cancel = () => end(null);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', cancel);
   }
 
   // ── Special signs: double click and drag and drop (ADR 0024) ──────────────
@@ -1194,7 +1266,7 @@ export class Workstation {
       return null;
     }
     const measures = measuresOf(this.state.score, 1);
-    const mi = measures.findIndex((m) => sign.from !== undefined && eq(m.start, sign.from as Fraction));
+    const mi = measures.findIndex((m) => sign.from !== undefined && le(m.start, sign.from as Fraction) && lt(sign.from as Fraction, m.end));
     if (sign.id === 'segno' || sign.id === 'coda') return document.getElementById(`${sign.id}-${mi}`);
     if (barSign(sign.id)?.text) return document.getElementById(`dir-${sign.id}-${mi}`);
     const measure = sign.where ? page.querySelector(`#m${sign.where.measure}`) : null;
@@ -1241,8 +1313,10 @@ export class Workstation {
       const bar = /^(?:(segno|coda)|dir-(\w+))-(\d+)$/.exec(n.id);
       if (bar) {
         const kind = bar[1] ?? bar[2]!;
-        const start = measuresOf(score, Number(bar[3]) + 1)[Number(bar[3])]?.start;
-        if (start && barSign(kind)) return { kind: 'bar', id: kind, glyph: barSign(kind)!.glyph, from: start };
+        const measure = measuresOf(score, Number(bar[3]) + 1)[Number(bar[3])];
+        // The sign may stand on a note inside the bar: that exact time identifies it.
+        const mark = measure && (score.marks ?? []).find((x) => x.kind === kind && le(measure.start, x.at) && lt(x.at, measure.end));
+        if (measure && barSign(kind)) return { kind: 'bar', id: kind, glyph: barSign(kind)!.glyph, from: mark?.at ?? measure.start };
       }
       if (n.classList.contains('artic')) {
         // Articulations are drawn inside their note, in the order of its marks.
@@ -1319,7 +1393,9 @@ export class Workstation {
     } else {
       const bar = measuresOf(this.state.score, 1, ref.onset).find((m) => m.number === ref.measureNumber);
       if (!bar) return;
-      this.history.apply(dropBarSign(this.state, sign.id, bar.start, sign.from));
+      // Segno, coda, jumps and tempo words dropped on a note stand exactly there; elsewhere on the bar they belong to the bar.
+      const onNote = canSitOnNote(sign.id) && ref.eventId !== undefined;
+      this.history.apply(dropBarSign(this.state, sign.id, onNote ? ref.onset : bar.start, sign.from, onNote));
     }
     this.update();
   }

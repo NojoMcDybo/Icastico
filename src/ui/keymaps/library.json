@@ -407,6 +407,30 @@
           "title": "Zeile als Noten, als Piano-Roll oder als beides zeigen",
           "command": "ui.control",
           "via": "Schalter „Noten · Beides · Roll“ an der Zeile (Strg+Umschalt+P schaltet die Roll um)"
+        },
+        {
+          "id": "tab.fret",
+          "title": "Tabulatur: die Bundzahl einer markierten Note ändern – Zahl tippen (zwei Ziffern schnell hintereinander: 10 bis 22)",
+          "command": "tab.fret",
+          "via": "Note in der Tabulaturzeile anklicken und die Zahl tippen"
+        },
+        {
+          "id": "tab.string",
+          "title": "Tabulatur: die markierte Zahl auf eine andere Saite legen (der Ton bleibt, der Bund passt sich an)",
+          "command": "ui.control",
+          "via": "↑ / ↓ bei einer markierten Note der Tabulaturzeile"
+        },
+        {
+          "id": "tab.chordTone",
+          "title": "Akkord: einzelne Töne durchgehen und mit ↑ / ↓ verändern",
+          "command": "ui.control",
+          "via": "Alt+↑ / Alt+↓ bei einem markierten Akkord (Mac: ⌥); danach wirkt ↑ / ↓ nur auf diesen Ton"
+        },
+        {
+          "id": "tab.drag",
+          "title": "Markierte Noten in eine andere Zeile ziehen (z. B. in die Tabulatur): sie werden dort zur gleichen Zeit eingefügt",
+          "command": "ui.control",
+          "via": "Mit der Maus: markierte Noten greifen und auf die andere Zeile ziehen"
         }
       ]
     },
@@ -640,6 +664,18 @@
           "title": "Tabulatur als eigene Zeile neben der Notenschrift; Noten mit Strg+C / Strg+V hineinkopieren",
           "command": "ui.control",
           "via": "Partitur-Einstellungen (Strg+Komma): „+ Tabulatur“"
+        },
+        {
+          "id": "layout.perLine",
+          "title": "Takte pro Zeile festlegen (Zeilenumbrüche aus einer MusicXML-Datei bleiben erhalten)",
+          "command": "ui.control",
+          "via": "Partitur-Einstellungen (Strg+Komma): „Takte pro Zeile“"
+        },
+        {
+          "id": "tab.tuning",
+          "title": "Tabulatur und Gitarre: Stimmung wählen (Drop D, Offen G …) oder jede Saite einzeln einstellen",
+          "command": "ui.control",
+          "via": "Partitur-Einstellungen (Strg+Komma): „Stimmung“"
         }
       ]
     },
@@ -730,7 +766,7 @@
           "title": "Zeichen am Takt der gewählten Note: Wiederholung, Klammer, Segno, Coda, Sprung (nochmal: weg)",
           "command": "mark.bar",
           "args": { "0": "Wiederholung Anfang", "1": "Wiederholung Ende", "2": "1. Klammer", "3": "2. Klammer", "4": "3. Klammer", "5": "Segno", "6": "Coda", "7": "To Coda", "8": "Fine", "9": "D.C.", "10": "D.C. al Fine", "11": "D.C. al Coda", "12": "D.S.", "13": "D.S. al Fine", "14": "D.S. al Coda" },
-          "via": "Zeichen-Palette (Strg+J): Zeichen doppelklicken oder auf einen Takt ziehen",
+          "via": "Zeichen-Palette (Strg+J): Zeichen doppelklicken oder ziehen – Segno, Coda, Sprünge und Tempoanweisungen stehen genau auf der Note, auf die sie fallen; Wiederholungen und Klammern gehören zum Takt",
           "finale": { "keys": {}, "source": "icastico", "note": "Aufeinanderfolgende Takte mit derselben Klammer bilden eine gemeinsame Klammer." },
           "logic": { "keys": {}, "source": "icastico" }
         },

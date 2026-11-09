@@ -14,7 +14,7 @@ import { type Fraction, compare, fracToString, parseFrac } from '../time';
 import { parsePitch, pitchToString } from '../pitch';
 import { type InstrumentId, INSTRUMENTS } from '../instruments';
 import { type Curve, type CurveKind, DEFAULT_VOLUME, curveProblem } from '../curve';
-import { type BarMark, type Link, type NoteEvent, type Part, type Score, type Tone, type Voice, validateScore } from '../model';
+import { type BarMark, type ScoreLayout, type Link, type NoteEvent, type Part, type Score, type Tone, type Voice, validateScore } from '../model';
 
 export const FILE_EXTENSION = 'icastico';
 /**
@@ -27,9 +27,12 @@ export const FILE_EXTENSION = 'icastico';
  * 7 = optional `lyric` per note, `chords` (chord symbols) per score (ADR 0019), `tab` per part (ADR 0022),
  * 10 = optional `groups` and more sign ids (ADR 0027),
  * 11 = the sign id "slur" (Bindebogen, ADR 0029),
- * 12 = the instrument "tab" (a tablature staff of its own, ADR 0030).
+ * 12 = the instrument "tab" (a tablature staff of its own, ADR 0030),
+ * 13 = bar signs may sit exactly on a note ("exact", ADR 0031),
+ * 14 = optional `layout` (bars per line / line breaks, ADR 0031),
+ * 15 = optional `tuning` per guitar / tablature part and `string` per tone (ADR 0032).
  */
-export const FORMAT_VERSION = 12;
+export const FORMAT_VERSION = 15;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -49,7 +52,8 @@ function scoreToJson(score: Score): unknown {
     keys: score.keys.map((k) => ({ at: fracToString(k.at), fifths: k.fifths })),
     ...(score.pickup ? { pickup: fracToString(score.pickup) } : {}),
     ...(score.tempo !== undefined ? { tempo: score.tempo } : {}),
-    ...(score.marks?.length ? { marks: score.marks.map((m) => ({ at: fracToString(m.at), kind: m.kind })) } : {}),
+    ...(score.layout && (score.layout.perSystem !== undefined || score.layout.breaks?.length) ? { layout: { ...(score.layout.perSystem !== undefined ? { perSystem: score.layout.perSystem } : {}), ...(score.layout.breaks?.length ? { breaks: [...score.layout.breaks] } : {}) } } : {}),
+    ...(score.marks?.length ? { marks: score.marks.map((m) => ({ at: fracToString(m.at), kind: m.kind, ...(m.exact ? { exact: true } : {}) })) } : {}),
     ...(score.groups?.length ? { groups: score.groups.map((g) => ({ symbol: g.symbol, parts: [...g.parts] })) } : {}),
     ...(score.chords?.length ? { chords: score.chords.map((c) => ({ at: fracToString(c.at), text: c.text })) } : {}),
     ...(score.links?.length ? { links: score.links.map((l) => ({ id: l.id, kind: l.kind, from: l.from, to: l.to, ...(l.curve ? { curve: curveToJson(l.curve) } : {}) })) } : {}),
@@ -58,6 +62,7 @@ function scoreToJson(score: Score): unknown {
       name: p.name,
       instrument: p.instrument,
       ...(p.tab ? { tab: true } : {}),
+      ...(p.tuning ? { tuning: [...p.tuning] } : {}),
       voices: p.voices.map((v) => ({
         id: v.id,
         staff: v.staff,
@@ -72,6 +77,7 @@ function scoreToJson(score: Score): unknown {
             pitch: pitchToString(t.pitch),
             ...(t.volume !== undefined && t.volume !== DEFAULT_VOLUME ? { vol: t.volume } : {}),
             ...(t.curve ? { curve: curveToJson(t.curve) } : {}),
+            ...(t.string !== undefined ? { string: t.string } : {}),
           })),
         })),
       })),
@@ -133,6 +139,14 @@ function str(v: unknown, where: string): string {
   return typeof v === 'string' ? v : fail(`${where}: Text erwartet.`);
 }
 
+/** The optional `layout` of a score: bars per line and / or the bars that start a line. */
+function readLayout(v: unknown): { layout?: ScoreLayout } {
+  const o = obj(v, 'Zeilenumbruch');
+  const perSystem = o.perSystem !== undefined ? int(o.perSystem, 'Takte pro Zeile') : undefined;
+  const breaks = o.breaks !== undefined ? arr(o.breaks, 'Zeilenumbrüche').map((b, i) => int(b, `Zeilenumbruch ${i + 1}`)) : undefined;
+  return perSystem === undefined && !breaks?.length ? {} : { layout: { ...(perSystem !== undefined ? { perSystem } : {}), ...(breaks?.length ? { breaks } : {}) } };
+}
+
 function int(v: unknown, where: string): number {
   return typeof v === 'number' && Number.isInteger(v) ? v : fail(`${where}: ganze Zahl erwartet.`);
 }
@@ -173,6 +187,7 @@ function readEvent(v: unknown, where: string): NoteEvent {
         pitch: parsePitch(name),
         ...(tone.vol !== undefined ? { volume: int(tone.vol, `${at}.vol`) } : {}),
         ...(tone.curve !== undefined ? { curve: readCurve(tone.curve, 'level', `${at}.curve`) } : {}),
+        ...(tone.string !== undefined ? { string: int(tone.string, `${at}.string`) } : {}),
       };
     } catch (e) {
       if (e instanceof FileFormatError) throw e;
@@ -224,6 +239,7 @@ function readPart(v: unknown, where: string): Part {
     name: str(o.name, `${where}.name`),
     instrument: instrument as InstrumentId,
     ...(o.tab !== undefined ? { tab: o.tab === true } : {}),
+    ...(o.tuning !== undefined ? { tuning: arr(o.tuning, `${where}.tuning`).map((m, i) => int(m, `${where}.tuning[${i}]`)) } : {}),
     voices: arr(o.voices, `${where}.voices`).map((voice, i) => readVoice(voice, `${where}, Stimme ${i + 1}`)),
   };
 }
@@ -253,11 +269,12 @@ function readScore(v: unknown): Score {
           marks: arr(o.marks, 'Taktzeichen')
             .map((m, i) => {
               const e = obj(m, `Taktzeichen ${i + 1}`);
-              return { at: time(e.at, `Taktzeichen ${i + 1}`), kind: str(e.kind, `Taktzeichen ${i + 1}`) as BarMark['kind'] };
+              return { at: time(e.at, `Taktzeichen ${i + 1}`), kind: str(e.kind, `Taktzeichen ${i + 1}`) as BarMark['kind'], ...(e.exact === true ? { exact: true } : {}) };
             })
             .sort((a, b) => compare(a.at, b.at)),
         }
       : {}),
+    ...(o.layout !== undefined ? readLayout(o.layout) : {}),
     ...(o.groups !== undefined && arr(o.groups, 'Klammern').length > 0
       ? {
           groups: arr(o.groups, 'Klammern').map((g, i) => {
@@ -308,6 +325,12 @@ const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
   10: (doc) => ({ ...doc, version: 11 }),
   // 11 → 12: one more instrument ("tab"). Version-11 files do not use it.
   11: (doc) => ({ ...doc, version: 12 }),
+  // 12 → 13: the optional "exact" of bar signs. Version-12 files have none (their signs belong to bars).
+  12: (doc) => ({ ...doc, version: 13 }),
+  // 13 → 14: the optional "layout" of the score. Version-13 files have none (automatic lines).
+  13: (doc) => ({ ...doc, version: 14 }),
+  // 14 → 15: the optional "tuning" of parts and "string" of tones. Version-14 files have none (standard tuning, automatic strings).
+  14: (doc) => ({ ...doc, version: 15 }),
 };
 
 /** Applies `fn` to every event object of a (still unvalidated) score; anything unexpected is left for the reader to reject. */

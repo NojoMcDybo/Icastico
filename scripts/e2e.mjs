@@ -759,7 +759,7 @@ try {
   await type('Escape');
   await saved();
   const shaped = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Verlauf-Test.icastico'))[1].contents;
-  check(/"version": 12/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 12)');
+  check(/"version": 15/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 15)');
   await type('Control+Enter');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true', null, { timeout: 30000 });
   await page.waitForTimeout(1500);
@@ -1143,7 +1143,7 @@ try {
   await page.screenshot({ path: join(outDir, 'tabulatur-instrument.png') });
   await saved();
   const tabFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Tab-Instrument.icastico'))[1].contents;
-  check(/"instrument": "tab"/.test(tabFile) && /"version": 12/.test(tabFile), 'Tabulatur: die Zeile steht als Instrument „tab“ in der Datei (Format 12)');
+  check(/"instrument": "tab"/.test(tabFile) && /"version": 15/.test(tabFile), 'Tabulatur: die Zeile steht als Instrument „tab“ in der Datei (Format 15)');
   await page.locator('.page g.note').first().click({ force: true });
   await type('Control+Delete');
   check((await page.locator('.page g.note').count()) >= 1, 'Tabulatur-Zeile: die Noten der anderen Zeile bleiben beim Bearbeiten erhalten');
@@ -1202,6 +1202,93 @@ try {
   await page.waitForSelector('.modal h2:text("Quantisieren")');
   await page.click('.modal button:has-text("Sechzehntel")');
   check(/schon im Raster/.test(await status()), 'Quantisieren: Q fragt nach dem Notenwert, Noten, die schon im Raster liegen, bleiben');
+  // ── Akkordtöne einzeln wählen (Alt+Pfeil) und ändern ──
+  await newScore('Akkordton-Test');
+  await type('5', 'c', 'Shift+E', 'Shift+G', 'Escape');
+  await page.locator('.page g.chord').first().click({ force: true });
+  // the click picked the lowest tone (C): Alt+↑ goes up to the next one, E, then G
+  await type('Alt+ArrowUp');
+  check(/Akkordton E5/.test(await status()), 'Akkord: Alt+↑ geht vom angeklickten Ton zum nächsten darüber');
+  await type('Alt+ArrowUp');
+  check(/Akkordton G5/.test(await status()), 'Akkord: noch einmal Alt+↑ wählt den obersten Ton');
+  await type('Alt+ArrowDown');
+  check(/Akkordton E5/.test(await status()), 'Akkord: Alt+↓ geht wieder einen Ton hinunter');
+  await type('ArrowUp');
+  await saved();
+  const chordFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Akkordton-Test.icastico'))[1].contents;
+  check(/"pitch": "C5"/.test(chordFile) && /"pitch": "F5"/.test(chordFile) && /"pitch": "G5"/.test(chordFile) && !/"pitch": "E5"/.test(chordFile), 'Akkord: ↑ ändert nur den gewählten Ton (E → F), die anderen bleiben');
+
+  // ── Sprünge und Tempoanweisungen stehen genau auf der Note ──
+  await newScore('Zeichen-genau');
+  await type('5', 'c', 'd', 'e', 'f', 'Escape');
+  await page.locator('.page g.note').nth(2).click({ force: true });
+  await type('Control+j');
+  await page.waitForSelector('.symbols:not([hidden])');
+  await page.dblclick('.symbols__btn[aria-label="D.C. (zurück zum Anfang)"]');
+  await page.waitForSelector('#dir-dc-0');
+  const dirBox = await page.locator('#dir-dc-0').boundingBox();
+  const thirdNote = await page.locator('.page g.note').nth(2).boundingBox();
+  check(Math.abs(dirBox.x + dirBox.width / 2 - (thirdNote.x + thirdNote.width / 2)) < 30, 'Zeichen: „D.C.“ steht genau über der gewählten Note, nicht am Taktende');
+  await page.screenshot({ path: join(outDir, 'zeichen-genau.png') });
+  await type('Control+j');
+  await saved();
+  const exactFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Zeichen-genau.icastico'))[1].contents;
+  check(/"kind": "dc", "exact": true/.test(exactFile.replace(/\s+/g, ' ')) || /"exact": true/.test(exactFile), 'Zeichen: die genaue Stelle steht in der Datei');
+
+  // ── Takte pro Zeile ──
+  await newScore('Zeilen-Test');
+  await type('5', ...Array(24).fill('c'), 'Escape');
+  await page.click('#doc-title');
+  await page.waitForSelector('.modal h2:text("Partitur-Einstellungen")');
+  await page.selectOption('#f-perline', '2');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction(() => document.querySelectorAll('.page g.system').length === 4);
+  check((await page.locator('.page g.system').count()) === 4, 'Zeilen: „2 Takte pro Zeile“ macht aus acht Takten vier Zeilen');
+  await page.screenshot({ path: join(outDir, 'takte-pro-zeile.png') });
+  await page.click('#doc-title');
+  await page.waitForSelector('.modal h2:text("Partitur-Einstellungen")');
+  await page.selectOption('#f-perline', '0');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction(() => document.querySelectorAll('.page g.system').length !== 4);
+  check((await page.locator('.page g.system').count()) < 4, 'Zeilen: „automatisch“ nimmt die Vorgabe wieder weg');
+
+  // ── Tabulatur: Stimmung, Ziehen in die Tabulatur, Bundzahl tippen, Saite wechseln ──
+  await newScore('Tab-Edit');
+  await type('5', 'c', 'd', 'e', 'g', 'Escape');
+  await page.click('#doc-title');
+  await page.waitForSelector('.modal h2:text("Partitur-Einstellungen")');
+  await page.click('.modal [data-instrument="tab"]');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForSelector('.page .staff');
+  await page.waitForFunction(() => document.querySelectorAll('.page g.mRest').length > 0);
+  await page.locator('.page g.note').first().click({ force: true });
+  await type('Control+a');
+  const firstNote = await page.locator('.page g.note').first().boundingBox();
+  const tabTarget = await page.locator('.page g.mRest').last().boundingBox();
+  await page.mouse.move(firstNote.x + firstNote.width / 2, firstNote.y + firstNote.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(tabTarget.x + tabTarget.width / 2, tabTarget.y + tabTarget.height / 2, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForFunction(() => document.querySelectorAll('.page .tabnumber').length >= 4);
+  check((await page.locator('.page .tabnumber').count()) >= 4 && /4 Noten eingefügt/.test(await status()), 'Tabulatur: markierte Noten lassen sich in die Tabulaturzeile ziehen');
+  const numbers = async () => (await page.locator('.page .tabnumber').allTextContents()).join(',');
+  await page.locator('.page .tabnumber').first().click({ force: true });
+  await type('5');
+  check(/Bund 5/.test(await status()), 'Tabulatur: eine getippte Zahl ändert den Bund der gewählten Note');
+  const numbersBefore = await numbers();
+  await type('ArrowDown');
+  check(/Saite 2, Bund 10/.test(await status()) && (await numbers()) !== numbersBefore, 'Tabulatur: ↓ legt die Zahl auf die nächste Saite, der Ton bleibt');
+  await type('ArrowUp');
+  check(/Saite 1, Bund 5/.test(await status()), 'Tabulatur: ↑ bringt sie zurück');
+  await page.click('#doc-title');
+  await page.waitForSelector('.modal h2:text("Partitur-Einstellungen")');
+  await page.selectOption('.tuning select:not(.tuning__string)', 'dropD');
+  await page.click('.modal button[type="submit"]');
+  await saved();
+  const tuneFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Tab-Edit.icastico'))[1].contents;
+  check(/"tuning": \[64, 59, 55, 50, 45, 38\]/.test(tuneFile) && /"string": 1/.test(tuneFile), 'Tabulatur: Stimmung „Drop D“ und die gewählte Saite stehen in der Datei');
+  await page.screenshot({ path: join(outDir, 'tabulatur-bearbeiten.png') });
+
   await type('F1');
   const helpText = await page.locator('#help').textContent();
   check(/Einen Takt zurück/.test(helpText) && /Knöpfe ⏪ und ⏩/.test(helpText) && /Klammer oder Akkolade/.test(helpText) && /Menü ⋯ an der Partitur/.test(helpText), 'Tastenhilfe: auch Funktionen mit Knopf, Menü oder Palette stehen drin, mit Hinweis, wo man sie findet');
@@ -1306,7 +1393,7 @@ try {
   await page.screenshot({ path: join(outDir, 'zeichen.png') });
   await saved();
   const signsFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Zeichen-Test.icastico'))[1].contents;
-  check(/"version": 12/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 12)');
+  check(/"version": 15/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 15)');
   await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
   await page.click('.transport__play');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');
@@ -1421,7 +1508,7 @@ try {
   await page.evaluate(() => localStorage.setItem('icastico.seenVersion', '0.15.0'));
   await page.reload();
   await page.waitForSelector('.patchnotes', { timeout: 30000 });
-  check((await page.locator('.patchnotes li').count()) >= 2 && /Version 0.19.0/.test(await page.locator('.patchnotes').textContent()), 'Update: ein Popup listet die neuen Funktionen der Versionen seit dem letzten Start');
+  check((await page.locator('.patchnotes li').count()) >= 2 && /Version 0.22.0/.test(await page.locator('.patchnotes').textContent()), 'Update: ein Popup listet die neuen Funktionen der Versionen seit dem letzten Start');
   await page.click('.patchnotes button:has-text("Verstanden")');
   await page.waitForSelector('.patchnotes', { state: 'detached' });
   check((await page.evaluate(() => localStorage.getItem('icastico.seenVersion'))) !== '0.15.0', 'Update: die Version wird gemerkt, das Popup kommt nicht noch einmal');

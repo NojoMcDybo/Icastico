@@ -1,0 +1,45 @@
+{
+  "format": "icastico",
+  "version": 14,
+  "app": "0.21.0",
+  "score": {
+    "title": "Gespeichert mit 0.21.0",
+    "meter": [
+      { "at": "0", "count": 4, "unit": 4 }
+    ],
+    "keys": [
+      { "at": "0", "fifths": 0 }
+    ],
+    "pickup": "1/4",
+    "tempo": 132,
+    "chords": [{ "at": "0", "text": "Am7" }],
+    "links": [
+      { "id": "link-1", "kind": "slide", "from": "pr1-t1", "to": "pr2-t1" }
+    ],
+    "parts": [
+      {
+        "id": "piano",
+        "name": "Klavier",
+        "instrument": "piano",
+        "voices": [
+          {
+            "id": "piano-rh",
+            "staff": 0,
+            "events": [
+              { "id": "pr1", "at": "0", "dur": "1/4", "lyric": "Hel-", "marks": ["mf"], "tones": [{ "id": "pr1-t1", "pitch": "Gb4", "vol": 64, "curve": [[0, 0], [0.3, 1], [1, 1]] }] },
+              { "id": "pr2", "at": "1/4", "dur": "1/2", "tones": [{ "id": "pr2-t1", "pitch": "C4" }, { "id": "pr2-t2", "pitch": "E4" }, { "id": "pr2-t3", "pitch": "G4" }] },
+              { "id": "pr3", "at": "3/4", "dur": "1/4", "tones": [{ "id": "pr3-t1", "pitch": "F#4" }, { "id": "pr3-t2", "pitch": "A#4" }] }
+            ]
+          },
+          {
+            "id": "piano-lh",
+            "staff": 1,
+            "events": [
+              { "id": "pl1", "at": "1/4", "dur": "1", "tones": [{ "id": "pl1-t1", "pitch": "C3" }, { "id": "pl1-t2", "pitch": "G3" }] }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

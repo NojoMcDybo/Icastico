@@ -74,6 +74,10 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Piano-Roll: Synth-Klang an / aus (Orgelklang, nichts klingt aus) | *Knopf „Synth“ in der Leiste der Roll* | *Knopf „Synth“ in der Leiste der Roll* | (wie Finale) | ✓ |
 | Piano-Roll: Höhe ändern (Doppelklick: Standardhöhe) | *Kante über der Roll ziehen oder mit ↑ / ↓* | *Kante über der Roll ziehen oder mit ↑ / ↓* | (wie Finale) | ✓ |
 | Zeile als Noten, als Piano-Roll oder als beides zeigen | *Schalter „Noten · Beides · Roll“ an der Zeile (Strg+Umschalt+P schaltet die Roll um)* | *Schalter „Noten · Beides · Roll“ an der Zeile (Strg+Umschalt+P schaltet die Roll um)* | (wie Finale) | ✓ |
+| Tabulatur: die Bundzahl einer markierten Note ändern – Zahl tippen (zwei Ziffern schnell hintereinander: 10 bis 22) | *Note in der Tabulaturzeile anklicken und die Zahl tippen* | *Note in der Tabulaturzeile anklicken und die Zahl tippen* | (wie Finale) | ✓ |
+| Tabulatur: die markierte Zahl auf eine andere Saite legen (der Ton bleibt, der Bund passt sich an) | *↑ / ↓ bei einer markierten Note der Tabulaturzeile* | *↑ / ↓ bei einer markierten Note der Tabulaturzeile* | (wie Finale) | ✓ |
+| Akkord: einzelne Töne durchgehen und mit ↑ / ↓ verändern | *Alt+↑ / Alt+↓ bei einem markierten Akkord (Mac: ⌥); danach wirkt ↑ / ↓ nur auf diesen Ton* | *Alt+↑ / Alt+↓ bei einem markierten Akkord (Mac: ⌥); danach wirkt ↑ / ↓ nur auf diesen Ton* | (wie Finale) | ✓ |
+| Markierte Noten in eine andere Zeile ziehen (z. B. in die Tabulatur): sie werden dort zur gleichen Zeit eingefügt | *Mit der Maus: markierte Noten greifen und auf die andere Zeile ziehen* | *Mit der Maus: markierte Noten greifen und auf die andere Zeile ziehen* | (wie Finale) | ✓ |
 
 ## Bewegen
 
@@ -117,6 +121,8 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Nach Updates suchen | *Bibliothek: Link unten; der Knopf „Update“ oben erscheint, wenn eine neue Version bereitsteht* | *Bibliothek: Link unten; der Knopf „Update“ oben erscheint, wenn eine neue Version bereitsteht* | (wie Finale) | ✓ |
 | In der Tastenhilfe suchen | *Suchfeld in der Tastenhilfe (F1)* | *Suchfeld in der Tastenhilfe (F1)* | (wie Finale) | ✓ |
 | Tabulatur als eigene Zeile neben der Notenschrift; Noten mit Strg+C / Strg+V hineinkopieren | *Partitur-Einstellungen (Strg+Komma): „+ Tabulatur“* | *Partitur-Einstellungen (Strg+Komma): „+ Tabulatur“* | (wie Finale) | ✓ |
+| Takte pro Zeile festlegen (Zeilenumbrüche aus einer MusicXML-Datei bleiben erhalten) | *Partitur-Einstellungen (Strg+Komma): „Takte pro Zeile“* | *Partitur-Einstellungen (Strg+Komma): „Takte pro Zeile“* | (wie Finale) | ✓ |
+| Tabulatur und Gitarre: Stimmung wählen (Drop D, Offen G …) oder jede Saite einzeln einstellen | *Partitur-Einstellungen (Strg+Komma): „Stimmung“* | *Partitur-Einstellungen (Strg+Komma): „Stimmung“* | (wie Finale) | ✓ |
 
 ## Wiedergabe & Aufnahme
 
@@ -138,7 +144,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Funktion | Finale | Logic Pro | Finale-Ziffernblock | Icastico |
 |---|---|---|---|---|
 | Zeichen an der gewählten Note (nochmal: weg) | `Alt+Umschalt+P` pp, `Alt+P` p, `Alt+Umschalt+M` mp, `Alt+M` mf, `Alt+F` f, `Alt+Umschalt+F` ff, `Alt+S` sfz, `Alt+C` Crescendo, `Alt+Umschalt+C` Decrescendo, `Alt+.` Staccato, `Alt+−` Tenuto, `Alt+A` Akzent, `Alt+Umschalt+A` Marcato, `Alt+T` Triller, `Alt+Y` Fermate *(Icastico)* – Lautstärken ersetzen sich gegenseitig, ebenso Crescendo/Decrescendo. Alle Zeichen stehen auch in der Palette (Strg+J); Atemzeichen, Zäsur und Arpeggio nur dort, der Bindebogen auf T. | `Alt+Umschalt+P` pp, `Alt+P` p, `Alt+Umschalt+M` mp, `Alt+M` mf, `Alt+F` f, `Alt+Umschalt+F` ff, `Alt+S` sfz, `Alt+C` Crescendo, `Alt+Umschalt+C` Decrescendo, `Alt+.` Staccato, `Alt+−` Tenuto, `Alt+A` Akzent, `Alt+Umschalt+A` Marcato, `Alt+T` Triller, `Alt+Y` Fermate *(Icastico)* | (wie Finale) | ✓ |
-| Zeichen am Takt der gewählten Note: Wiederholung, Klammer, Segno, Coda, Sprung (nochmal: weg) | *Zeichen-Palette (Strg+J): Zeichen doppelklicken oder auf einen Takt ziehen – Aufeinanderfolgende Takte mit derselben Klammer bilden eine gemeinsame Klammer.* | *Zeichen-Palette (Strg+J): Zeichen doppelklicken oder auf einen Takt ziehen* | (wie Finale) | ✓ |
+| Zeichen am Takt der gewählten Note: Wiederholung, Klammer, Segno, Coda, Sprung (nochmal: weg) | *Zeichen-Palette (Strg+J): Zeichen doppelklicken oder ziehen – Segno, Coda, Sprünge und Tempoanweisungen stehen genau auf der Note, auf die sie fallen; Wiederholungen und Klammern gehören zum Takt – Aufeinanderfolgende Takte mit derselben Klammer bilden eine gemeinsame Klammer.* | *Zeichen-Palette (Strg+J): Zeichen doppelklicken oder ziehen – Segno, Coda, Sprünge und Tempoanweisungen stehen genau auf der Note, auf die sie fallen; Wiederholungen und Klammern gehören zum Takt* | (wie Finale) | ✓ |
 | Sprachtest: Wörter einsprechen und Erkenner prüfen (noch ohne Befehle per Sprache) | `Strg+Umschalt+V` *(Icastico)* | `Strg+Umschalt+V` *(Icastico)* | (wie Finale) | ✓ |
 | Zeichen-Palette zeigen / verbergen | `Strg+J` *(Icastico)* | `Strg+J` *(Icastico)* | (wie Finale) | ✓ |
 | Klammer oder Akkolade um die Zeilen der Partitur | *Zeichen-Palette (Strg+J): Rubrik „Taktstriche“* | *Zeichen-Palette (Strg+J): Rubrik „Taktstriche“* | (wie Finale) | ✓ |

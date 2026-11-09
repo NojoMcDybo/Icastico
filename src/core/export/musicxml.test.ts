@@ -189,3 +189,26 @@ describe('barlines, breath signs and groups survive the MusicXML round trip (ADR
     expect(validateScore(back.score)).toEqual([]);
   });
 });
+
+describe('line breaks (ADR 0031)', () => {
+  const eight = () => {
+    const base = emptyScore();
+    const voice = base.parts[0]!.voices[0]!;
+    const events = parseLine('C5:1/1 D5:1/1 E5:1/1 F5:1/1 G5:1/1 A5:1/1 B5:1/1 C6:1/1', 'e');
+    return { ...base, parts: base.parts.map((p, i) => (i === 0 ? { ...p, voices: [{ ...voice, events }] } : p)) } as Score;
+  };
+
+  it('bars per line are written as new-system and come back as the breaks', () => {
+    const { xml } = exportMusicXml({ ...eight(), layout: { perSystem: 3 } });
+    expect(xml.match(/<print new-system="yes"\/>/g)).toHaveLength(2); // before bar 4 and bar 7
+    const back = importMusicXml(xml);
+    expect(back.score.layout).toEqual({ breaks: [3, 6] });
+    expect(validateScore(back.score)).toEqual([]);
+  });
+
+  it('a file without line breaks gets none, and new-page counts as a break too', () => {
+    expect(importMusicXml(exportMusicXml(eight()).xml).score.layout).toBeUndefined();
+    const xml = exportMusicXml({ ...eight(), layout: { breaks: [2] } }).xml.replace('<print new-system="yes"/>', '<print new-page="yes"/>');
+    expect(importMusicXml(xml).score.layout).toEqual({ breaks: [2] });
+  });
+});

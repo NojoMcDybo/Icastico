@@ -15,7 +15,8 @@ import { type Fraction, ZERO, add, compare, div, eq, frac, gt, isZero, le, lt, s
 import { type Pitch, midiOf } from './pitch';
 import { type Curve, MAX_VOLUME, MIN_VOLUME, curveProblem } from './curve';
 import { getInstrument, type InstrumentId } from './instruments';
-import { BAR_SIGN_IDS, NOTE_SYMBOL_IDS, type BarSignKind } from './symbols';
+import { validTuning } from './tab';
+import { BAR_SIGN_IDS, NOTE_SYMBOL_IDS, type BarSignKind, canSitOnNote } from './symbols';
 
 export interface TimeSignature {
   /** Beats per measure, e.g. 3 in 3/4. */
@@ -47,6 +48,8 @@ export interface Tone {
   readonly volume?: number;
   /** Loudness over the length of the note (ADR 0016); absent = even. */
   readonly curve?: Curve;
+  /** On a tablature line: the string this tone was put on (1 = highest); absent = chosen automatically (ADR 0032). */
+  readonly string?: number;
 }
 
 /** A note or chord. All tones share onset and duration; sorted by sounding pitch. */
@@ -71,6 +74,8 @@ export interface StaffGroup {
 export interface BarMark {
   readonly at: Fraction;
   readonly kind: BarSignKind;
+  /** Placed on a note: drawn exactly at `at` (segno, coda, jumps and tempo words only). Absent = belongs to the bar that starts at `at`. */
+  readonly exact?: boolean;
 }
 
 /** A chord symbol such as "Am7" or "C/G", fixed to a point on the timeline (ADR 0019). */
@@ -94,6 +99,8 @@ export interface Part {
   readonly voices: readonly Voice[];
   /** Show a tablature staff under the (guitar) staff (ADR 0022); absent = no. */
   readonly tab?: boolean;
+  /** Open strings of a guitar or tablature line, string 1 (highest) first; absent = standard E A d g h e (ADR 0032). */
+  readonly tuning?: readonly number[];
 }
 
 export interface Score {
@@ -119,6 +126,27 @@ export interface Score {
   readonly marks?: readonly BarMark[];
   /** Parts whose staves are tied together by a bracket or brace (in score order, next to each other). */
   readonly groups?: readonly StaffGroup[];
+  /** How the music is broken into lines; absent = automatic (as many bars as fit). */
+  readonly layout?: ScoreLayout;
+}
+
+/** Line breaks (ADR 0031): a fixed number of bars per line, or the bars (0-based index) where a new line starts (as taken from a MusicXML file). */
+export interface ScoreLayout {
+  readonly perSystem?: number;
+  readonly breaks?: readonly number[];
+}
+
+export const MAX_PER_SYSTEM = 16;
+
+/** The bars (0-based index, not the first) that start a new line, for `count` bars; empty = let the engraver decide. */
+export function systemBreaks(score: Score, count: number): number[] {
+  const layout = score.layout;
+  if (layout?.breaks?.length) return layout.breaks.filter((i) => i > 0 && i < count);
+  const n = layout?.perSystem;
+  if (!n || n < 1) return [];
+  const out: number[] = [];
+  for (let i = n; i < count; i += n) out.push(i);
+  return out;
 }
 
 /**
@@ -324,6 +352,10 @@ export function validateScore(score: Score): string[] {
   }
   if (problems.length > 0) return problems;
 
+  for (const part of score.parts) {
+    if (part.tuning && (!validTuning(part.tuning) || (part.instrument !== 'guitar' && part.instrument !== 'tab'))) problems.push(`${part.name}: Die Stimmung gibt es nur für Gitarre und Tabulatur, mit sechs Saiten zwischen C1 und E6.`);
+    for (const v of part.voices) for (const e of v.events) for (const t of e.tones) if (t.string !== undefined && !(Number.isInteger(t.string) && t.string >= 1 && t.string <= 6)) problems.push(`${part.name}: Ton ${t.id} liegt auf einer Saite, die es nicht gibt.`);
+  }
   if (score.tempo !== undefined && !(Number.isInteger(score.tempo) && score.tempo >= MIN_TEMPO && score.tempo <= MAX_TEMPO)) {
     problems.push(`Tempo ${score.tempo} ist ungültig (erlaubt: ${MIN_TEMPO}–${MAX_TEMPO}).`);
   }
@@ -387,11 +419,15 @@ export function validateScore(score: Score): string[] {
     }
   }
   problems.push(...linkProblems(score));
+  const layout = score.layout;
+  if (layout?.perSystem !== undefined && !(Number.isInteger(layout.perSystem) && layout.perSystem >= 1 && layout.perSystem <= MAX_PER_SYSTEM)) problems.push(`Takte pro Zeile: erlaubt sind 1 bis ${MAX_PER_SYSTEM}.`);
+  if (layout?.breaks?.some((b, i) => !Number.isInteger(b) || b < 1 || (i > 0 && b <= layout.breaks![i - 1]!))) problems.push('Die Zeilenumbrüche müssen aufsteigende Taktnummern sein.');
   const seenMarks = new Set<string>();
   for (const m of score.marks ?? []) {
     const key = `${m.kind}@${m.at.n}/${m.at.d}`;
     if (!BAR_SIGN_IDS.includes(m.kind)) problems.push(`Das Taktzeichen "${m.kind}" gibt es nicht.`);
     if (lt(m.at, ZERO)) problems.push(`Das Taktzeichen "${m.kind}" beginnt vor dem Anfang.`);
+    if (m.exact && !canSitOnNote(m.kind)) problems.push(`Das Taktzeichen "${m.kind}" gehört an einen Takt, nicht an eine Note.`);
     if (seenMarks.has(key)) problems.push(`Das Taktzeichen "${m.kind}" steht doppelt.`);
     seenMarks.add(key);
   }

@@ -10,12 +10,12 @@
  * applies to the same pitch (step + octave) until the end of the measure,
  * a note tied over from the previous measure shows no accidental.
  */
-import { type Score, type Part, type Tone, eventEnd, locateTones, measuresOf, type Measure, validateScore } from '../core/model';
+import { type Score, type Part, type Tone, eventEnd, locateTones, measuresOf, type Measure, systemBreaks, validateScore } from '../core/model';
 import { type Fraction, compare, div, gt, le, lt, sub, frac } from '../core/time';
 import { barSign, noteSymbol, voltaNumber } from '../core/symbols';
 import { getInstrument, type Clef } from '../core/instruments';
 import { keyAlteration, type Pitch } from '../core/pitch';
-import { GUITAR_STRINGS, assignFrets, type Fingering } from '../core/tab';
+import { GUITAR_STRINGS, assignFrets, tuningOf, type Fingering } from '../core/tab';
 import {
   beamGroups,
   notateVoice,
@@ -377,7 +377,7 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
   for (const slot of slots) {
     if (!slot.tab && !slot.tabPart) continue;
     const events = slot.part.voices.filter((v) => v.staff === slot.staffIndex).flatMap((v) => v.events);
-    fingerings.set(slot.part.id, assignFrets([...events].sort((a, b) => compare(a.onset, b.onset))));
+    fingerings.set(slot.part.id, assignFrets([...events].sort((a, b) => compare(a.onset, b.onset)), tuningOf(slot.part)));
   }
 
   /** The notes of one measure of one voice on a tab staff: the same rhythm, at the string lines, numbers drawn later. */
@@ -388,20 +388,24 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
     if (played.length === 0) return `${indent}<space xml:id="${item.id}${suffix}" ${durAttrs(item.duration)}/>`;
     // On a tablature staff of its own the notes keep the ids of the model (clicking them selects the note); a chord stays a chord.
     const asChord = suffix === '' ? item.tones.length > 1 : played.length > 1;
+    // A tablature line of its own shows no note values (no stems, flags or beams): only the numbers and where they stand.
+    const noStems = suffix === '' ? 'stem.visible="false" ' : '';
     const idOf = (t: Tone): string => (!asChord ? `${item.id}${suffix}` : suffix === '' ? chordNoteId(item, t) : `${item.id}-${t.id}${suffix}`);
     const note = (t: Tone, f: Fingering) => {
       tabNotes.set(idOf(t), String(f.fret));
-      return `<note xml:id="${idOf(t)}" ${asChord ? '' : durAttrs(item.duration) + ' '}loc="${(GUITAR_STRINGS.length - f.string) * 2}"/>`;
+      return `<note xml:id="${idOf(t)}" ${asChord ? '' : durAttrs(item.duration) + ' '}${noStems}loc="${(GUITAR_STRINGS.length - f.string) * 2}"/>`;
     };
     if (!asChord) return `${indent}${note(played[0]!.t, played[0]!.f)}`;
-    return `${indent}<chord xml:id="${item.id}${suffix}" ${durAttrs(item.duration)}>${played.map((x) => note(x.t, x.f)).join('')}</chord>`;
+    return `${indent}<chord xml:id="${item.id}${suffix}" ${durAttrs(item.duration)} ${noStems}>${played.map((x) => note(x.t, x.f)).join('')}</chord>`;
   };
 
   // Bar signs (ADR 0024): the signs of every bar, found by the start time of the bar they belong to.
-  const barKinds = measures.map((m) => (score.marks ?? []).filter((b) => le(m.start, b.at) && lt(b.at, m.end)).map((b) => b.kind as string));
+  const barMarks = measures.map((m) => (score.marks ?? []).filter((b) => le(m.start, b.at) && lt(b.at, m.end)));
+  const barKinds = barMarks.map((marks) => marks.map((b) => b.kind as string));
   const hasKind = (mi: number, kind: string): boolean => barKinds[mi]?.includes(kind) ?? false;
   const voltaOf = (mi: number): number => Math.max(0, ...(barKinds[mi] ?? []).map(voltaNumber));
   let openEnding = 0;
+  const lineBreaks = new Set(systemBreaks(score, measures.length));
 
   const body: string[] = [];
   measures.forEach((m, mi) => {
@@ -420,6 +424,7 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
     const joinedRight = hasKind(mi, 'repeatEnd') && hasKind(mi + 1, 'repeatStart');
     const left = hasKind(mi, 'repeatStart') && !joinedLeft ? ' left="rptstart"' : '';
     const right = joinedRight ? ' right="rptboth"' : hasKind(mi, 'repeatEnd') ? ' right="rptend"' : hasKind(mi, 'finalBar') ? ' right="end"' : hasKind(mi, 'doubleBar') ? ' right="dbl"' : '';
+    if (lineBreaks.has(mi)) body.push(`      <sb xml:id="sb-${mi}"/>`);
     body.push(`      <measure xml:id="m${m.number}" n="${m.number}"${metcon}${left}${right}>`);
     for (const slot of slots) {
       body.push(`        <staff xml:id="${staffElementId(m.number, slot.n)}" n="${slot.n}">`);
@@ -438,10 +443,10 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
         const suffix = slot.tab ? '-tab' : '';
         const fingering = slot.tab || slot.tabPart ? (fingerings.get(slot.part.id) ?? new Map<string, Fingering>()) : null;
         items.forEach((item, i) => {
-          const beam = beams.find(([a, b]) => i >= a && i <= b);
+          const beam = slot.tabPart ? undefined : beams.find(([a, b]) => i >= a && i <= b);
           const inBeam = beam !== undefined;
           const bracket = brackets.find((g) => g.start === i);
-          if (bracket) body.push(`            <tuplet xml:id="${item.id}${suffix}-tuplet" num="${bracket.ratio.num}" numbase="${bracket.ratio.numbase}">`);
+          if (bracket) body.push(`            <tuplet xml:id="${item.id}${suffix}-tuplet" num="${bracket.ratio.num}" numbase="${bracket.ratio.numbase}"${slot.tabPart ? ' bracket.visible="false" num.visible="false"' : ''}>`);
           if (beam && i === beam[0]) body.push(`            <beam xml:id="${item.id}${suffix}-beam">`);
           const indent = inBeam ? '              ' : '            ';
           if (fingering) {
@@ -462,11 +467,15 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
     for (const control of controls.get(m.number) ?? []) body.push(`        ${control}`);
     // Segno, coda and the words of jumps sit above the top staff: signs at the first beat, words at the last.
     const beatsInBar = Math.max(1, Math.round(div(sub(m.end, m.gridStart), frac(1, m.sig.unit)).n / div(sub(m.end, m.gridStart), frac(1, m.sig.unit)).d));
-    for (const kind of barKinds[mi] ?? []) {
+    for (const mark of barMarks[mi] ?? []) {
+      const kind = mark.kind as string;
       const sign = barSign(kind);
-      if (kind === 'segno') body.push(`        <dir xml:id="segno-${mi}" staff="${slots[0]!.n}" tstamp="1" place="above"><symbol glyph.auth="smufl" glyph.name="segno"/></dir>`);
-      else if (kind === 'coda') body.push(`        <dir xml:id="coda-${mi}" staff="${slots[0]!.n}" tstamp="1" place="above"><symbol glyph.auth="smufl" glyph.name="coda"/></dir>`);
-      else if (sign?.text) body.push(`        <dir xml:id="dir-${kind}-${mi}" staff="${slots[0]!.n}" tstamp="${beatsInBar}" place="above">${esc(sign.text)}</dir>`);
+      // A sign placed on a note stands exactly at its beat; one that belongs to the bar: symbols at the first beat, words at the last.
+      const beats = div(sub(mark.at, m.gridStart), frac(1, m.sig.unit));
+      const at = (beats.n / beats.d + 1).toFixed(4);
+      if (kind === 'segno') body.push(`        <dir xml:id="segno-${mi}" staff="${slots[0]!.n}" tstamp="${mark.exact ? at : 1}" place="above"><symbol glyph.auth="smufl" glyph.name="segno"/></dir>`);
+      else if (kind === 'coda') body.push(`        <dir xml:id="coda-${mi}" staff="${slots[0]!.n}" tstamp="${mark.exact ? at : 1}" place="above"><symbol glyph.auth="smufl" glyph.name="coda"/></dir>`);
+      else if (sign?.text) body.push(`        <dir xml:id="dir-${kind}-${mi}" staff="${slots[0]!.n}" tstamp="${mark.exact ? at : beatsInBar}" place="above">${esc(sign.text)}</dir>`);
     }
     // Chord symbols sit above the top staff, at their beat inside the measure.
     for (const c of score.chords ?? []) {
