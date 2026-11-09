@@ -4,8 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Icastico</title>
+    <style>
+      /* The start screen covers the window from the very first picture (the full rules are in styles.css). */
+      #splash { position: fixed; inset: 0; z-index: 1000; background: #1c1c1e; }
+    </style>
   </head>
   <body>
+    <div class="splash" id="splash" aria-hidden="true">
+      <canvas class="splash__plate"></canvas>
+      <div class="splash__text">
+        <div class="splash__name">Icastico</div>
+        <div class="splash__chord"></div>
+      </div>
+    </div>
     <div class="workstation">
       <header class="topbar">
         <button class="round library-button" id="library-button" type="button" title="Bibliothek (Strg+O)" aria-label="Bibliothek">

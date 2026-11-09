@@ -12,6 +12,12 @@ export interface PatchNote {
 /** Newest first. Keep each line to one short sentence. */
 export const PATCH_NOTES: readonly PatchNote[] = [
   {
+    version: '0.24.0',
+    items: [
+      'Neues Startbild: beim Öffnen baut sich ein E7♯9 auf, und der Klang erscheint als Sand auf einer schwingenden Platte. Ein Klick oder eine Taste überspringt es.',
+    ],
+  },
+  {
     version: '0.23.0',
     items: [
       'Strg+P und „Als PDF speichern“ öffnen denselben Dialog: Seitenvorschau, Seite, Notengröße und Takte pro Zeile live anpassen, dann drucken oder als PDF speichern.',

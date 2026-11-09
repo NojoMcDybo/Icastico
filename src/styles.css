@@ -2512,3 +2512,54 @@ button.lcd__cell:nth-child(3) {
     height: auto;
   }
 }
+
+/* ── Start screen: the start-up chord drawn as sand on a plate (ADR 0034) ── */
+
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--library-bg);
+  transition: opacity 0.6s var(--ease);
+}
+
+.splash.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.splash__plate {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.splash__text {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 9%;
+  text-align: center;
+  user-select: none;
+}
+
+.splash__name {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+}
+
+.splash__chord {
+  margin-top: 6px;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+  opacity: 0;
+  transition: opacity 0.7s var(--ease);
+}
+
+.splash__chord.is-on {
+  opacity: 1;
+}

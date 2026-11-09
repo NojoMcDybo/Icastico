@@ -898,6 +898,27 @@ try {
   check(/nicht verstanden/.test((await testPage.textContent('#status')) ?? '') || (await testPage.locator('.voice-field input').inputValue()) === '', 'Sprach-Testfeld (?voice=test): ein getipptes Wort wird entgegengenommen');
   await testPage.close();
 
+  // ── Startbild: Akkord als Sand auf der Platte (nur mit ?splash, sonst stört es die Tests) ──
+  check((await page.locator('#splash').count()) === 0, 'Startbild: im automatischen Test nicht da');
+  const splashPage = await context.newPage();
+  await splashPage.goto(`${url}?splash`);
+  await splashPage.waitForSelector('#splash canvas');
+  await splashPage.waitForFunction(() => document.querySelector('.splash__chord')?.classList.contains('is-on'));
+  check(/E7♯9/.test((await splashPage.textContent('.splash__chord')) ?? ''), 'Startbild: der Akkord E7♯9 wird gezeigt');
+  await splashPage.waitForTimeout(400);
+  const sand = await splashPage.evaluate(() => {
+    const c = document.querySelector('.splash canvas');
+    const data = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let lit = 0;
+    for (let i = 3; i < data.length; i += 4) if (data[i] > 0) lit++;
+    return lit;
+  });
+  check(sand > 5000, 'Startbild: der Sand ist auf der Platte gezeichnet');
+  await splashPage.keyboard.press('x');
+  await splashPage.waitForSelector('#splash', { state: 'detached', timeout: 15000 });
+  check((await splashPage.locator('.workstation').count()) === 1, 'Startbild: ein Tastendruck beendet es, die Anwendung ist da');
+  await splashPage.close();
+
   // ── Aufnahmeknopf: Sprache und MIDI-Keyboard hören zu ──
   await newScore('Aufnahme-Test');
   await page.evaluate(() => {
@@ -1606,7 +1627,7 @@ try {
   await page.evaluate(() => localStorage.setItem('icastico.seenVersion', '0.15.0'));
   await page.reload();
   await page.waitForSelector('.patchnotes', { timeout: 30000 });
-  check((await page.locator('.patchnotes li').count()) >= 2 && /Version 0.23.0/.test(await page.locator('.patchnotes').textContent()), 'Update: ein Popup listet die neuen Funktionen der Versionen seit dem letzten Start');
+  check((await page.locator('.patchnotes li').count()) >= 2 && /Version 0.24.0/.test(await page.locator('.patchnotes').textContent()), 'Update: ein Popup listet die neuen Funktionen der Versionen seit dem letzten Start');
   await page.click('.patchnotes button:has-text("Verstanden")');
   await page.waitForSelector('.patchnotes', { state: 'detached' });
   check((await page.evaluate(() => localStorage.getItem('icastico.seenVersion'))) !== '0.15.0', 'Update: die Version wird gemerkt, das Popup kommt nicht noch einmal');

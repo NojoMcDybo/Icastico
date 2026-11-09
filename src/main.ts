@@ -11,10 +11,12 @@ import { loadLastOpened, loadSeenVersion, saveSeenVersion } from './ui/preferenc
 import { announceUpdate } from './ui/patchNotes';
 import { currentUpdater } from './platform/updater';
 import { UpdateChecker } from './ui/updates';
+import { startSplash } from './ui/splash';
 
 const $ = (id: string) => document.getElementById(id)!;
 
 async function start(): Promise<void> {
+  const splash = startSplash();
   $('status').textContent = 'Notensatz wird geladen …';
   const engraver = await Engraver.create();
   $('meta').textContent = `Icastico ${APP_VERSION} · Verovio ${engraver.version.split('-')[0]}`;
@@ -62,12 +64,14 @@ async function start(): Promise<void> {
   );
   flush = () => workstation.flush();
   await workstation.openInitial(loadLastOpened());
+  await splash.done();
   updates?.scheduleQuietCheck();
   void announceUpdate(seenVersion, saveSeenVersion);
   if (!store) $('status').textContent = 'Bibliothek nicht verfügbar – Speichern nur über „Speichern unter“.';
 }
 
 start().catch((err: unknown) => {
+  document.getElementById('splash')?.remove(); // the error must not stay hidden behind it
   const box = document.createElement('div');
   box.className = 'error';
   box.textContent = `Icastico konnte nicht starten:\n\n${err instanceof Error ? err.message : String(err)}`;
