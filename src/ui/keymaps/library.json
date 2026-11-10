@@ -449,6 +449,12 @@
           "title": "Das Liedtext-Fenster verschieben",
           "command": "ui.control",
           "via": "Mit der Maus: den Kopf des Liedtext-Fensters (Titel) greifen und ziehen; die Stelle wird gemerkt"
+        },
+        {
+          "id": "text.verse",
+          "title": "Strophe 1 bis 4 des Liedtexts wählen",
+          "command": "ui.control",
+          "via": "Liedtext-Feld (L): Schalter Strophe 1–4"
         }
       ]
     },

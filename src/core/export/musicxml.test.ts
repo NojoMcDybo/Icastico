@@ -71,6 +71,24 @@ describe('MusicXML export (round trip through the importer)', () => {
     expect(back.chords).toEqual(score.chords);
   });
 
+  it('keeps further verses with their word connections (ADR 0036)', () => {
+    const base = emptyScore();
+    const voice = base.parts[0]!.voices[0]!;
+    const verses = [{ 2: 'Ge-', 3: 'x' }, { 2: 'sang' }, {}];
+    const events = parseLine('C5:1/4 D5:1/4 E5:1/4', 'e').map((e, i) => ({ ...e, lyric: ['Hel-', 'lo', 'ja'][i]!, ...(i < 2 ? { verses: verses[i] } : {}) }));
+    const score: Score = { ...base, parts: [{ ...base.parts[0]!, voices: [{ ...voice, events }] }] };
+    const { xml } = exportMusicXml(score);
+    expect(xml).toContain('<lyric number="2"><syllabic>begin</syllabic><text>Ge</text></lyric>');
+    expect(xml).toContain('<lyric number="2"><syllabic>end</syllabic><text>sang</text></lyric>');
+    const back = importMusicXml(xml);
+    expect(back.notes.join('')).not.toMatch(/Strophe/);
+    expect(back.score.parts[0]!.voices[0]!.events.map((e) => [e.lyric, e.verses])).toEqual([
+      ['Hel-', { 2: 'Ge-', 3: 'x' }],
+      ['lo', { 2: 'sang' }],
+      ['ja', undefined],
+    ]);
+  });
+
   it('writes ties across the barline and a rest-only bar as a measure rest', () => {
     const base = emptyScore();
     const voice = base.parts[0]!.voices[0]!;

@@ -16,6 +16,7 @@ import { type Pitch, midiOf } from './pitch';
 import { type Curve, MAX_VOLUME, MIN_VOLUME, curveProblem } from './curve';
 import { getInstrument, type InstrumentId } from './instruments';
 import { validTuning } from './tab';
+import { MAX_VERSES } from './lyrics';
 import { BAR_SIGN_IDS, NOTE_SYMBOL_IDS, type BarSignKind, canSitOnNote } from './symbols';
 
 export interface TimeSignature {
@@ -60,6 +61,8 @@ export interface NoteEvent {
   readonly tones: readonly Tone[];
   /** Lyric syllable sung on this note (ADR 0019); a trailing "-" means the word goes on. Absent = none. */
   readonly lyric?: string;
+  /** Syllables of the further verses (2 … MAX_VERSES, ADR 0036); the first verse is `lyric`. */
+  readonly verses?: Readonly<Record<number, string>>;
   /** Special signs on the note (ADR 0024): ids from the sign library, e.g. "mf", "stacc", "fermata". Absent = none. */
   readonly marks?: readonly string[];
 }
@@ -404,6 +407,11 @@ export function validateScore(score: Score): string[] {
         if (ev.tones.length === 0) problems.push(`${part.name}: Event ${ev.id} hat keine Tonhöhe.`);
         for (const mark of ev.marks ?? []) if (!NOTE_SYMBOL_IDS.includes(mark)) problems.push(`${part.name}: Das Zeichen "${mark}" an ${ev.id} gibt es nicht.`);
         if (ev.lyric !== undefined && (ev.lyric === '' || /\s/.test(ev.lyric))) problems.push(`${part.name}: Der Liedtext von ${ev.id} ist ungültig.`);
+        for (const [key, syllable] of Object.entries(ev.verses ?? {})) {
+          const verse = Number(key);
+          if (!Number.isInteger(verse) || verse < 2 || verse > MAX_VERSES) problems.push(`${part.name}: Die Strophe ${key} von ${ev.id} gibt es nicht.`);
+          else if (syllable === '' || /\s/.test(syllable)) problems.push(`${part.name}: Der Liedtext (Strophe ${verse}) von ${ev.id} ist ungültig.`);
+        }
         for (const tone of ev.tones) {
           if (toneIds.has(tone.id)) problems.push(`Doppelte Ton-ID ${tone.id}.`);
           if (!ID_PATTERN.test(tone.id)) problems.push(`Ungültige Ton-ID "${tone.id}" (erlaubt: Buchstabe, dann Buchstaben/Ziffern/_/-).`);

@@ -5,6 +5,7 @@
  */
 import { le, lt } from '../time';
 import type { NoteEvent } from '../model';
+import { lyricOf, withLyric } from '../lyrics';
 import { rangeSpan } from './range';
 import { type EditorState, type VoiceRef, getVoice, updateEvents } from './state';
 
@@ -12,11 +13,6 @@ import { type EditorState, type VoiceRef, getVoice, updateEvents } from './state
 export type SyllableClip = readonly (string | null)[];
 
 const say = (s: EditorState, message: string): EditorState => ({ ...s, message });
-
-const withLyric = (e: NoteEvent, syllable: string | null): NoteEvent => {
-  const { lyric: _old, ...rest } = e;
-  return syllable ? { ...rest, lyric: syllable } : rest;
-};
 
 /** The notes whose syllables are chosen: the marked passage, else the selected note. */
 export function chosenNotes(s: EditorState): { ref: VoiceRef; events: readonly NoteEvent[] } | null {
@@ -32,22 +28,22 @@ export function chosenNotes(s: EditorState): { ref: VoiceRef; events: readonly N
 const count = (n: number): string => `${n} ${n === 1 ? 'Silbe' : 'Silben'}`;
 
 /** Takes the chosen syllables away (the notes stay). */
-export function clearSyllables(s: EditorState): EditorState {
+export function clearSyllables(s: EditorState, verse = 1): EditorState {
   const chosen = chosenNotes(s);
   if (!chosen) return say(s, 'Erst eine Silbe anklicken.');
-  const ids = new Set(chosen.events.filter((e) => e.lyric !== undefined).map((e) => e.id));
+  const ids = new Set(chosen.events.filter((e) => lyricOf(e, verse) !== undefined).map((e) => e.id));
   if (ids.size === 0) return say(s, 'Hier steht keine Silbe.');
-  return { ...s, score: updateEvents(s.score, chosen.ref, (events) => events.map((e) => (ids.has(e.id) ? withLyric(e, null) : e))), message: `${count(ids.size)} entfernt` };
+  return { ...s, score: updateEvents(s.score, chosen.ref, (events) => events.map((e) => (ids.has(e.id) ? withLyric(e, verse, null) : e))), message: `${count(ids.size)} entfernt` };
 }
 
 /** The chosen syllables as something that can be pasted; null if there is nothing chosen. */
-export function copySyllables(s: EditorState): SyllableClip | null {
+export function copySyllables(s: EditorState, verse = 1): SyllableClip | null {
   const chosen = chosenNotes(s);
-  return chosen ? chosen.events.map((e) => e.lyric ?? null) : null;
+  return chosen ? chosen.events.map((e) => lyricOf(e, verse) ?? null) : null;
 }
 
 /** Puts the syllables on the notes from the selected one on, one per note; notes beyond the end of the voice get none. */
-export function pasteSyllables(s: EditorState, clip: SyllableClip): EditorState {
+export function pasteSyllables(s: EditorState, clip: SyllableClip, verse = 1): EditorState {
   const sel = s.selection;
   if (sel?.kind !== 'event') return say(s, 'Erst die Note anklicken, bei der die Silben beginnen sollen.');
   const ref = { partId: sel.partId, voiceId: sel.voiceId };
@@ -59,18 +55,18 @@ export function pasteSyllables(s: EditorState, clip: SyllableClip): EditorState 
     const target = events[start + i];
     if (target) put.set(target.id, syllable);
   });
-  return { ...s, score: updateEvents(s.score, ref, (list) => list.map((e) => (put.has(e.id) ? withLyric(e, put.get(e.id)!) : e))), message: `${count(put.size)} eingefügt` };
+  return { ...s, score: updateEvents(s.score, ref, (list) => list.map((e) => (put.has(e.id) ? withLyric(e, verse, put.get(e.id)!) : e))), message: `${count(put.size)} eingefügt` };
 }
 
 /** Moves the syllable of one note onto another note of the voice (what was there is replaced); the old note is left without. */
-export function moveSyllable(s: EditorState, ref: VoiceRef, from: string, to: string): EditorState {
+export function moveSyllable(s: EditorState, ref: VoiceRef, from: string, to: string, verse = 1): EditorState {
   const events = getVoice(s.score, ref).voice.events;
   const source = events.find((e) => e.id === from);
-  if (!source || source.lyric === undefined || !events.some((e) => e.id === to) || from === to) return s;
-  const syllable = source.lyric;
+  const syllable = source ? lyricOf(source, verse) : undefined;
+  if (!source || syllable === undefined || !events.some((e) => e.id === to) || from === to) return s;
   return {
     ...s,
-    score: updateEvents(s.score, ref, (list) => list.map((e) => (e.id === from ? withLyric(e, null) : e.id === to ? withLyric(e, syllable) : e))),
+    score: updateEvents(s.score, ref, (list) => list.map((e) => (e.id === from ? withLyric(e, verse, null) : e.id === to ? withLyric(e, verse, syllable) : e))),
     selection: { kind: 'event', ...ref, eventId: to },
     range: null,
     message: `Silbe „${syllable}“ verschoben`,

@@ -128,6 +128,7 @@ export interface ClipEvent {
   readonly tones: readonly { readonly pitch: Pitch; readonly volume?: number }[];
   readonly marks?: readonly string[];
   readonly lyric?: string;
+  readonly verses?: NoteEvent['verses'];
 }
 
 /** What was copied: the length of the passage and, per voice of the part (in order), its notes. */
@@ -142,6 +143,7 @@ const clipOf = (e: NoteEvent, from: Fraction, to: Fraction): ClipEvent => ({
   tones: e.tones.map((t) => ({ pitch: t.pitch, ...(t.volume !== undefined ? { volume: t.volume } : {}) })),
   ...(e.marks ? { marks: e.marks } : {}),
   ...(e.lyric ? { lyric: e.lyric } : {}),
+  ...(e.verses ? { verses: e.verses } : {}),
 });
 
 /** The marked passage – or the one selected note – as something that can be pasted; null if nothing is selected. */
@@ -212,6 +214,7 @@ export function pasteClip(s: EditorState, clip: Clip): EditorState {
         tones: ce.tones.map((t, k) => ({ id: `${id}-t${k + 1}`, pitch: t.pitch, ...(t.volume !== undefined ? { volume: t.volume } : {}) })),
         ...(ce.marks ? { marks: ce.marks } : {}),
         ...(ce.lyric ? { lyric: ce.lyric } : {}),
+        ...(ce.verses ? { verses: ce.verses } : {}),
       };
     });
     pasted += made.length;

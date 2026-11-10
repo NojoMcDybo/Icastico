@@ -15,6 +15,7 @@ import { STEPS, keyAlteration, midiOf, pitchToString, type Pitch } from '../pitc
 import { type BarSign, BAR_SIGNS, GROUP_SIGNS, NOTE_SYMBOLS, barSign, canSitOnNote, toggleNoteSymbol } from '../symbols';
 import { type BarMark, type StaffGroup, type ChordSymbol, type Link, type LinkKind, type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, measuresOf } from '../model';
 import { decomposeNote, writtenValue } from '../notation/notate';
+import { lyricOf, withLyric } from '../lyrics';
 import { emptyScore } from '../templates';
 import {
   type Caret,
@@ -971,11 +972,11 @@ function toggleInsert(s: EditorState): EditorState {
 // ── Text: lyrics and chord symbols (ADR 0019) ───────────────────────────────
 
 /** The voice's notes from the target note on, as the text the lyrics dialog starts with ("Hel- lo _ world"). */
-export function lyricsText(s: EditorState): string | null {
+export function lyricsText(s: EditorState, verse = 1): string | null {
   const t = target(s);
   if (!t) return null;
   const events = getVoice(s.score, t.ref).voice.events.filter((e) => !lt(e.onset, t.event.onset));
-  const words = events.map((e) => e.lyric ?? '_');
+  const words = events.map((e) => lyricOf(e, verse) ?? '_');
   while (words.length && words[words.length - 1] === '_') words.pop();
   return words.join(' ');
 }
@@ -984,7 +985,7 @@ export function lyricsText(s: EditorState): string | null {
  * Sets the lyrics from the target note on: one syllable per note, "_" = a note without syllable,
  * a trailing "-" continues the word. Notes after the last syllable lose their lyric.
  */
-export function setLyrics(s: EditorState, text: string): EditorState {
+export function setLyrics(s: EditorState, text: string, verse = 1): EditorState {
   const t = target(s);
   if (!t) return say(s, NO_NOTE);
   const words = text.trim().split(/\s+/).filter(Boolean);
@@ -996,9 +997,7 @@ export function setLyrics(s: EditorState, text: string): EditorState {
     all.map((e) => {
       const i = later.findIndex((x) => x.id === e.id);
       if (i < 0) return e;
-      const word = words[i];
-      const { lyric: _old, ...rest } = e;
-      return word && word !== '_' ? { ...rest, lyric: word } : rest;
+      return withLyric(e, verse, words[i] ?? null);
     }),
   );
   const extra = words.length - used;
@@ -1011,14 +1010,8 @@ export function setLyrics(s: EditorState, text: string): EditorState {
 }
 
 /** Puts one syllable on one note ("_" or empty takes the syllable away) – the lyrics field's click on a note. */
-export function setLyricOf(s: EditorState, ref: VoiceRef, eventId: string, syllable: string): EditorState {
-  const score = updateEvents(s.score, ref, (events) =>
-    events.map((e) => {
-      if (e.id !== eventId) return e;
-      const { lyric: _old, ...rest } = e;
-      return syllable && syllable !== '_' ? { ...rest, lyric: syllable } : rest;
-    }),
-  );
+export function setLyricOf(s: EditorState, ref: VoiceRef, eventId: string, syllable: string, verse = 1): EditorState {
+  const score = updateEvents(s.score, ref, (events) => events.map((e) => (e.id === eventId ? withLyric(e, verse, syllable) : e)));
   return { ...s, score };
 }
 

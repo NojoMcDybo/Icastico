@@ -2642,7 +2642,8 @@ button.lcd__cell:nth-child(3) {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-.lyrics__foot {
+.lyrics__foot,
+.lyrics__verses {
   display: flex;
   gap: 8px;
 }

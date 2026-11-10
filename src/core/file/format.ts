@@ -15,6 +15,7 @@ import { parsePitch, pitchToString } from '../pitch';
 import { type InstrumentId, INSTRUMENTS } from '../instruments';
 import { type Curve, type CurveKind, DEFAULT_VOLUME, curveProblem } from '../curve';
 import { type BarMark, type ScoreLayout, type Link, type NoteEvent, type Part, type Score, type Tone, type Voice, validateScore } from '../model';
+import { MAX_VERSES } from '../lyrics';
 
 export const FILE_EXTENSION = 'icastico';
 /**
@@ -30,9 +31,10 @@ export const FILE_EXTENSION = 'icastico';
  * 12 = the instrument "tab" (a tablature staff of its own, ADR 0030),
  * 13 = bar signs may sit exactly on a note ("exact", ADR 0031),
  * 14 = optional `layout` (bars per line / line breaks, ADR 0031),
- * 15 = optional `tuning` per guitar / tablature part and `string` per tone (ADR 0032).
+ * 15 = optional `tuning` per guitar / tablature part and `string` per tone (ADR 0032),
+ * 16 = optional `verses` per note: the syllables of verses 2 to 4 (ADR 0036).
  */
-export const FORMAT_VERSION = 15;
+export const FORMAT_VERSION = 16;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -71,6 +73,7 @@ function scoreToJson(score: Score): unknown {
           at: fracToString(e.onset),
           dur: fracToString(e.duration),
           ...(e.lyric !== undefined ? { lyric: e.lyric } : {}),
+          ...(e.verses ? { verses: { ...e.verses } } : {}),
           ...(e.marks?.length ? { marks: [...e.marks] } : {}),
           tones: e.tones.map((t) => ({
             id: t.id,
@@ -200,10 +203,25 @@ function readEvent(v: unknown, where: string): NoteEvent {
     duration: time(o.dur, `${where} (${id}).dur`),
     tones,
     ...(o.lyric !== undefined ? { lyric: str(o.lyric, `${where} (${id}).lyric`) } : {}),
+    ...(o.verses !== undefined ? { verses: versesOf(o.verses, `${where} (${id}).verses`) } : {}),
     ...(o.marks !== undefined && arr(o.marks, `${where} (${id}).marks`).length > 0
       ? { marks: arr(o.marks, `${where} (${id}).marks`).map((m, i) => str(m, `${where} (${id}).marks[${i}]`)) }
       : {}),
   };
+}
+
+/** The syllables of verses 2 … MAX_VERSES: an object { "2": "la-", "3": "lu" }; anything else is refused. */
+function versesOf(v: unknown, where: string): Record<number, string> {
+  const o = obj(v, where);
+  const out: Record<number, string> = {};
+  for (const [key, text] of Object.entries(o)) {
+    const verse = Number(key);
+    if (!Number.isInteger(verse) || verse < 2 || verse > MAX_VERSES) return fail(`${where}: die Strophe „${key}“ gibt es nicht.`);
+    const syllable = str(text, `${where}.${key}`);
+    if (syllable === '' || /s/.test(syllable)) return fail(`${where}.${key}: der Liedtext ist ungültig.`);
+    out[verse] = syllable;
+  }
+  return out;
 }
 
 const LINK_KINDS: readonly string[] = ['tie', 'slide'];
@@ -331,6 +349,8 @@ const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
   13: (doc) => ({ ...doc, version: 14 }),
   // 14 → 15: the optional "tuning" of parts and "string" of tones. Version-14 files have none (standard tuning, automatic strings).
   14: (doc) => ({ ...doc, version: 15 }),
+  // 15 → 16: the optional "verses" of notes. Version-15 files have only the first verse ("lyric").
+  15: (doc) => ({ ...doc, version: 16 }),
 };
 
 /** Applies `fn` to every event object of a (still unvalidated) score; anything unexpected is left for the reader to reject. */

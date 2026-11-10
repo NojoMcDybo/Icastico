@@ -119,6 +119,24 @@ describe('lyrics and chord symbols (ADR 0019)', () => {
     expect(mei).toMatch(/<harm [^>]*tstamp="1\.0000">D\/F#<\/harm>/); // bar 2, beat 1
   });
 
+  it('writes further verses under the first, numbered when there is more than one (ADR 0036)', () => {
+    const withTwo = withText();
+    const voice = withTwo.parts.find((p) => p.id === 'voice')!.voices[0]!;
+    const [a, b] = voice.events;
+    const score = { ...withTwo, parts: withTwo.parts.map((p) => (p.id !== 'voice' ? p : { ...p, voices: [{ ...voice, events: voice.events.map((e) => (e.id === a!.id ? { ...e, verses: { 2: 'Ge-' } } : e.id === b!.id ? { ...e, verses: { 2: 'sang', 3: 'x' } } : e)) }] })) };
+    const { mei, syllables } = scoreToMei(score);
+    expect(mei).toMatch(/<verse n="2"><label>2\.<\/label><syl xml:id="syl2-[^"]+" wordpos="i" con="d">Ge<\/syl>/);
+    expect(mei.match(/<label>2\.<\/label>/g)).toHaveLength(1);
+    expect(mei.match(/<label>1\.<\/label>/g)).toHaveLength(1);
+    expect(mei).toMatch(/<syl xml:id="syl3-/);
+    expect([...syllables.keys()].filter((k) => k.startsWith('syl2-'))).toHaveLength(2);
+    expect(engraver.engrave(mei).log).toBe('');
+  });
+
+  it('writes no verse numbers while there is only one verse', () => {
+    expect(scoreToMei(withText()).mei).not.toMatch(/<verse n="1"><label>/);
+  });
+
   it('Verovio draws both without warnings', () => {
     const { log, pages } = engraver.engrave(scoreToMei(withText()).mei);
     expect(log).toBe('');

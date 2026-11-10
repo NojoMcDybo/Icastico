@@ -81,6 +81,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Liedtext in der Partitur: eine Silbe anklicken (Umschalt+Klick: bis zu dieser Silbe), dann löschen, kopieren, ausschneiden, einfügen | *Silbe unter den Noten anklicken: Entf nimmt sie weg, Strg+C / Strg+X kopiert / schneidet aus, Strg+V legt sie ab der gewählten Note auf die Noten* | *Silbe unter den Noten anklicken: Entf nimmt sie weg, Strg+C / Strg+X kopiert / schneidet aus, Strg+V legt sie ab der gewählten Note auf die Noten* | (wie Finale) | ✓ |
 | Eine Silbe auf eine andere Note verschieben | *Mit der Maus: die Silbe unter den Noten greifen und auf die andere Note ziehen* | *Mit der Maus: die Silbe unter den Noten greifen und auf die andere Note ziehen* | (wie Finale) | ✓ |
 | Das Liedtext-Fenster verschieben | *Mit der Maus: den Kopf des Liedtext-Fensters (Titel) greifen und ziehen; die Stelle wird gemerkt* | *Mit der Maus: den Kopf des Liedtext-Fensters (Titel) greifen und ziehen; die Stelle wird gemerkt* | (wie Finale) | ✓ |
+| Strophe 1 bis 4 des Liedtexts wählen | *Liedtext-Feld (L): Schalter Strophe 1–4* | *Liedtext-Feld (L): Schalter Strophe 1–4* | (wie Finale) | ✓ |
 
 ## Bewegen
 

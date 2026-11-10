@@ -63,3 +63,4 @@ Was wird dadurch leichter, was schwerer?
 | 0033 | [Silben wählen und verschieben, Druckvorschau, TAB-Zeile mit Stimmung, durchgehende Taktstriche](0033-silben-druckvorschau-und-tabulatur-zeile.md) | angenommen |
 | 0034 | [Startbild: Akkord als Sand auf der Platte](0034-startbild-chladni.md) | angenommen |
 | 0035 | [Schutzregel für geladene Inhalte (CSP)](0035-schutzregel-csp.md) | angenommen |
+| 0036 | [Mehrere Strophen Liedtext](0036-mehrere-strophen.md) | angenommen |

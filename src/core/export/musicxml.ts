@@ -19,6 +19,7 @@ import {
   tupletGroups,
 } from '../notation/notate';
 import { KIND_TEXT } from '../import/musicxml';
+import { MAX_VERSES, lyricOf } from '../lyrics';
 import { barSign, noteSymbol, voltaNumber } from '../symbols';
 
 const ARTICULATION_XML: Record<string, string> = { stacc: 'staccato', stacciss: 'staccatissimo', ten: 'tenuto', acc: 'accent', marc: 'strong-accent', breath: 'breath-mark', caesura: 'caesura' };
@@ -311,11 +312,18 @@ function tupletNotation(start: boolean, stop: boolean, tied = ''): string {
 
 function lyricXml(voice: Voice, item: NotatedNote, continues: Map<string, boolean>): string {
   const event = voice.events.find((e) => e.id === item.eventId);
-  if (!event || event.lyric === undefined) return '';
-  const goesOn = event.lyric.endsWith('-');
-  const text = (goesOn ? event.lyric.slice(0, -1) : event.lyric).replace(/_/g, ' ');
-  const was = continues.get(voice.id) ?? false;
-  const syllabic = goesOn ? (was ? 'middle' : 'begin') : was ? 'end' : 'single';
-  continues.set(voice.id, goesOn);
-  return `<lyric number="1"><syllabic>${syllabic}</syllabic><text>${esc(text)}</text></lyric>`;
+  if (!event) return '';
+  let xml = '';
+  for (let verse = 1; verse <= MAX_VERSES; verse++) {
+    const syllable = lyricOf(event, verse);
+    if (syllable === undefined) continue;
+    const goesOn = syllable.endsWith('-');
+    const text = (goesOn ? syllable.slice(0, -1) : syllable).replace(/_/g, ' ');
+    const key = `${voice.id}:${verse}`;
+    const was = continues.get(key) ?? false;
+    const syllabic = goesOn ? (was ? 'middle' : 'begin') : was ? 'end' : 'single';
+    continues.set(key, goesOn);
+    xml += `<lyric number="${verse}"><syllabic>${syllabic}</syllabic><text>${esc(text)}</text></lyric>`;
+  }
+  return xml;
 }

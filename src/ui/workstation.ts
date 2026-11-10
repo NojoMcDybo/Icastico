@@ -5,6 +5,7 @@
  * Rendering is skipped when only caret/selection changed (decorate only).
  */
 import { LyricsPanel } from './lyricsPanel';
+import { lyricOf, syllableId, verseOfSyllableId } from '../core/lyrics';
 import { type SyllableClip, chosenNotes, clearSyllables, copySyllables, moveSyllable, pasteSyllables } from '../core/editor/lyricOps';
 import { type CommandId, chordSymbolText, dropBarSign, dropNoteSign, eraseBarSign, eraseNoteSign, ghostPitches, signsAtFocus, lyricsText, newScoreState, runCommand, setChordSymbol, setLyricOf, setLyrics } from '../core/editor/commands';
 import { demoScore } from '../core/demo';
@@ -221,7 +222,7 @@ export class Workstation {
   /** A placed sign that was clicked: Backspace takes it away, dragging moves it. */
   private selectedSign: SignDrag | null = null;
   /** A syllable chosen in the score (ADR 0033): Delete, copy, cut and paste then work on syllables, dragging moves one. */
-  private syllable: { readonly eventId: string } | null = null;
+  private syllable: { readonly eventId: string; readonly verse: number } | null = null;
   private syllableClip: SyllableClip | null = null;
   private litEvents = new Set<string>();
   /** The lyrics field: type the text, then click syllable and notes (ADR 0029). */
@@ -314,10 +315,10 @@ export class Workstation {
     });
     document.body.append(this.symbols.el);
     this.lyrics = new LyricsPanel({
-      existingText: () => lyricsText(this.state) ?? '',
-      applyAll: (text) => {
+      existingText: (verse) => lyricsText(this.state, verse) ?? '',
+      applyAll: (text, verse) => {
         if (!text) return;
-        this.history.apply(setLyrics(this.state, text));
+        this.history.apply(setLyrics(this.state, text, verse));
         this.update();
       },
     });
@@ -1173,18 +1174,18 @@ export class Workstation {
   // ── Syllables of the lyrics in the score (ADR 0033) ───────────────────────
 
   /** The syllable under the pointer: the note it sits under. */
-  private syllableUnder(e: MouseEvent): ElementRef | undefined {
+  private syllableUnder(e: MouseEvent): { ref: ElementRef; verse: number } | undefined {
     const syllables = this.result?.syllables;
     if (!syllables) return undefined;
     for (let n = e.target as Element | null; n && n !== this.el.pages; n = n.parentElement) {
       const ref = n.id ? syllables.get(n.id) : undefined;
-      if (ref) return ref;
+      if (ref) return { ref, verse: verseOfSyllableId(n.id) };
     }
     // A syllable's box is wider than its letters (the hyphen after it): the empty part of the box counts too, unless a note is hit.
     if ((e.target as Element | null)?.closest?.('g.note, g.chord, g.rest, g.mRest')) return undefined;
     for (const [id, ref] of syllables) {
       const r = document.getElementById(id)?.getBoundingClientRect();
-      if (r && e.clientX >= r.left - 2 && e.clientX <= r.right + 2 && e.clientY >= r.top - 2 && e.clientY <= r.bottom + 2) return ref;
+      if (r && e.clientX >= r.left - 2 && e.clientX <= r.right + 2 && e.clientY >= r.top - 2 && e.clientY <= r.bottom + 2) return { ref, verse: verseOfSyllableId(id) };
     }
     return undefined;
   }
@@ -1196,49 +1197,53 @@ export class Workstation {
   }
 
   /** A click on a syllable chooses it (Shift: all syllables from the chosen one to this one). */
-  private pickSyllable(ref: ElementRef, extend: boolean): void {
+  private pickSyllable(hit: { ref: ElementRef; verse: number }, extend: boolean): void {
+    const { ref, verse } = hit;
     const s = this.state;
     const voice = { partId: ref.partId, voiceId: ref.voiceId };
-    if (extend && this.syllableMode() && s.selection?.kind === 'event' && s.selection.voiceId === ref.voiceId) {
+    if (extend && this.syllableMode() && this.syllable?.verse === verse && s.selection?.kind === 'event' && s.selection.voiceId === ref.voiceId) {
       this.history.apply(rangeTo(s, voice, ref.eventId!));
       return this.update();
     }
-    this.syllable = { eventId: ref.eventId! };
+    this.syllable = { eventId: ref.eventId!, verse };
     this.history.apply({ ...s, caret: null, range: null, selection: { kind: 'event', ...voice, eventId: ref.eventId! }, input: { ...s.input, ghost: null }, message: 'Silbe gewählt – Entf nimmt sie weg, Strg+C / Strg+X / Strg+V kopiert, schneidet aus, fügt ein; auf eine andere Note ziehen verschiebt sie.' });
     this.update();
   }
 
   private syllableCommand(command: string): void {
     const s = this.state;
+    const verse = this.syllable?.verse ?? 1;
     switch (command) {
       case 'edit.delete':
       case 'edit.backspace':
-        this.history.apply(clearSyllables(s));
+        this.history.apply(clearSyllables(s, verse));
         break;
       case 'edit.copy':
       case 'edit.cut': {
-        const clip = copySyllables(s);
+        const clip = copySyllables(s, verse);
         if (!clip) return this.say('Erst eine Silbe anklicken.');
         this.syllableClip = clip;
         const text = clip.map((x) => x ?? '_').join(' ');
         void navigator.clipboard?.writeText(text).catch(() => undefined);
         const n = clip.filter((x) => x !== null).length;
         const done = `${n} ${n === 1 ? 'Silbe' : 'Silben'} ${command === 'edit.cut' ? 'ausgeschnitten' : 'kopiert'} – mit Strg+V ab der gewählten Note einfügen.`;
-        this.history.apply(command === 'edit.cut' ? { ...clearSyllables(s), message: done } : { ...s, message: done });
+        this.history.apply(command === 'edit.cut' ? { ...clearSyllables(s, verse), message: done } : { ...s, message: done });
         break;
       }
       default:
         if (!this.syllableClip) return this.say('Die Zwischenablage ist leer – erst Silben kopieren oder ausschneiden.');
-        this.history.apply(pasteSyllables(s, this.syllableClip));
+        this.history.apply(pasteSyllables(s, this.syllableClip, verse));
     }
     this.update();
   }
 
   /** Pressing on a syllable and dragging it onto another note moves it there; a plain click chooses it (see onClick). */
-  private beginSyllableDrag(ref: ElementRef, e: PointerEvent): void {
+  private beginSyllableDrag(hitSyllable: { ref: ElementRef; verse: number }, e: PointerEvent): void {
+    const { ref, verse } = hitSyllable;
     const startX = e.clientX;
     const startY = e.clientY;
-    const text = this.state.score.parts.find((p) => p.id === ref.partId)?.voices.find((v) => v.id === ref.voiceId)?.events.find((x) => x.id === ref.eventId)?.lyric;
+    const event = this.state.score.parts.find((p) => p.id === ref.partId)?.voices.find((v) => v.id === ref.voiceId)?.events.find((x) => x.id === ref.eventId);
+    const text = event && lyricOf(event, verse);
     let ghost: HTMLElement | null = null;
     let lit: Element | null = null;
     const light = (target: Element | null) => {
@@ -1275,8 +1280,8 @@ export class Workstation {
       window.setTimeout(() => (this.swallowClick = false), 80);
       const hit = up ? noteAt(up) : undefined;
       if (!hit) return;
-      this.history.apply(moveSyllable(this.state, { partId: ref.partId, voiceId: ref.voiceId }, ref.eventId!, hit[1].eventId!));
-      this.syllable = { eventId: hit[1].eventId! };
+      this.history.apply(moveSyllable(this.state, { partId: ref.partId, voiceId: ref.voiceId }, ref.eventId!, hit[1].eventId!, verse));
+      this.syllable = { eventId: hit[1].eventId!, verse };
       this.update();
     };
     const cancel = () => end(null);
@@ -1744,7 +1749,7 @@ export class Workstation {
     const base = { ...s, selection, caret, input: { ...s.input, ghost: null }, message: null };
     // With the lyrics field open and a syllable chosen, the click also puts that syllable on the note.
     const syllable = ref.eventId && this.lyrics.assigning ? this.lyrics.take() : null;
-    this.history.apply(syllable !== null && ref.eventId ? { ...setLyricOf(base, voice, ref.eventId, syllable), message: syllable === '_' ? 'Silbe entfernt.' : `Silbe „${syllable}“ gesetzt.` } : base);
+    this.history.apply(syllable !== null && ref.eventId ? { ...setLyricOf(base, voice, ref.eventId, syllable, this.lyrics.verse), message: syllable === '_' ? 'Silbe entfernt.' : `Silbe „${syllable}“ gesetzt.` } : base);
     this.update();
   }
 
@@ -2411,7 +2416,7 @@ export class Workstation {
 
     const sel = s.selection;
     const syllables = this.syllableMode() ? chosenNotes(s) : null;
-    if (syllables) for (const e of syllables.events) document.getElementById(`syl-${e.id}`)?.classList.add('is-selected');
+    if (syllables) for (const e of syllables.events) document.getElementById(syllableId(this.syllable!.verse, e.id))?.classList.add('is-selected');
     if (sel && !syllables) {
       // One tone of a chord chosen: only its notehead is marked, not the whole chord.
       const oneTone = sel.kind === 'event' && sel.toneId ? [...elements].find(([, r]) => r.kind === 'chordNote' && r.eventId === sel.eventId && r.toneId === sel.toneId) : undefined;

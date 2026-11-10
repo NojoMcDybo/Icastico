@@ -3,28 +3,30 @@
  * below it the syllables as buttons. Pick a syllable, click notes: every click puts the current syllable on that
  * note and moves on to the next syllable.
  */
-import { splitSyllables } from '../core/lyrics';
+import { MAX_VERSES, splitSyllables } from '../core/lyrics';
 
 export interface LyricsHost {
   /** The text of the selected note on, to start from when the field is empty. */
-  existingText(): string;
+  existingText(verse: number): string;
   /** "Ab gewählter Note alle setzen": the whole text onto the notes from the selected one. */
-  applyAll(text: string): void;
+  applyAll(text: string, verse: number): void;
 }
 
 const KEY = 'icastico.lyricsDraft';
+/** The draft of verse 1 keeps its old key; verse k has `icastico.lyricsDraft.k`. */
+const draftKey = (verse: number): string => (verse === 1 ? KEY : `${KEY}.${verse}`);
 const POS_KEY = 'icastico.lyricsPosition';
 
-const read = (): string => {
+const read = (verse: number): string => {
   try {
-    return localStorage.getItem(KEY) ?? '';
+    return localStorage.getItem(draftKey(verse)) ?? '';
   } catch {
     return '';
   }
 };
-const write = (text: string): void => {
+const write = (verse: number, text: string): void => {
   try {
-    localStorage.setItem(KEY, text);
+    localStorage.setItem(draftKey(verse), text);
   } catch {
     // not remembered
   }
@@ -52,6 +54,8 @@ export class LyricsPanel {
   private readonly chipBox: HTMLElement;
   private readonly status: HTMLElement;
   private readonly head: HTMLElement;
+  private readonly versePills: HTMLButtonElement[];
+  private verseNo = 1;
   private chips: string[] = [];
   private current = 0;
   private done = new Set<number>();
@@ -65,14 +69,16 @@ export class LyricsPanel {
     close.setAttribute('aria-label', 'Liedtext-Feld schließen');
     const all = el('button', { type: 'button', className: 'pill', textContent: 'Ab gewählter Note alle setzen', title: 'Die Silben ab der gewählten Silbe der Reihe nach auf die Noten ab der gewählten Note legen' });
     const again = el('button', { type: 'button', className: 'pill', textContent: 'Von vorn', title: 'Wieder bei der ersten Silbe anfangen' });
-    this.el = el('section', { className: 'lyrics', hidden: true }, el('div', { className: 'lyrics__head' }, el('strong', { textContent: 'Liedtext' }), this.status, close), this.text, this.chipBox, el('div', { className: 'lyrics__foot' }, all, again));
+    this.versePills = Array.from({ length: MAX_VERSES }, (_, i) => el('button', { type: 'button', className: 'pill', textContent: `Strophe ${i + 1}`, title: `Die ${i + 1}. Strophe eingeben` }));
+    this.versePills.forEach((pill, i) => pill.addEventListener('click', () => this.setVerse(i + 1)));
+    this.el = el('section', { className: 'lyrics', hidden: true }, el('div', { className: 'lyrics__head' }, el('strong', { textContent: 'Liedtext' }), this.status, close), el('div', { className: 'lyrics__verses' }, ...this.versePills), this.text, this.chipBox, el('div', { className: 'lyrics__foot' }, all, again));
     this.el.setAttribute('aria-label', 'Liedtext');
     this.head = this.el.querySelector<HTMLElement>('.lyrics__head')!;
     this.head.title = 'Zum Verschieben hier greifen und ziehen';
     this.head.addEventListener('pointerdown', (e) => this.beginMove(e));
 
     this.text.addEventListener('input', () => {
-      write(this.text.value);
+      write(this.verseNo, this.text.value);
       this.parse(false);
     });
     this.text.addEventListener('keydown', (e) => {
@@ -88,7 +94,22 @@ export class LyricsPanel {
       this.current = 0;
       this.render();
     });
-    all.addEventListener('click', () => this.host.applyAll(this.chips.slice(this.current).join(' ')));
+    all.addEventListener('click', () => this.host.applyAll(this.chips.slice(this.current).join(' '), this.verseNo));
+  }
+
+  /** The verse being entered (1 … MAX_VERSES). */
+  get verse(): number {
+    return this.verseNo;
+  }
+
+  /** Switches the verse: the draft of this one is kept, the draft of the other one (or its text in the score) is loaded. */
+  private setVerse(verse: number): void {
+    if (verse === this.verseNo) return;
+    write(this.verseNo, this.text.value);
+    this.verseNo = verse;
+    this.text.value = read(verse) || this.host.existingText(verse);
+    this.parse(true);
+    this.text.focus();
   }
 
   get isOpen(): boolean {
@@ -101,7 +122,7 @@ export class LyricsPanel {
   }
 
   show(): void {
-    if (!this.text.value) this.text.value = read() || this.host.existingText();
+    if (!this.text.value) this.text.value = read(this.verseNo) || this.host.existingText(this.verseNo);
     this.el.hidden = false;
     const saved = readPosition();
     if (saved) this.place(saved.x, saved.y);
@@ -181,6 +202,10 @@ export class LyricsPanel {
   }
 
   private render(): void {
+    this.versePills.forEach((pill, i) => {
+      pill.classList.toggle('is-active', i + 1 === this.verseNo);
+      pill.setAttribute('aria-pressed', String(i + 1 === this.verseNo));
+    });
     this.chipBox.replaceChildren(
       ...this.chips.map((chip, i) => {
         const b = el('button', { type: 'button', className: `lyrics__chip${this.done.has(i) ? ' is-done' : ''}${i === this.current ? ' is-current' : ''}`, textContent: chip });

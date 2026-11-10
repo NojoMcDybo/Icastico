@@ -112,8 +112,9 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Überarbeitung für 0.25.0: die Seitenvorschau im Druckdialog zeigt wieder Notenköpfe und Schlüssel; in schmaleren Fenstern (unter etwa 1440 px) überdeckt die Transportleiste den Titel nicht mehr – erst weicht der Schriftzug, unter 1320 px bekommt der Transport eine eigene Zeile; der Oberflächentest prüft beides und läuft jetzt bei jedem Push auf GitHub mit (bisher nur von Hand); ein Test warnt, wenn der Notensatz eines 64-Takte-Stücks deutlich langsamer wird
 - [x] Schutzregel für das Fenster (ADR 0035): die App lädt und startet nur noch ihre eigenen Dateien und spricht keine fremden Adressen an – ein zweites Netz für importierte Dateien
 - [x] Startbild: beim Öffnen baut sich ein E7♯9 auf und der Klang erscheint als Sand auf einer schwingenden Platte (Chladni-Figur); Klick oder Taste überspringt (ADR 0034)
+- [x] Liederrunde, Paket 1: bis zu vier Strophen Liedtext – im Liedtext-Feld wählbar, in der Partitur untereinander mit „1.“, „2.“ …, Silben wählen/kopieren/verschieben je Strophe, MusicXML liest und schreibt alle vier, Dateiformat 16 (ADR 0036)
 - [ ] Finale-Dateien (`.musx`) direkt lesen – verschlüsseltes Binärformat, bewusst zurückgestellt (ADR 0021)
-- [ ] Seitenlayout von Hand (Umbrüche, Systemabstand, Kopf-/Fußzeile), mehrere Strophen, Tabulatur-Spieltechniken
+- [ ] Seitenlayout von Hand (Umbrüche, Systemabstand, Kopf-/Fußzeile), Tabulatur-Spieltechniken
 
 ## Schritt 4 – Audio→Noten
 

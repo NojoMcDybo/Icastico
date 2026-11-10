@@ -13,6 +13,7 @@ import { type Fraction, ZERO, add, compare, eq, frac, le, lt, sub } from '../tim
 import { type Pitch, STEPS, midiOf, spellMidi } from '../pitch';
 import { GUITAR_STRINGS, validTuning } from '../tab';
 import { type InstrumentId, getInstrument } from '../instruments';
+import { MAX_VERSES } from '../lyrics';
 import {
   type StaffGroup,
   type BarMark,
@@ -76,13 +77,19 @@ function chordText(el: XmlElement): string | null {
   return `${noteName(step, childText(root, 'root-alter'))}${suffix}${bassName}`;
 }
 
-/** The syllable of the first verse of a note ("Hel-" when the word goes on), or null. */
-function syllableOf(note: XmlElement): string | null {
-  const verse = childrenNamed(note, 'lyric')[0];
-  const text = verse ? childText(verse, 'text')?.trim().replace(/\s+/g, '_') : undefined;
-  if (!verse || !text) return null;
-  const syllabic = childText(verse, 'syllabic');
-  return syllabic === 'begin' || syllabic === 'middle' ? `${text}-` : text;
+/** The syllables of a note by verse ("Hel-" when the word goes on): by the lyric's `number`, else in order of appearance. */
+function syllablesOf(note: XmlElement): Map<number, string> {
+  const out = new Map<number, string>();
+  childrenNamed(note, 'lyric').forEach((lyric, i) => {
+    const text = childText(lyric, 'text')?.trim().replace(/\s+/g, '_');
+    if (!text) return;
+    const number = Number.parseInt(lyric.attrs.number ?? '', 10);
+    const verse = Number.isInteger(number) && number >= 1 ? number : i + 1;
+    if (verse > MAX_VERSES || out.has(verse)) return;
+    const syllabic = childText(lyric, 'syllabic');
+    out.set(verse, syllabic === 'begin' || syllabic === 'middle' ? `${text}-` : text);
+  });
+  return out;
 }
 
 const snap = (t: Fraction): Fraction => frac(Math.round((t.n * 64) / t.d), 64);
@@ -104,7 +111,8 @@ interface Raw {
   /** Tie from this note into the next one of the voice / from the previous one into this. */
   readonly tieStart: boolean[];
   readonly tieStop: boolean[];
-  readonly lyric: string | null;
+  /** Syllables by verse (1 … MAX_VERSES). */
+  readonly lyrics: ReadonlyMap<number, string>;
   /** Signs of the sign library found on / before the note (ADR 0024). */
   readonly marks: string[];
 }
@@ -306,7 +314,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
           const dur = Math.round(intOf(childText(el, 'duration'), 0));
           const isChord = child(el, 'chord') !== undefined;
           const onsetPos = isChord ? lastOnset : cursor;
-          if (childrenNamed(el, 'lyric').length > 1) skip('Weitere Strophen');
+          if (childrenNamed(el, 'lyric').length > MAX_VERSES) skip('Strophen ab der fünften');
           if (!isChord) {
             lastOnset = cursor;
             cursor += dur;
@@ -354,7 +362,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
             continue;
           }
           const marks = [...comingMarks.splice(0), ...notationMarks(el, () => skip('Zeichen, die es in der Bibliothek nicht gibt'))].reduce<string[]>((list, id) => (list.includes(id) ? list : toggleNoteSymbol(list, id)), []);
-          const raw: Raw = { onset: start, duration: lt(start, finish) ? sub(finish, start) : frac(1, 64), pitches: [pitch], tieStart: [tieStart], tieStop: [tieStop], lyric: syllableOf(el), marks };
+          const raw: Raw = { onset: start, duration: lt(start, finish) ? sub(finish, start) : frac(1, 64), pitches: [pitch], tieStart: [tieStart], tieStop: [tieStop], lyrics: syllablesOf(el), marks };
           const list = raws.get(key) ?? [];
           const slurs = childrenNamed(el, 'notations').flatMap((n) => childrenNamed(n, 'slur'));
           for (const sl of slurs.filter((x) => x.attrs.type === 'stop')) {
@@ -430,7 +438,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
         // Tones are sorted by sounding pitch; the tie flags travel with their tone.
         const order = raw.pitches.map((_, ti) => ti).sort((a, b) => midiOf(raw.pitches[a]!) - midiOf(raw.pitches[b]!));
         const tones = order.map((src, ti) => ({ id: `${id}-t${ti + 1}`, pitch: raw.pitches[src]!, src }));
-        lane.events.push({ id, onset: raw.onset, duration: raw.duration, tones: tones.map(({ id: toneId, pitch }) => ({ id: toneId, pitch })), ...(raw.lyric ? { lyric: raw.lyric } : {}), ...(raw.marks.length ? { marks: raw.marks } : {}) });
+        lane.events.push({ id, onset: raw.onset, duration: raw.duration, tones: tones.map(({ id: toneId, pitch }) => ({ id: toneId, pitch })), ...(raw.lyrics.get(1) ? { lyric: raw.lyrics.get(1)! } : {}), ...(versesOfRaw(raw.lyrics) ? { verses: versesOfRaw(raw.lyrics)! } : {}), ...(raw.marks.length ? { marks: raw.marks } : {}) });
         lane.end = add(raw.onset, raw.duration);
         tones.forEach((t) => {
           toneAt.set(`${key}|${raw.onset.n}/${raw.onset.d}|${midiOf(t.pitch)}`, t.id);
@@ -499,4 +507,10 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
   for (const [what, n] of skipped) notes.push(`${what}: ${n}× nicht übernommen.`);
   if (roundedNotes > 0) notes.push(`${roundedNotes} Noten haben einen Rhythmus, den Icastico nicht schreiben kann (nur Triolen, Quintolen und Septolen gehen); sie sind auf das 1/64-Raster gerundet.`);
   return { score, notes: [...new Set(notes)] };
+}
+
+/** The syllables of verses 2 … MAX_VERSES as the model keeps them, or null if there are none. */
+function versesOfRaw(lyrics: ReadonlyMap<number, string>): Record<number, string> | null {
+  const rest = [...lyrics].filter(([verse]) => verse > 1);
+  return rest.length > 0 ? Object.fromEntries(rest) : null;
 }

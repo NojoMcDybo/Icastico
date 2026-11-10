@@ -11,6 +11,7 @@
  * a note tied over from the previous measure shows no accidental.
  */
 import { type Score, type Part, type Tone, eventEnd, locateTones, measuresOf, type Measure, systemBreaks, validateScore } from '../core/model';
+import { MAX_VERSES, lyricOf, syllableId, versesUsed } from '../core/lyrics';
 import { type Fraction, compare, div, gt, le, lt, sub, frac } from '../core/time';
 import { barSign, noteSymbol, voltaNumber } from '../core/symbols';
 import { getInstrument, type Clef } from '../core/instruments';
@@ -113,12 +114,12 @@ class AccidentalState {
 const chordNoteId = (item: NotatedNote, tone: Tone): string => `${item.id}-${tone.id}`;
 
 /** Where a lyric syllable sits in its word, from the "-" at the end of the syllables (MEI wordpos). */
-function lyricXml(syllable: string, previousContinues: boolean, id: string): { xml: string; continues: boolean } {
+function lyricXml(syllable: string, previousContinues: boolean, id: string, verse: number, label: boolean): { xml: string; continues: boolean } {
   const continues = syllable.endsWith('-');
   const text = continues ? syllable.slice(0, -1) : syllable;
   const wordpos = continues ? (previousContinues ? 'm' : 'i') : previousContinues ? 't' : null;
   const attrs = ` xml:id="${id}"${wordpos ? ` wordpos="${wordpos}"${continues ? ' con="d"' : ''}` : ''}`;
-  return { xml: `<verse n="1"><syl${attrs}>${esc(text)}</syl></verse>`, continues };
+  return { xml: `<verse n="${verse}">${label ? `<label>${verse}.</label>` : ''}<syl${attrs}>${esc(text)}</syl></verse>`, continues };
 }
 
 /** MEI @artic values of the articulation signs of a note ("stacc ten"). */
@@ -365,17 +366,23 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
   const syllableRefs = new Map<string, ElementRef>();
   for (const part of score.parts) {
     for (const voice of part.voices) {
-      let continues = false;
-      for (const ev of voice.events) {
-        if (ev.lyric === undefined) {
-          continue;
+      // Verses are numbered ("1.", "2." …) only when the voice has more than one, at the first note that has a syllable in that verse.
+      const used = versesUsed(voice.events);
+      for (let verse = 1; verse <= MAX_VERSES; verse++) {
+        let continues = false;
+        let labelled = false;
+        for (const ev of voice.events) {
+          const syllable = lyricOf(ev, verse);
+          if (syllable === undefined) continue;
+          const id = syllableId(verse, ev.id);
+          const r = lyricXml(syllable, continues, id, verse, used > 1 && !labelled);
+          labelled = true;
+          continues = r.continues;
+          syllables.set(ev.id, (syllables.get(ev.id) ?? '') + r.xml);
+          const drawn = pieces.get(ev.id);
+          const ref = drawn && elements.get(drawn.first.id);
+          if (ref) syllableRefs.set(id, ref);
         }
-        const r = lyricXml(ev.lyric, continues, `syl-${ev.id}`);
-        continues = r.continues;
-        syllables.set(ev.id, r.xml);
-        const drawn = pieces.get(ev.id);
-        const ref = drawn && elements.get(drawn.first.id);
-        if (ref) syllableRefs.set(`syl-${ev.id}`, ref);
       }
     }
   }

@@ -19,6 +19,25 @@ function sung(): EditorState {
 }
 
 describe('syllables as things of their own (ADR 0033)', () => {
+  it('works in the chosen verse and leaves the others alone (ADR 0036)', () => {
+    const first = sung();
+    const both = setLyrics(select(first, 0), 'la- li lu', 2);
+    expect(lyrics(both)).toEqual(['Gu-', 'ten', 'A-', 'bend', 'gu-', 'te']);
+    expect(events(both).map((e) => e.verses?.[2] ?? '·')).toEqual(['la-', 'li', 'lu', '·', '·', '·']);
+    const cleared = clearSyllables(select(both, 1), 2);
+    expect(events(cleared).map((e) => e.verses?.[2] ?? '·')).toEqual(['la-', '·', 'lu', '·', '·', '·']);
+    expect(lyrics(cleared)).toEqual(lyrics(both));
+    const clip = copySyllables(select(both, 0), 2)!;
+    expect(clip).toEqual(['la-']);
+    const pasted = pasteSyllables(select(both, 4), clip, 2);
+    expect(events(pasted)[4]!.verses).toEqual({ 2: 'la-' });
+    expect(events(pasted)[4]!.lyric).toBe('gu-');
+    const moved = moveSyllable(both, VOICE, events(both)[0]!.id, events(both)[5]!.id, 2);
+    expect(events(moved)[5]!.verses).toEqual({ 2: 'la-' });
+    expect(events(moved)[0]!.verses).toBeUndefined();
+    expect(validateScore(moved.score)).toEqual([]);
+  });
+
   it('chooses the syllable of the selected note, or of the marked passage', () => {
     const s = select(sung(), 1);
     expect(chosenNotes(s)!.events.map((e) => e.lyric)).toEqual(['ten']);

@@ -794,7 +794,7 @@ try {
   await type('Escape');
   await saved();
   const shaped = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Verlauf-Test.icastico'))[1].contents;
-  check(/"version": 15/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 15)');
+  check(/"version": 16/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 16)');
   await type('Control+Enter');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true', null, { timeout: 30000 });
   await page.waitForTimeout(1500);
@@ -812,6 +812,7 @@ try {
   <part id="P1">
     <measure number="1"><attributes><divisions>2</divisions><key><fifths>1</fifths></key><time><beats>3</beats><beat-type>4</beat-type></time><staves>2</staves></attributes>
       <direction><sound tempo="96"/></direction>
+      <note><grace/><pitch><step>A</step><octave>4</octave></pitch></note>
       ${xmlNote('B', 4, 2, '<voice>1</voice><staff>1</staff>')}${xmlNote('D', 5, 2, '<chord/><voice>1</voice><staff>1</staff><lyric number="1"><text>la</text></lyric><lyric number="2"><text>li</text></lyric>')}${xmlNote('G', 4, 4, '<voice>1</voice><staff>1</staff><tie type="start"/>')}
       <backup><duration>6</duration></backup>
       ${xmlNote('G', 2, 6, '<voice>2</voice><staff>2</staff>')}
@@ -827,7 +828,7 @@ try {
   await type('Control+Shift+I');
   await (await chooser).setFiles({ name: 'finale-export.musicxml', mimeType: 'application/xml', buffer: Buffer.from(sample) });
   await page.waitForSelector('.modal h2:text("Import abgeschlossen")');
-  check(/Weitere Strophen: 1×/.test(await page.locator('.modal').textContent()), 'MusicXML-Import: ein Hinweis nennt, was nicht übernommen wurde (zweite Strophe)');
+  check(/Vorschlagsnoten: 1×/.test(await page.locator('.modal').textContent()) && !/Strophe/.test(await page.locator('.modal').textContent()), 'MusicXML-Import: ein Hinweis nennt, was nicht übernommen wurde (Vorschlagsnote); die zweite Strophe wird übernommen');
   await page.click('.modal button:text("OK")');
   await page.waitForFunction(() => document.querySelector('#doc-title')?.textContent === 'Aus Finale');
   check((await page.locator('.page g.note').count()) >= 5 && (await page.locator('.page g.chord').count()) === 1 && (await page.locator('.page g.tie').count()) === 1, 'MusicXML-Import: Noten, Akkord und Haltebogen erscheinen in der Notenschrift');
@@ -1186,6 +1187,25 @@ try {
   check((await page.locator('.page g.verse').allTextContents()).map((t) => t.replace(/\s+/g, '')).join('|') === 'Hal|lo|Welt', 'Liedtext-Feld: „Ab gewählter Note alle setzen“ legt den ganzen Text auf einmal unter die Noten');
   await page.click('.lyrics__close');
 
+  // Strophen: die zweite Strophe unter der ersten, mit Nummern
+  await type('l');
+  await page.waitForSelector('.lyrics:not([hidden])');
+  await page.click('.lyrics__verses .pill:has-text("Strophe 2")');
+  check((await page.locator('.lyrics__text').inputValue()) === '' && (await page.locator('.lyrics__verses .pill.is-active').textContent()) === 'Strophe 2', 'Strophen: „Strophe 2“ wählen zeigt ein leeres Feld');
+  await page.fill('.lyrics__text', 'Ei-ne Zwei');
+  await page.click('.lyrics__foot .pill:has-text("alle setzen")');
+  await page.waitForFunction(() => document.querySelectorAll('.page [id^="syl2-"]').length === 3);
+  check((await page.locator('.page [id^="syl-"]').count()) === 3, 'Strophen: die erste Strophe bleibt unverändert');
+  const pageText = (await page.locator('.page').first().textContent()).replace(/\s+/g, '');
+  check(pageText.includes('1.') && pageText.includes('2.'), 'Strophen: bei mehr als einer Strophe stehen „1.“ und „2.“ vor der ersten Silbe');
+  await page.click('.lyrics__verses .pill:has-text("Strophe 1")');
+  check((await page.locator('.lyrics__text').inputValue()) === 'Hal-lo Welt' || /Hal/.test(await page.locator('.lyrics__text').inputValue()), 'Strophen: zurück auf „Strophe 1“ zeigt deren Text');
+  await page.screenshot({ path: join(outDir, 'strophen.png') });
+  await saved();
+  const verseFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Leadsheet-Test.icastico'))[1].contents;
+  check(/"verses": \{\s*"2": "Ei-"/.test(verseFile), 'Strophen: die zweite Strophe steht in der gespeicherten Datei');
+  await page.click('.lyrics__close');
+
   // ── Punktierung per Ziffernblock-Komma, Bindebogen mit T ──
   await newScore('Bogen-Test');
   await type('5', 'c', 'd', 'Escape');
@@ -1228,7 +1248,7 @@ try {
   await page.screenshot({ path: join(outDir, 'tabulatur-instrument.png') });
   await saved();
   const tabFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Tab-Instrument.icastico'))[1].contents;
-  check(/"instrument": "tab"/.test(tabFile) && /"version": 15/.test(tabFile), 'Tabulatur: die Zeile steht als Instrument „tab“ in der Datei (Format 15)');
+  check(/"instrument": "tab"/.test(tabFile) && /"version": 16/.test(tabFile), 'Tabulatur: die Zeile steht als Instrument „tab“ in der Datei (Format 16)');
   await page.locator('.page g.note').first().click({ force: true });
   await type('Control+Delete');
   check((await page.locator('.page g.note').count()) >= 1, 'Tabulatur-Zeile: die Noten der anderen Zeile bleiben beim Bearbeiten erhalten');
@@ -1612,7 +1632,7 @@ try {
   await page.screenshot({ path: join(outDir, 'zeichen.png') });
   await saved();
   const signsFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Zeichen-Test.icastico'))[1].contents;
-  check(/"version": 15/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 15)');
+  check(/"version": 16/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 16)');
   await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
   await page.click('.transport__play');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');

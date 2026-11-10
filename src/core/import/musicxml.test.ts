@@ -165,7 +165,8 @@ describe('MusicXML import: piano, voices, guitar, tuplets, leftovers', () => {
     expect(validateScore(score)).toEqual([]);
     const text = notes.join('\n');
     expect(text).toMatch(/Vorschlagsnoten: 1×/);
-    expect(text).toMatch(/Weitere Strophen: 1×/);
+    expect(text).not.toMatch(/Strophen/); // the second verse is taken over now (ADR 0036)
+    expect(score.parts[0]!.voices[0]!.events.at(-1)!.verses).toEqual({ 2: 'li' });
     expect(text).not.toMatch(/Akkordsymbole|Liedtext/);
     expect(text).not.toMatch(/gerundet/);
   });

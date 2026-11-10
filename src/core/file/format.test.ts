@@ -18,6 +18,7 @@ import version11File from './fixtures/version11.icastico?raw';
 import version12File from './fixtures/version12.icastico?raw';
 import version13File from './fixtures/version13.icastico?raw';
 import version14File from './fixtures/version14.icastico?raw';
+import version15File from './fixtures/version15.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -480,5 +481,36 @@ describe('format version 15: tunings and chosen strings', () => {
     const piano = base.parts.find((p) => p.instrument === 'piano') ?? base.parts[0]!;
     expect(() => parseScoreFile(serializeScore({ ...base, parts: base.parts.map((p) => (p === piano ? { ...p, tuning: [64, 59, 55, 50, 45, 40] } : p)) }, '0'))).toThrow(/Stimmung/);
     expect(() => parseScoreFile(serializeScore(withTab(undefined, 9), '0'))).toThrow(/Saite/);
+  });
+});
+
+describe('format version 16: verses 2 to 4', () => {
+  it('opens files saved by Icastico 0.25.0 (format version 15) and saves them as the current version', () => {
+    const score = parseScoreFile(version15File);
+    expect(fileVersion(version15File)).toBe(15);
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  function withVerses(verses: unknown): string {
+    const base = parseScoreFile(version15File);
+    const doc = JSON.parse(serializeScore(base, '0.0.0')) as { score: { parts: { voices: { events: Record<string, unknown>[] }[] }[] } };
+    doc.score.parts[0]!.voices[0]!.events[0]!.verses = verses;
+    return JSON.stringify(doc);
+  }
+
+  it('keeps the syllables of further verses', () => {
+    const back = parseScoreFile(withVerses({ '2': 'la-', '4': 'lu' }));
+    expect(back.parts[0]!.voices[0]!.events[0]!.verses).toEqual({ 2: 'la-', 4: 'lu' });
+    expect(parseScoreFile(serializeScore(back, '0'))).toEqual(back);
+  });
+
+  it('refuses a verse that does not exist or an empty syllable', () => {
+    expect(() => parseScoreFile(withVerses({ '7': 'x' }))).toThrow(/Strophe/);
+    expect(() => parseScoreFile(withVerses({ '1': 'x' }))).toThrow(/Strophe/);
+    expect(() => parseScoreFile(withVerses({ '2': '' }))).toThrow(/Liedtext/);
+    expect(() => parseScoreFile(withVerses({ '2': 'a b' }))).toThrow(/Liedtext/);
+    expect(() => parseScoreFile(withVerses([]))).toThrow();
   });
 });
