@@ -32,8 +32,11 @@ export class Synth implements Engine {
     if (this.sustained) return this.simple.play(plan, from, true);
     if (!this.failed) {
       try {
-        if (!this.sampler.isLoaded) this.notice('Instrumentenklänge werden geladen …');
-        return await this.sampler.play(plan, from);
+        const loading = !this.sampler.isLoaded;
+        if (loading) this.notice('Instrumentenklänge werden geladen …');
+        const playing = await this.sampler.play(plan, from);
+        if (loading) this.notice('Instrumentenklänge geladen.'); // the message must not stay while the music already plays
+        return playing;
       } catch (err) {
         this.failed = true;
         const why = err instanceof Error ? err.message : String(err);
