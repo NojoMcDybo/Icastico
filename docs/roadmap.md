@@ -14,7 +14,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Verovio-Rendering, Klick auf Note → Modell-Event (mit Toleranz)
 - [x] Demo-Partitur „Erste Skizze“
 
-## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.24.0)
+## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.25.0)
 
 - [x] Command-System (reine Funktionen) mit Undo/Redo
 - [x] Eingabe-Cursor (blinkend; gestrichelt im Einfügemodus), springt hinter Schlüssel/Taktart
@@ -109,7 +109,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Tabulatur als eigenes Instrument (neben der Notenschrift, Noten hineinkopieren; Dateiformat 12) und die acht geplanten Funktionen: Kreuz/B und Oktave für die nächste Note, Metronom, Cycle, Zoom, Quantisieren, Drucken (ADR 0030)
 - [x] Rückmeldungen nach 0.21.0: Akkordtöne einzeln mit Alt+↑/↓ wählen und mit ↑/↓ ändern; Segno, Coda, Sprünge und Tempoanweisungen genau auf der Note (Format 13); Takte pro Zeile und Zeilenumbrüche aus MusicXML (Format 14); Tabulatur mit Stimmungen (Drop D, offene Stimmungen, jede Saite einzeln), Bundzahl tippen, ↑/↓ auf andere Saite, markierte Noten in die Tabulatur ziehen, keine Notenwerte in der Tabulaturzeile (Format 15; ADR 0031, 0032)
 - [x] Rückmeldungen nach 0.22.0: Liedtext-Fenster verschiebbar, Silben in der Partitur wählen, löschen, kopieren, ausschneiden, verschieben; Drucken und PDF in einem Dialog mit Seitenvorschau und Takten pro Zeile; Taktstriche durch alle Zeilen; „TAB“ statt Schlüssel und die Stimmung über der Tabulaturzeile (auch in MusicXML); Kopieren und Ziehen in die Tabulatur verliert keine Noten mehr; ein Akkordton wird allein markiert (ADR 0033)
-- [x] Überarbeitung nach 0.24.0: die Seitenvorschau im Druckdialog zeigt wieder Notenköpfe und Schlüssel; in schmaleren Fenstern (unter etwa 1440 px) überdeckt die Transportleiste den Titel nicht mehr – erst weicht der Schriftzug, unter 1320 px bekommt der Transport eine eigene Zeile; der Oberflächentest prüft beides und läuft jetzt bei jedem Push auf GitHub mit (bisher nur von Hand); ein Test warnt, wenn der Notensatz eines 64-Takte-Stücks deutlich langsamer wird
+- [x] Überarbeitung für 0.25.0: die Seitenvorschau im Druckdialog zeigt wieder Notenköpfe und Schlüssel; in schmaleren Fenstern (unter etwa 1440 px) überdeckt die Transportleiste den Titel nicht mehr – erst weicht der Schriftzug, unter 1320 px bekommt der Transport eine eigene Zeile; der Oberflächentest prüft beides und läuft jetzt bei jedem Push auf GitHub mit (bisher nur von Hand); ein Test warnt, wenn der Notensatz eines 64-Takte-Stücks deutlich langsamer wird
 - [x] Schutzregel für das Fenster (ADR 0035): die App lädt und startet nur noch ihre eigenen Dateien und spricht keine fremden Adressen an – ein zweites Netz für importierte Dateien
 - [x] Startbild: beim Öffnen baut sich ein E7♯9 auf und der Klang erscheint als Sand auf einer schwingenden Platte (Chladni-Figur); Klick oder Taste überspringt (ADR 0034)
 - [ ] Finale-Dateien (`.musx`) direkt lesen – verschlüsseltes Binärformat, bewusst zurückgestellt (ADR 0021)

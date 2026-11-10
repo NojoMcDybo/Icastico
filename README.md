@@ -6,7 +6,7 @@ Open Source, angelehnt an Finale, aber neu gedacht.
 
 *Music notation software built as a customizable workstation. Early development.*
 
-> **Status:** v0.24 – Noteneingabe wie in Finale (Simple Entry oder Ziffernblock) oder Logic Pro
+> **Status:** v0.25 – Befehlspalette (Strg+K), Noteneingabe wie in Finale (Simple Entry oder Ziffernblock) oder Logic Pro
 > ([alle Tasten](docs/tastenbelegung.md)), Piano-Roll unter der Notenschrift, Wiedergabe mit
 > Instrumentenklängen, Gitarrentabulatur mit Stimmungen, Liedtext, Akkordsymbole, Triolen,
 > Sonderzeichen (Dynamik, Wiederholungen, Sprünge), Transponieren, Import von MusicXML, MIDI und

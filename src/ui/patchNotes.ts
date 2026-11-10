@@ -12,6 +12,15 @@ export interface PatchNote {
 /** Newest first. Keep each line to one short sentence. */
 export const PATCH_NOTES: readonly PatchNote[] = [
   {
+    version: '0.25.0',
+    items: [
+      'Befehlspalette (Strg+K): ein Suchfeld findet jede Funktion und führt sie aus – ihre Taste steht daneben.',
+      'Partitur-Einstellungen: Instrumente umbenennen (Name überschreiben) und entfernen (✕). Das gilt erst mit „Übernehmen“, Strg+Z holt die Zeile zurück.',
+      'Bibliothek: Partituren mit der Maus auf eine Sammlung, auf „Alle“ oder auf den Papierkorb ziehen.',
+      'Behoben: Die Seitenvorschau beim Drucken zeigt wieder Notenköpfe und Schlüssel, und in schmaleren Fenstern liegt die Transportleiste nicht mehr über dem Titel.',
+    ],
+  },
+  {
     version: '0.24.0',
     items: [
       'Neues Startbild: beim Öffnen baut sich ein E7♯9 auf, und der Klang erscheint als Sand auf einer schwingenden Platte. Ein Klick oder eine Taste überspringt es.',
