@@ -38,7 +38,8 @@ export type UiCommandId =
   | 'edit.copy'
   | 'edit.cut'
   | 'edit.paste'
-  | 'edit.transpose';
+  | 'edit.transpose'
+  | 'view.palette';
 
 /** Functions handled by the mouse, listed for the help only. */
 export const MOUSE_COMMANDS = new Set([
@@ -91,6 +92,7 @@ export const UI_COMMANDS: ReadonlySet<string> = new Set<UiCommandId>([
   'edit.cut',
   'edit.paste',
   'edit.transpose',
+  'view.palette',
 ]);
 
 export type PresetId = 'finale' | 'logic' | 'speedy';
@@ -237,6 +239,49 @@ export function buildKeymap(id: PresetId, library: KeyLibrary = KEY_LIBRARY, mac
   }
   const meta = library.presets[id];
   return { id, name: meta.name, description: meta.description, bindings, help };
+}
+
+// ── Command palette (Ctrl+K) ───────────────────────────────────────────────
+
+export interface PaletteEntry {
+  readonly title: string;
+  /** The heading the function stands under in the key help. */
+  readonly group: string;
+  /** Its key in the chosen layout, readable ("Strg+Umschalt+T"); empty when it has none. */
+  readonly keys: string;
+  readonly command: CommandId | UiCommandId;
+  readonly arg?: number;
+}
+
+/** Every function that can be run, one entry per variant (e.g. per note value), with its key in the given layout. */
+export function paletteEntries(id: PresetId, library: KeyLibrary = KEY_LIBRARY, mac = isMac()): PaletteEntry[] {
+  const entries: PaletteEntry[] = [];
+  for (const group of library.groups) {
+    for (const fn of group.functions) {
+      if (!fn.command || MOUSE_COMMANDS.has(fn.command) || fn.command === 'view.palette') continue;
+      const command = fn.command as CommandId | UiCommandId;
+      const pairsIn = (p: PresetKeys | undefined) => (p ? keyPairs(p.keys) : []);
+      const own = pairsIn(fn[id] ?? (id === 'speedy' ? fn.finale : undefined));
+      const keysOf = (arg: string | undefined) => (own.find((p) => p.arg === arg)?.keys ?? []).map((k) => displayCombo(k, mac)).join(' / ');
+      // The variants: named in `args`, or the arguments any layout has keys for.
+      const variants = fn.args ? Object.keys(fn.args) : [...new Set([fn.finale, fn.logic, fn.speedy].flatMap((p) => pairsIn(p).flatMap((x) => (x.arg === undefined ? [] : [x.arg]))))];
+      if (variants.length === 0) entries.push({ title: fn.title, group: group.title, keys: keysOf(undefined), command });
+      for (const arg of variants) entries.push({ title: `${fn.title}: ${fn.args?.[arg] ?? arg}`, group: group.title, keys: keysOf(arg), command, arg: Number(arg) });
+    }
+  }
+  return entries;
+}
+
+/** The entries that contain every word of the query (in title, heading or key); those whose title starts with it come first. */
+export function searchPalette(entries: readonly PaletteEntry[], query: string): PaletteEntry[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [...entries];
+  const hits = entries.filter((e) => {
+    const text = `${e.title} ${e.group} ${e.keys}`.toLowerCase();
+    return words.every((w) => text.includes(w));
+  });
+  const first = (e: PaletteEntry) => (e.title.toLowerCase().startsWith(words[0]!) ? 0 : 1);
+  return hits.sort((a, b) => first(a) - first(b)); // stable: otherwise the order of the key help
 }
 
 export function findBinding(keymap: Keymap, combo: string): KeyBinding | undefined {

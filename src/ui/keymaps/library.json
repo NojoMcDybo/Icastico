@@ -618,6 +618,13 @@
           "logic": { "keys": ["F1", "?"], "source": "icastico" }
         },
         {
+          "id": "view.palette",
+          "title": "Befehlspalette: jede Funktion suchen und ausführen",
+          "command": "view.palette",
+          "finale": { "keys": ["Mod+K"], "source": "icastico" },
+          "logic": { "keys": ["Mod+K"], "source": "icastico" }
+        },
+        {
           "id": "library.menu",
           "title": "Partitur in der Bibliothek: Öffnen, Duplizieren, in eine Sammlung verschieben, Speicherort öffnen, in den Papierkorb",
           "command": "ui.control",

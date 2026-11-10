@@ -1895,6 +1895,80 @@ button.lcd__cell:nth-child(3) {
   }
 }
 
+/* Command palette (Ctrl+K): a glass pane in the upper third – a search field and the list of functions. */
+.palette {
+  place-items: start center;
+  padding-top: 14vh;
+}
+
+.palette__box {
+  overflow: hidden;
+  width: min(580px, 100%);
+  border: 1px solid var(--glass-edge);
+  border-radius: 22px;
+  /* denser than the other glass panes: the list is read over the white paper */
+  background: var(--glass-bg), rgb(30 31 36 / 0.92);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+  animation: symbols-in 0.32s var(--spring);
+}
+
+.palette__input {
+  width: 100%;
+  padding: 15px 20px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  outline: none; /* the only field here; the blue bar below marks the chosen function */
+}
+
+.palette__list {
+  overflow: auto;
+  max-height: 48vh;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+}
+
+.palette__item {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 7px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.palette__item:hover {
+  background: rgb(255 255 255 / 0.07);
+}
+
+.palette__item.is-active {
+  background: rgb(117 184 255 / 0.18);
+}
+
+.palette__title {
+  flex: 1;
+  min-width: 0;
+}
+
+.palette__keys {
+  min-width: 96px;
+  color: var(--dim);
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.palette__none {
+  padding: 12px 14px;
+  color: var(--dim);
+}
+
 /* The circle of fifths (key chooser) */
 .keypicker {
   position: fixed;

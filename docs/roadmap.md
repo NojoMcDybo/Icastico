@@ -70,7 +70,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 
 ## Schritt 2 – Workstation
 
-- [ ] Befehlspalette (Strg+K)
+- [x] Befehlspalette (Strg+K): Suchfeld über der Partitur, findet jede Funktion (auch je Notenwert, Intervall …) mit ihrer Taste in der gewählten Belegung; ↑/↓ wählt, Enter führt aus, Esc schließt (ADR 0004)
 - [ ] Panels andockbar, Layout speicherbar
 - [ ] Workspaces pro Instrument/Aufgabe
 - [ ] Tastenbelegung frei anpassbar (Grundlage: Bibliothek, ADR 0011)

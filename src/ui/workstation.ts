@@ -83,7 +83,8 @@ import type { UpdateChecker } from './updates';
 import { loadRollSynth, saveRollSynth, loadNewScoreDefaults, loadPdfSetup, loadView, savePdfSetup, saveKeymapPreset, saveLastOpened, saveNewScoreDefaults, saveView, loadMetronome, saveMetronome, loadZoom, saveZoom, ZOOM_MAX, ZOOM_MIN } from './preferences';
 import { scoreDialog } from './scoreDialog';
 import { comboOf, numpadComboOf } from './keys';
-import { type Keymap, type PresetId, type UiCommandId, buildKeymap, findBinding, KEY_LIBRARY, PRESETS } from './keymaps/library';
+import { type Keymap, type PresetId, type UiCommandId, buildKeymap, findBinding, KEY_LIBRARY, paletteEntries, PRESETS } from './keymaps/library';
+import { commandPalette } from './commandPalette';
 
 export interface WorkstationElements {
   readonly pages: HTMLElement;
@@ -123,7 +124,7 @@ const AUTOSAVE_DELAY = 1000;
 /** Commands that make sense without an open score. */
 /** What works on a chosen syllable instead of on the notes. */
 const SYLLABLE_COMMANDS = new Set<string>(['edit.delete', 'edit.backspace', 'edit.copy', 'edit.cut', 'edit.paste']);
-const WITHOUT_DOCUMENT = new Set<string>(['file.new', 'file.open', 'library.toggle', 'view.help', 'view.voiceTest']);
+const WITHOUT_DOCUMENT = new Set<string>(['file.new', 'file.open', 'library.toggle', 'view.help', 'view.voiceTest', 'view.palette']);
 
 const isInside = (root: string, path: string): boolean => {
   const norm = (p: string) => p.replace(/\\/g, '/').toLowerCase();
@@ -538,6 +539,9 @@ export class Workstation {
       case 'view.help':
         this.el.help.hidden = false;
         this.el.help.querySelector<HTMLInputElement>('.help__search')?.focus();
+        return;
+      case 'view.palette':
+        void commandPalette(paletteEntries(this.keymap.id)).then((pick) => pick && this.run(pick.command, pick.arg ?? 0));
         return;
       case 'view.roll':
         this.toggleRoll();

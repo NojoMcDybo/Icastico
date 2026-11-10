@@ -113,6 +113,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Liedtext-Feld: Text mit Bindestrichen eintippen, dann Silbe und Noten anklicken | `L` *(Icastico)* – Silbe im Feld anklicken, dann die Noten der Reihe nach: jede bekommt die Silbe, danach springt das Feld zur nächsten. „_“ = Note ohne Silbe; „Ab gewählter Note alle setzen“ legt den Text auf einmal darunter. | `L` *(Icastico)* | (wie Finale) | ✓ |
 | Akkordsymbol an dieser Stelle eingeben (leer = löschen) | `K` *(Icastico)* – Zum Beispiel Am7 oder C/G; das Symbol bleibt an seiner Zeit stehen. | `Umschalt+K` *(Icastico)* – In dieser Belegung ist K das Metronom. | (wie Finale) | ✓ |
 | Tastenhilfe | `F1` / `?` *(Icastico)* | `F1` / `?` *(Icastico)* | (wie Finale) | ✓ |
+| Befehlspalette: jede Funktion suchen und ausführen | `Strg+K` *(Icastico)* | `Strg+K` *(Icastico)* | (wie Finale) | ✓ |
 | Partitur in der Bibliothek: Öffnen, Duplizieren, in eine Sammlung verschieben, Speicherort öffnen, in den Papierkorb | *Bibliothek (Strg+O): Menü ⋯ an der Partitur* | *Bibliothek (Strg+O): Menü ⋯ an der Partitur* | (wie Finale) | ✓ |
 | Exportieren: PDF, MusicXML, MIDI oder Icastico-Datei | *Bibliothek: Menü ⋯ → Exportieren (PDF, MusicXML und MIDI auch mit den Tasten oben)* | *Bibliothek: Menü ⋯ → Exportieren (PDF, MusicXML und MIDI auch mit den Tasten oben)* | (wie Finale) | ✓ |
 | Sammlungen: Partituren ordnen, Sammlung umbenennen oder (leer) löschen | *Bibliothek: Reiter oben und Menü ⋯ an der Sammlung* | *Bibliothek: Reiter oben und Menü ⋯ an der Sammlung* | (wie Finale) | ✓ |

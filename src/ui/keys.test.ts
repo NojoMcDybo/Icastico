@@ -9,6 +9,8 @@ import {
   MOUSE_COMMANDS,
   renderKeyDoc,
   UI_COMMANDS,
+  paletteEntries,
+  searchPalette,
 } from './keymaps/library';
 import { COMMANDS, newScoreState, runCommand, type CommandId } from '../core/editor/commands';
 import { validateScore } from '../core/model';
@@ -207,5 +209,31 @@ describe('key-binding library', () => {
 
   it('docs/tastenbelegung.md is up to date (npm run keys:doc)', async () => {
     await expect(renderKeyDoc()).toMatchFileSnapshot('../../docs/tastenbelegung.md');
+  });
+});
+
+describe('command palette (Ctrl+K)', () => {
+  const entries = paletteEntries('finale', KEY_LIBRARY, false);
+
+  it('lists every function that can be run, with its key in the chosen layout', () => {
+    expect(entries.every((e) => e.command in COMMANDS || UI_COMMANDS.has(e.command))).toBe(true);
+    const listed = new Set<string>(entries.map((e) => e.command));
+    expect([...UI_COMMANDS].filter((c) => c !== 'view.palette' && !listed.has(c))).toEqual([]);
+    expect(listed.has('view.palette')).toBe(false); // it does not offer itself
+    expect(entries.find((e) => e.command === 'edit.transpose')?.keys).toBe('Strg+Umschalt+T');
+  });
+
+  it('a function with variants appears once per variant, each with its argument', () => {
+    const lengths = entries.filter((e) => e.command === 'input.duration');
+    expect(lengths.length).toBeGreaterThan(4);
+    expect(new Set(lengths.map((e) => e.arg)).size).toBe(lengths.length);
+    expect(lengths.some((e) => /Viertel/.test(e.title))).toBe(true);
+  });
+
+  it('finds by words in any order; a title that starts with the search comes first', () => {
+    expect(searchPalette(entries, 'transp')[0]?.command).toBe('edit.transpose');
+    expect(searchPalette(entries, 'strg+umschalt+t').some((e) => e.command === 'edit.transpose')).toBe(true);
+    expect(searchPalette(entries, 'gibtesnicht')).toEqual([]);
+    expect(searchPalette(entries, '  ')).toHaveLength(entries.length);
   });
 });

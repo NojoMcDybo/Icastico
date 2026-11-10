@@ -461,7 +461,15 @@ try {
   await type('5', 'c', 'Shift+g', 'c', 'c', 'd', 'Escape'); // chord C+G, C, C, D – quarters without gaps
   await type('Control+Shift+P');
   check((await bars.count()) === 5, 'Neue Partitur: Akkord C+G, C, C, D – fünf Balken in der Roll');
-  const barWidth = async (i) => (await bars.nth(i).boundingBox()).width;
+  const barWidth = async (i) => {
+    // The roll draws its bars anew when its size settles: a bar caught in between has no box yet.
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const box = await bars.nth(i).boundingBox();
+      if (box) return box.width;
+      await page.waitForTimeout(50);
+    }
+    throw new Error(`Balken ${i} der Piano-Roll ist nicht zu sehen`);
+  };
   const chordLowBefore = await barWidth(0);
 
   await bars.nth(1).click(); // the G of the chord
@@ -1464,6 +1472,21 @@ try {
 
   check(/Einen Takt zurück/.test(helpText) && /Knöpfe ⏪ und ⏩/.test(helpText) && /Klammer oder Akkolade/.test(helpText) && /Menü ⋯ an der Partitur/.test(helpText), 'Tastenhilfe: auch Funktionen mit Knopf, Menü oder Palette stehen drin, mit Hinweis, wo man sie findet');
   await type('Escape');
+
+  // ── Befehlspalette (Strg+K) ──
+  await type('Control+k');
+  await page.waitForSelector('.palette__input');
+  await page.keyboard.type('transp');
+  check(/^Transponieren/.test(await page.locator('.palette__item.is-active').textContent()), 'Befehlspalette: Strg+K öffnet das Suchfeld, „transp“ findet „Transponieren“');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('.transpose .wheel');
+  check((await page.locator('.palette').count()) === 0, 'Befehlspalette: Enter führt die Funktion aus (das Transponieren-Fenster öffnet sich)');
+  await page.click('.transpose button:has-text("Abbrechen")');
+  await page.waitForSelector('.transpose', { state: 'detached' });
+  await type('Control+k');
+  await page.waitForSelector('.palette__input');
+  await page.keyboard.press('Escape');
+  check((await page.locator('.palette').count()) === 0, 'Befehlspalette: Esc schließt sie, ohne etwas auszuführen');
 
   // ── Triolen (Alt+9 in der Finale-Belegung) ──
   await newScore('Triolen-Test');

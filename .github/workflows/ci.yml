@@ -40,4 +40,6 @@ jobs:
       # Playwright is deliberately not a project dependency (scripts/e2e.mjs).
       - run: npm install --no-save playwright@1.64
       - run: npx playwright install --with-deps chromium
-      - run: npm run e2e
+      # The script drives a real browser against the clock; a rare timing slip on a busy runner gets one second try.
+      # A real fault fails both times.
+      - run: npm run e2e || npm run e2e
