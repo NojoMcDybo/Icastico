@@ -1,4 +1,4 @@
-# Fast checks on every push and pull request: types, tests, web build.
+# Checks on every push and pull request: types, tests, web build, and the surface end to end.
 name: CI
 
 on:
@@ -18,3 +18,26 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npx vite build
+
+  # The whole surface in a real (headless) browser: every function once, as the owner would use it.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Instrument sounds and the speech model (about 85 MB together) are not in git; the build fetches them once.
+      - uses: actions/cache@v6
+        with:
+          path: |
+            public/sounds/*.sf3
+            public/voice/*.tar.gz
+          key: assets-${{ hashFiles('scripts/fetch-sounds.mjs', 'scripts/fetch-voice.mjs') }}
+      - run: npm run build
+      # Playwright is deliberately not a project dependency (scripts/e2e.mjs).
+      - run: npm install --no-save playwright@1.64
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
