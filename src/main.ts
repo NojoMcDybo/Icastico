@@ -63,6 +63,7 @@ async function start(): Promise<void> {
     updates,
   );
   flush = () => workstation.flush();
+  $('help-button').addEventListener('click', () => workstation.run('view.help'));
   await workstation.openInitial(loadLastOpened());
   await splash.done();
   updates?.scheduleQuietCheck();

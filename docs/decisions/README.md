@@ -38,16 +38,6 @@ Was wird dadurch leichter, was schwerer?
 | 0008 | [Auftakt und globale Partitur-Einstellungen](0008-auftakt-und-einstellungen.md) | angenommen |
 | 0009 | [Bibliothek: eigener Ordner, Sammlungen, automatisches Speichern](0009-bibliothek.md) | angenommen (Referenz: Owner-App Folio) |
 | 0010 | [Installer, Desktop-Verknüpfung, automatische Updates](0010-updates.md) | angenommen |
-| 0025 | [Sprachtest: Vosk im Fenster](0025-sprachtest.md) | angenommen |
-| 0027 | [Bereiche, Transponieren, mehr Zeichen, Tabulatur, Export](0027-bereich-transponieren-zeichen.md) | angenommen |
-| 0034 | [Startbild: Akkord als Sand auf der Platte](0034-startbild-chladni.md) | angenommen |
-| 0033 | [Silben wählen und verschieben, Druckvorschau, TAB-Zeile mit Stimmung, durchgehende Taktstriche](0033-silben-druckvorschau-und-tabulatur-zeile.md) | angenommen |
-| 0032 | [Tabulatur: Stimmung, Bund und Saite, Noten hineinziehen; Akkordtöne einzeln](0032-tabulatur-stimmung-bund-und-ziehen.md) | angenommen |
-| 0031 | [Sprünge genau auf der Note; Takte pro Zeile](0031-sprunege-auf-noten-und-zeilenumbrueche.md) | angenommen |
-| 0030 | [Tabulatur als Instrument, Oktave/Vorzeichen für die nächste Note, Metronom, Cycle, Zoom, Quantisieren, Drucken](0030-tabulatur-instrument-und-schlussfunktionen.md) | angenommen |
-| 0029 | [Liedtext-Feld, Bindebogen mit T, stille Vorschau-Note](0029-liedtext-feld-und-bindebogen.md) | angenommen |
-| 0028 | [MIDI und Einzelstimmen-Aufnahmen importieren (Quantisierung)](0028-midi-und-aufnahmen-importieren.md) | angenommen |
-| 0026 | [Roll-Klaviatur, Synth-Klang, Gleiten in einen Ton, Rückmeldung](0026-roll-und-rueckmeldung.md) | angenommen |
 | 0011 | [Bibliothek der Tastenbelegungen (Finale + Logic), Ziehen mit der Maus](0011-tastenbelegung-bibliothek.md) | angenommen |
 | 0012 | [Jeder Ton hat eine dauerhafte Nummer (Ton-ID)](0012-ton-identitaet.md) | angenommen |
 | 0013 | [Piano-Roll als zweite Ansicht derselben Töne](0013-piano-roll.md) | angenommen |
@@ -62,3 +52,14 @@ Was wird dadurch leichter, was schwerer?
 | 0022 | [Gitarrentabulatur](0022-tabulatur.md) | angenommen |
 | 0023 | [PDF, Notenblätter und Einzelstimmen](0023-pdf-und-einzelstimmen.md) | angenommen |
 | 0024 | [Bibliothek der Sonderzeichen](0024-zeichen-bibliothek.md) | angenommen |
+| 0025 | [Sprachtest: Vosk im Fenster](0025-sprachtest.md) | angenommen |
+| 0026 | [Roll-Klaviatur, Synth-Klang, Gleiten in einen Ton, Rückmeldung](0026-roll-und-rueckmeldung.md) | angenommen |
+| 0027 | [Bereiche, Transponieren, mehr Zeichen, Tabulatur, Export](0027-bereich-transponieren-zeichen.md) | angenommen |
+| 0028 | [MIDI und Einzelstimmen-Aufnahmen importieren (Quantisierung)](0028-midi-und-aufnahmen-importieren.md) | angenommen |
+| 0029 | [Liedtext-Feld, Bindebogen mit T, stille Vorschau-Note](0029-liedtext-feld-und-bindebogen.md) | angenommen |
+| 0030 | [Tabulatur als Instrument, Oktave/Vorzeichen für die nächste Note, Metronom, Cycle, Zoom, Quantisieren, Drucken](0030-tabulatur-instrument-und-schlussfunktionen.md) | angenommen |
+| 0031 | [Sprünge genau auf der Note; Takte pro Zeile](0031-sprunege-auf-noten-und-zeilenumbrueche.md) | angenommen |
+| 0032 | [Tabulatur: Stimmung, Bund und Saite, Noten hineinziehen; Akkordtöne einzeln](0032-tabulatur-stimmung-bund-und-ziehen.md) | angenommen |
+| 0033 | [Silben wählen und verschieben, Druckvorschau, TAB-Zeile mit Stimmung, durchgehende Taktstriche](0033-silben-druckvorschau-und-tabulatur-zeile.md) | angenommen |
+| 0034 | [Startbild: Akkord als Sand auf der Platte](0034-startbild-chladni.md) | angenommen |
+| 0035 | [Schutzregel für geladene Inhalte (CSP)](0035-schutzregel-csp.md) | angenommen |

@@ -111,6 +111,8 @@ Veröffentlichung über `.github/workflows/release.yml` (Tag `vX.Y.Z`).
 
 ### 9. Native Hülle – `src-tauri/`
 
+Was das Fenster laden und ausführen darf, regelt eine Content Security Policy, die `vite.config.ts` beim Bauen in `index.html` einsetzt (ADR 0035).
+
 Tauri 2. `library.rs`: Bibliotheksordner finden/anlegen, durchsuchen,
 anlegen/umbenennen/löschen – nur innerhalb des Ordners. `lib.rs`:
 Plugins: Dialog, Opener, Process, Updater.
