@@ -1206,6 +1206,24 @@ try {
   check(/"verses": \{\s*"2": "Ei-"/.test(verseFile), 'Strophen: die zweite Strophe steht in der gespeicherten Datei');
   await page.click('.lyrics__close');
 
+  // ── Akkord nach Namen (Strg+Umschalt+K) ──
+  await newScore('Akkordname-Test');
+  await type('5');
+  await type('Control+Shift+K');
+  await page.waitForSelector('.modal h2:text("Akkord nach Namen")');
+  await page.fill('#chord-name', 'Cm7');
+  check(/C Es G B/.test(await page.locator('#chord-preview').textContent()), 'Akkord nach Namen: die Vorschau nennt die Töne in deutschen Namen (Cm7 → C Es G B)');
+  await page.fill('#chord-name', 'Xyz');
+  check(await page.locator('.modal button[type="submit"]').isDisabled(), 'Akkord nach Namen: ein unbekannter Name sperrt „Übernehmen“');
+  await page.fill('#chord-name', 'Cm7');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction(() => document.querySelectorAll('.page g.chord').length === 1);
+  check((await page.locator('.page g.chord g.note').count()) === 4, 'Akkord nach Namen: Cm7 steht als ein Akkord aus vier Tönen an der Schreibmarke');
+  check(/Cm7/.test(await page.locator('.page g.harm').textContent()), 'Akkord nach Namen: das Akkordsymbol Cm7 steht darüber');
+  await page.screenshot({ path: join(outDir, 'akkordname.png') });
+  await type('Control+z');
+  check((await page.locator('.page g.chord').count()) === 0 && (await page.locator('.page g.harm').count()) === 0, 'Akkord nach Namen: ein Schritt Rückgängig nimmt Töne und Akkordsymbol zurück');
+
   // ── Punktierung per Ziffernblock-Komma, Bindebogen mit T ──
   await newScore('Bogen-Test');
   await type('5', 'c', 'd', 'Escape');

@@ -7,7 +7,8 @@
 import { LyricsPanel } from './lyricsPanel';
 import { lyricOf, syllableId, verseOfSyllableId } from '../core/lyrics';
 import { type SyllableClip, chosenNotes, clearSyllables, copySyllables, moveSyllable, pasteSyllables } from '../core/editor/lyricOps';
-import { type CommandId, chordSymbolText, dropBarSign, dropNoteSign, eraseBarSign, eraseNoteSign, ghostPitches, signsAtFocus, lyricsText, newScoreState, runCommand, setChordSymbol, setLyricOf, setLyrics } from '../core/editor/commands';
+import { chordDialog } from './chordDialog';
+import { type CommandId, chordSymbolText, dropBarSign, enterChordByName, dropNoteSign, eraseBarSign, eraseNoteSign, ghostPitches, signsAtFocus, lyricsText, newScoreState, runCommand, setChordSymbol, setLyricOf, setLyrics } from '../core/editor/commands';
 import { demoScore } from '../core/demo';
 import { History } from '../core/editor/history';
 import { type EditorState, type VoiceRef, allVoiceRefs, createEditorState, getVoice, inputLength, staffCenter } from '../core/editor/state';
@@ -81,7 +82,7 @@ import {
 } from './lanes';
 import { Thumbnails } from './thumbnails';
 import type { UpdateChecker } from './updates';
-import { loadRollSynth, saveRollSynth, loadNewScoreDefaults, loadPdfSetup, loadView, savePdfSetup, saveKeymapPreset, saveLastOpened, saveNewScoreDefaults, saveView, loadMetronome, saveMetronome, loadZoom, saveZoom, ZOOM_MAX, ZOOM_MIN } from './preferences';
+import { loadChordSymbolWithNotes, saveChordSymbolWithNotes, loadRollSynth, saveRollSynth, loadNewScoreDefaults, loadPdfSetup, loadView, savePdfSetup, saveKeymapPreset, saveLastOpened, saveNewScoreDefaults, saveView, loadMetronome, saveMetronome, loadZoom, saveZoom, ZOOM_MAX, ZOOM_MIN } from './preferences';
 import { scoreDialog } from './scoreDialog';
 import { comboOf, numpadComboOf } from './keys';
 import { type Keymap, type PresetId, type UiCommandId, buildKeymap, findBinding, KEY_LIBRARY, paletteEntries, PRESETS } from './keymaps/library';
@@ -620,6 +621,9 @@ export class Workstation {
       case 'text.chord':
         void this.editChord();
         return;
+      case 'input.chordName':
+        void this.enterChordName();
+        return;
       case 'file.new':
         void this.fileNew();
         return;
@@ -1054,6 +1058,16 @@ export class Workstation {
       confirm: 'Übernehmen',
     });
     if (text !== null) this.history.apply(setChordSymbol(this.state, text));
+    this.update();
+  }
+
+  /** A chord by name ("Cm7") at the caret – one undoable step (ADR 0037). */
+  private async enterChordName(): Promise<void> {
+    if (this.empty) return;
+    const choice = await chordDialog({ symbol: loadChordSymbolWithNotes() });
+    if (!choice) return;
+    saveChordSymbolWithNotes(choice.symbol);
+    this.history.apply(enterChordByName(this.state, choice.text, { inversion: choice.inversion, symbol: choice.symbol }));
     this.update();
   }
 

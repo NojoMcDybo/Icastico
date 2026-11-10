@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { frac } from '../time';
 import { pitchToString } from '../pitch';
-import { type CommandId, chordSymbolText, ghostPitches, lyricsText, newScoreState, runCommand, setChordSymbol, setLyrics } from './commands';
+import { validateScore } from '../model';
+import { type CommandId, chordSymbolText, enterChordByName, ghostPitches, lyricsText, newScoreState, runCommand, setChordSymbol, setLyrics } from './commands';
 import { getVoice, type EditorState, type VoiceRef } from './state';
 
 const VOICE: VoiceRef = { partId: 'voice', voiceId: 'voice-v1' };
@@ -106,5 +107,40 @@ describe('tuplet mode (ADR 0020)', () => {
   it('quintuplet sixteenths fit a quarter', () => {
     const s = run(newScoreState(), ['input.length', 3], ['input.tuplet', 5], ...Array.from({ length: 5 }, (): [CommandId] => ['input.repeat']));
     expect(s.caret!.time).toEqual(frac(1, 4));
+  });
+});
+
+describe('a chord entered by name (ADR 0037)', () => {
+  const quarter = (): EditorState => run(newScoreState(), ['input.duration', 5]);
+
+  it('puts all tones of "Cm7" on one note, moves the caret on by the note value, one undo step', () => {
+    const s = enterChordByName(quarter(), 'Cm7');
+    expect(getVoice(s.score, VOICE).voice.events).toHaveLength(1);
+    const names = getVoice(s.score, VOICE).voice.events[0]!.tones.map((t) => pitchToString(t.pitch).replace(/\d/, ''));
+    expect(names).toEqual(['C', 'Eb', 'G', 'Bb']);
+    expect(s.caret!.time).toEqual(frac(1, 4));
+    const ids = getVoice(s.score, VOICE).voice.events[0]!.tones.map((t) => t.id);
+    expect(new Set(ids).size).toBe(4);
+    expect(validateScore(s.score)).toEqual([]);
+  });
+
+  it('a second chord follows the first', () => {
+    const s = enterChordByName(enterChordByName(quarter(), 'C'), 'G7');
+    expect(getVoice(s.score, VOICE).voice.events.map((e) => e.tones.length)).toEqual([3, 4]);
+    expect(s.caret!.time).toEqual(frac(1, 2));
+    expect(validateScore(s.score)).toEqual([]);
+  });
+
+  it('turns the chord and can write the chord symbol above', () => {
+    const s = enterChordByName(quarter(), 'C', { inversion: 1, symbol: true });
+    expect(getVoice(s.score, VOICE).voice.events[0]!.tones.map((t) => pitchToString(t.pitch).replace(/\d/, ''))).toEqual(['E', 'G', 'C']);
+    expect(s.score.chords).toEqual([{ at: frac(0), text: 'C' }]);
+  });
+
+  it('an unknown name changes nothing and says so', () => {
+    const before = quarter();
+    const s = enterChordByName(before, 'Xyz');
+    expect(s.score).toBe(before.score);
+    expect(s.message).toMatch(/kenne ich nicht/);
   });
 });

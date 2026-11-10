@@ -64,3 +64,4 @@ Was wird dadurch leichter, was schwerer?
 | 0034 | [Startbild: Akkord als Sand auf der Platte](0034-startbild-chladni.md) | angenommen |
 | 0035 | [Schutzregel für geladene Inhalte (CSP)](0035-schutzregel-csp.md) | angenommen |
 | 0036 | [Mehrere Strophen Liedtext](0036-mehrere-strophen.md) | angenommen |
+| 0037 | [Akkord nach Namen eingeben](0037-akkord-nach-namen.md) | angenommen |

@@ -617,6 +617,13 @@
           "logic": { "keys": ["Shift+K"], "source": "icastico", "note": "In dieser Belegung ist K das Metronom." }
         },
         {
+          "id": "input.chordName",
+          "title": "Akkord nach Namen eingeben (Cm7, G7, C/G): setzt die Töne an der Schreibmarke",
+          "command": "input.chordName",
+          "finale": { "keys": ["Mod+Shift+K"], "source": "icastico", "note": "Fenster: Namen eintippen, Umkehrung wählen, wahlweise das Akkordsymbol darüber." },
+          "logic": { "keys": ["Mod+Shift+K"], "source": "icastico", "note": "Fenster: Namen eintippen, Umkehrung wählen, wahlweise das Akkordsymbol darüber." }
+        },
+        {
           "id": "view.help",
           "title": "Tastenhilfe",
           "command": "view.help",

@@ -136,6 +136,25 @@ export function saveSeenVersion(version: string): void {
   }
 }
 
+const CHORD_SYMBOL_KEY = 'icastico.chordSymbolWithNotes';
+
+/** Whether a chord entered by name also writes its chord symbol above the notes (on unless switched off). */
+export function loadChordSymbolWithNotes(): boolean {
+  try {
+    return localStorage.getItem(CHORD_SYMBOL_KEY) !== '0';
+  } catch {
+    return true;
+  }
+}
+
+export function saveChordSymbolWithNotes(on: boolean): void {
+  try {
+    localStorage.setItem(CHORD_SYMBOL_KEY, on ? '1' : '0');
+  } catch {
+    // Storage unavailable – it starts on next time.
+  }
+}
+
 const ROLL_SYNTH_KEY = 'icastico.rollSynth';
 
 /** Whether the piano roll's synthesizer sound (nothing dies away) is on. */

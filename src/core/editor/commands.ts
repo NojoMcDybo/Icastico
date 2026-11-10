@@ -16,6 +16,7 @@ import { type BarSign, BAR_SIGNS, GROUP_SIGNS, NOTE_SYMBOLS, barSign, canSitOnNo
 import { type BarMark, type StaffGroup, type ChordSymbol, type Link, type LinkKind, type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, measuresOf } from '../model';
 import { decomposeNote, writtenValue } from '../notation/notate';
 import { lyricOf, withLyric } from '../lyrics';
+import { chordPitches, parseChordName } from '../chordNames';
 import { emptyScore } from '../templates';
 import {
   type Caret,
@@ -1029,11 +1030,40 @@ export function chordSymbolText(s: EditorState): string | null {
 export function setChordSymbol(s: EditorState, text: string): EditorState {
   const time = chordTime(s);
   if (!time) return say(s, NO_NOTE);
+  return { ...s, score: withChordSymbol(s.score, time, text), message: null };
+}
+
+/** The score with the chord symbol at `at` set (or, with empty text, removed). */
+function withChordSymbol(score: Score, at: Fraction, text: string): Score {
   const symbol = text.trim();
-  const others = (s.score.chords ?? []).filter((c) => !eq(c.at, time));
-  const chords: ChordSymbol[] = symbol ? [...others, { at: time, text: symbol }].sort((a, b) => compare(a.at, b.at)) : others;
-  const { chords: _old, ...rest } = s.score;
-  return { ...s, score: chords.length ? { ...rest, chords } : rest, message: null };
+  const others = (score.chords ?? []).filter((c) => !eq(c.at, at));
+  const chords: ChordSymbol[] = symbol ? [...others, { at, text: symbol }].sort((a, b) => compare(a.at, b.at)) : others;
+  const { chords: _old, ...rest } = score;
+  return chords.length ? { ...rest, chords } : rest;
+}
+
+/** Puts the notes of a named chord ("Cm7") at the caret, in the chosen note value; optionally the chord symbol above (ADR 0037). */
+export function enterChordByName(s0: EditorState, text: string, options: { inversion?: number; symbol?: boolean } = {}): EditorState {
+  const name = parseChordName(text);
+  if (!name) return say(s0, `Diesen Akkord kenne ich nicht: „${text.trim()}“. Beispiele: C, Am, G7, Fmaj7, Dm7b5, C/G.`);
+  // The root goes in like any typed note (note value, overwrite / insert, tuplets, moving on); its accidental is the one of the name.
+  const entered = enterPitch({ ...s0, input: { ...s0.input, chord: false, chordEvent: null } }, name.root.step, name.root.alter);
+  const t = entered === s0 ? null : target(entered);
+  if (!t) return entered;
+  const rootTone = t.event.tones[0]!;
+  const pitches = chordPitches(name, rootTone.pitch, options.inversion ?? 0);
+  // The root keeps its tone id, the others get fresh ones – one after the other, so that no id is used twice.
+  let score = entered.score;
+  const tones: Tone[] = [];
+  for (const pitch of pitches) {
+    const same = pitch.step === rootTone.pitch.step && pitch.alter === rootTone.pitch.alter && pitch.octave === rootTone.pitch.octave;
+    const tone: Tone = same && !tones.some((x) => x.id === rootTone.id) ? rootTone : { id: freshToneId(score, t.event.id), pitch };
+    tones.push(tone);
+    score = updateEvents(score, t.ref, (events) => events.map((e) => (e.id === t.event.id ? { ...e, tones: [...tones] } : e)));
+  }
+  score = updateEvents(score, t.ref, (events) => events.map((e) => (e.id === t.event.id ? { ...e, tones: sortTones(tones) } : e)));
+  if (options.symbol) score = withChordSymbol(score, t.event.onset, name.label);
+  return { ...entered, score, message: null };
 }
 
 /** Fresh editor on a (by default empty) score, caret ready in the first staff. */

@@ -1059,6 +1059,15 @@ body.is-dragging-note * {
   background: rgb(255 255 255 / 0.14);
 }
 
+.chips button.is-active {
+  background: rgb(117 184 255 / 0.22);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.chips button:disabled {
+  opacity: 0.4;
+}
+
 .chips button:active {
   transform: scale(0.93);
 }
