@@ -3,7 +3,7 @@ import { FileFormatError, FORMAT_VERSION, fileVersion, parseScoreFile, serialize
 import { pitchToString } from '../pitch';
 import { type Score, validateScore, withTempo } from '../model';
 import { frac } from '../time';
-import { applyScoreChanges } from '../templates';
+import { applyScoreChanges, createScore, DEFAULT_SETUP } from '../templates';
 import version1File from './fixtures/version1.icastico?raw';
 import version2File from './fixtures/version2.icastico?raw';
 import version3File from './fixtures/version3.icastico?raw';
@@ -19,6 +19,7 @@ import version12File from './fixtures/version12.icastico?raw';
 import version13File from './fixtures/version13.icastico?raw';
 import version14File from './fixtures/version14.icastico?raw';
 import version15File from './fixtures/version15.icastico?raw';
+import version16File from './fixtures/version16.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -512,5 +513,30 @@ describe('format version 16: verses 2 to 4', () => {
     expect(() => parseScoreFile(withVerses({ '2': '' }))).toThrow(/Liedtext/);
     expect(() => parseScoreFile(withVerses({ '2': 'a b' }))).toThrow(/Liedtext/);
     expect(() => parseScoreFile(withVerses([]))).toThrow();
+  });
+});
+
+describe('format version 17: more instruments', () => {
+  it('opens files saved with format version 16 (verses, ADR 0036) and saves them as the current version', () => {
+    const score = parseScoreFile(version16File);
+    expect(fileVersion(version16File)).toBe(16);
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  it('every new instrument survives saving and opening', () => {
+    const ids = ['violin', 'viola', 'cello', 'contrabass', 'ebass', 'flute', 'recorder', 'oboe', 'bassoon'] as const;
+    const score = createScore({ ...DEFAULT_SETUP, instruments: ids });
+    const back = parseScoreFile(serializeScore(score, '0'));
+    expect(back.parts.map((p) => p.instrument)).toEqual(ids);
+    expect(back).toEqual(score);
+    expect(validateScore(back)).toEqual([]);
+  });
+
+  it('an instrument that does not exist is refused', () => {
+    const doc = JSON.parse(serializeScore(parseScoreFile(version16File), '0')) as { score: { parts: { instrument: string }[] } };
+    doc.score.parts[0]!.instrument = 'theremin';
+    expect(() => parseScoreFile(JSON.stringify(doc))).toThrow(/Instrument/);
   });
 });

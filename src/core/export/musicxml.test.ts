@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { exportMusicXml } from './musicxml';
 import { importMusicXml } from '../import/musicxml';
 import { demoScore } from '../demo';
-import { emptyScore } from '../templates';
+import { createScore, DEFAULT_SETUP, emptyScore } from '../templates';
 import { add, frac, ZERO } from '../time';
 import { midiOf, pitchToString } from '../pitch';
 import { validateScore, type Score } from '../model';
@@ -262,5 +262,22 @@ describe('the tuning of a guitar (ADR 0033)', () => {
     const open = [62, 59, 55, 50, 43, 38]; // D G d g h d
     const back = importMusicXml(exportMusicXml(guitar(open)).xml).score;
     expect(back.parts.find((p) => p.instrument === 'guitar')!.tuning).toEqual(open);
+  });
+});
+
+describe('the new instruments (ADR 0038)', () => {
+  const ids = ['violin', 'viola', 'cello', 'contrabass', 'ebass', 'flute', 'recorder', 'oboe', 'bassoon'] as const;
+  const score = createScore({ ...DEFAULT_SETUP, instruments: ids });
+
+  it('the viola is written with the alto clef, the contrabass with an octave change', () => {
+    const { xml } = exportMusicXml(score);
+    expect(xml).toContain('<sign>C</sign><line>3</line>');
+    expect(xml).toContain('<sign>F</sign><line>4</line><clef-octave-change>-1</clef-octave-change>');
+    expect(xml).toContain('<sign>G</sign><line>2</line><clef-octave-change>1</clef-octave-change>');
+  });
+
+  it('comes back as the same instruments', () => {
+    const back = importMusicXml(exportMusicXml(score).xml).score;
+    expect(back.parts.map((p) => p.instrument)).toEqual(ids);
   });
 });

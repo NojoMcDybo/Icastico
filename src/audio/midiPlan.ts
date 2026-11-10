@@ -1,7 +1,7 @@
 /**
  * Playback plan → timed MIDI messages for a sampled synthesizer (ADR 0015). Pure logic.
  *
- * - Ordinary notes share one channel per instrument.
+ * - Ordinary notes share one channel per sound (MIDI program) used in the piece.
  * - A sound whose pitch moves (a glide) gets a channel of its own: pitch bend works per
  *   channel, so any other note on it would be dragged along. The bend range is set so the
  *   whole glide fits, the note is struck on its first pitch, and the bend then follows the
@@ -24,10 +24,23 @@ export type MidiAction =
   | { readonly t: number; readonly channel: number; readonly type: 'on'; readonly key: number; readonly velocity: number }
   | { readonly t: number; readonly channel: number; readonly type: 'off'; readonly key: number };
 
-/** Channel for the ordinary notes of each instrument (channel 10, index 9, is drums). */
-export const BASE_CHANNEL: Record<InstrumentId, number> = { voice: 0, guitar: 1, tab: 1, piano: 2 };
-/** Channels handed out to sounds that glide or change their loudness. */
-export const GLIDE_CHANNELS: readonly number[] = [3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
+/** Channels for the ordinary notes: one per sound (MIDI program) used in the piece. */
+export const SHARED_CHANNELS: readonly number[] = [0, 1, 2, 3, 4];
+/** Feedback while editing gets a channel of its own, so it never changes the sound of a running playback. */
+export const AUDITION_CHANNEL = 5;
+/** Channels handed out to sounds that glide or change their loudness (channel 10, index 9, is drums). */
+export const GLIDE_CHANNELS: readonly number[] = [6, 7, 8, 10, 11, 12, 13, 14, 15];
+
+/** Which shared channel each program gets: in the order the programs first sound. */
+export function sharedChannels(programs: readonly number[]): Map<number, number> {
+  const out = new Map<number, number>();
+  for (const program of programs) {
+    if (out.has(program)) continue;
+    // shortcut: more than five different sounds share the last channel, upgrade when ensembles get larger
+    out.set(program, SHARED_CHANNELS[Math.min(out.size, SHARED_CHANNELS.length - 1)]!);
+  }
+  return out;
+}
 
 export const BEND_CENTER = 8192;
 export const BEND_MAX = 16383;
@@ -50,15 +63,14 @@ export function bendValue(midi: number, key: number, range: number): number {
 export function midiActions(plan: PlaybackPlan, programs: Record<InstrumentId, number>): MidiAction[] {
   const actions: MidiAction[] = [];
   const freeAt = new Map<number, number>(GLIDE_CHANNELS.map((c) => [c, 0]));
-  const used = new Set<InstrumentId>();
+  const channelOf = sharedChannels(plan.notes.map((n) => programs[n.instrument]));
 
   for (const note of plan.notes) {
-    used.add(note.instrument);
     const key = Math.round(note.path[0]!.midi);
     const velocity = note.volume ?? VELOCITY;
     const channel = hasGlide(note) || hasLevels(note) ? [...freeAt].find(([, free]) => free <= note.start)?.[0] : undefined;
     if (channel === undefined) {
-      const base = BASE_CHANNEL[note.instrument];
+      const base = channelOf.get(programs[note.instrument])!;
       actions.push({ t: note.start, channel: base, type: 'on', key, velocity }, { t: note.end, channel: base, type: 'off', key });
       continue;
     }
@@ -109,7 +121,7 @@ export function midiActions(plan: PlaybackPlan, programs: Record<InstrumentId, n
 
   // Program of the shared channels, set once at the very start.
   const first = Math.min(0, ...actions.map((a) => a.t));
-  for (const instrument of used) actions.push({ t: first - 0.01, channel: BASE_CHANNEL[instrument], type: 'program', value: programs[instrument] });
+  for (const [program, channel] of channelOf) actions.push({ t: first - 0.01, channel, type: 'program', value: program });
   // Stable sort: messages with the same time keep the order they were made in (program, range, bend, then the note).
   return actions.map((a, i) => ({ a, i })).sort((x, y) => x.a.t - y.a.t || x.i - y.i).map((x) => x.a);
 }

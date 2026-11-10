@@ -3,7 +3,7 @@
  * running status, meta events and system messages are handled. The notes then go through the
  * quantiser (`quantize.ts`) like every other source.
  */
-import { type InstrumentId } from '../instruments';
+import { type InstrumentId, instrumentHint } from '../instruments';
 import { type MeterChange, type TimeSignature, measureLength } from '../model';
 import { ZERO, frac, isZero, sub, type Fraction, lt } from '../time';
 import { ImportError, type ImportResult } from './musicxml';
@@ -207,7 +207,10 @@ export function parseMidi(data: Uint8Array, fileName = ''): MidiFile {
 
 /** General MIDI programs and track names → the instrument a track most likely is. */
 export function guessInstrument(track: Pick<MidiTrack, 'name' | 'program' | 'notes'>): InstrumentId {
-  if (/guit|gitar|laute|lute|ukulele|banjo|bass/i.test(track.name) || (track.program !== undefined && track.program >= 24 && track.program <= 31)) return 'guitar';
+  const hinted = instrumentHint(track.name, track.program);
+  if (hinted) return hinted;
+  if (/bass/i.test(track.name)) return 'ebass'; // in a MIDI file a track called "Bass" is the instrument, not a choir part
+  if (/guit|gitar|laute|lute|ukulele|banjo/i.test(track.name) || (track.program !== undefined && track.program >= 24 && track.program <= 31)) return 'guitar';
   if (/piano|klavier|keys|keyboard|cembalo|organ|orgel|flügel|rhodes|synth/i.test(track.name) || (track.program !== undefined && track.program < 24)) return 'piano';
   if (/voc|sing|gesang|stimme|lead|chor|melod/i.test(track.name)) return 'voice';
   // Without a hint: a wide range or thick chords need the piano, a line is a voice.

@@ -3,6 +3,7 @@
  * Enter confirms, Esc cancels. Problems are shown inside the dialog.
  */
 import { type InstrumentId, INSTRUMENTS } from '../core/instruments';
+import { instrumentPicker } from './instrumentPicker';
 import type { TimeSignature } from '../core/model';
 import { type Fraction, eq, fracToString, parseFrac } from '../core/time';
 import { type ScoreChanges, type ScoreSetup, keyName, pickupChoices } from '../core/templates';
@@ -112,16 +113,10 @@ export function scoreDialog(options: Options): Promise<ScoreSetup | ScoreChanges
       if (instruments.length === 0) list.append(el('li', { className: 'instruments__empty', textContent: 'Noch kein Instrument' }));
     };
     if (isNew) {
-      const add = el('div', { className: 'chips' });
-      for (const def of Object.values(INSTRUMENTS)) {
-        const b = el('button', { type: 'button', textContent: `+ ${def.name}` });
-        b.dataset.instrument = def.id;
-        b.addEventListener('click', () => {
-          instruments.push(def.id);
-          renderInstruments();
-        });
-        add.append(b);
-      }
+      const add = instrumentPicker((id) => {
+        instruments.push(id);
+        renderInstruments();
+      });
       renderInstruments();
       form.append(row('Instrumente', el('div', {}, list, add)));
     }
@@ -186,16 +181,10 @@ export function scoreDialog(options: Options): Promise<ScoreSetup | ScoreChanges
           }),
         );
       };
-      const more = el('div', { className: 'chips' });
-      for (const def of Object.values(INSTRUMENTS)) {
-        const b = el('button', { type: 'button', textContent: `+ ${def.name}` });
-        b.dataset.instrument = def.id;
-        b.addEventListener('click', () => {
-          addedInstruments.push({ instrument: def.id, tab: def.id === 'guitar' });
-          renderAdded();
-        });
-        more.append(b);
-      }
+      const more = instrumentPicker((id) => {
+        addedInstruments.push({ instrument: id, tab: id === 'guitar' });
+        renderAdded();
+      });
       form.append(row('Instrumente', el('div', {}, have, adding, more, el('p', { className: 'form__hint', textContent: 'Neue Zeilen kommen unten dazu. ✕ nimmt eine Zeile mit allen ihren Noten heraus – erst mit „Übernehmen“, Strg+Z holt sie zurück.' }))));
     }
 

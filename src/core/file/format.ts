@@ -32,9 +32,10 @@ export const FILE_EXTENSION = 'icastico';
  * 13 = bar signs may sit exactly on a note ("exact", ADR 0031),
  * 14 = optional `layout` (bars per line / line breaks, ADR 0031),
  * 15 = optional `tuning` per guitar / tablature part and `string` per tone (ADR 0032),
- * 16 = optional `verses` per note: the syllables of verses 2 to 4 (ADR 0036).
+ * 16 = optional `verses` per note: the syllables of verses 2 to 4 (ADR 0036),
+ * 17 = nine more instruments: violin, viola, cello, contrabass, ebass, flute, recorder, oboe, bassoon (ADR 0038).
  */
-export const FORMAT_VERSION = 16;
+export const FORMAT_VERSION = 17;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -351,6 +352,8 @@ const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
   14: (doc) => ({ ...doc, version: 15 }),
   // 15 → 16: the optional "verses" of notes. Version-15 files have only the first verse ("lyric").
   15: (doc) => ({ ...doc, version: 16 }),
+  // 16 → 17: nine more instruments. Version-16 files do not use them.
+  16: (doc) => ({ ...doc, version: 17 }),
 };
 
 /** Applies `fn` to every event object of a (still unvalidated) score; anything unexpected is left for the reader to reject. */

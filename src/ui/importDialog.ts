@@ -82,7 +82,17 @@ export function importDialog(options: ImportDialogOptions): Promise<ImportDialog
       box?.setAttribute('aria-label', `${track.name} übernehmen`);
       const select = el('select');
       select.setAttribute('aria-label', `Instrument für ${track.name}`);
-      for (const def of Object.values(INSTRUMENTS)) select.append(el('option', { value: def.id, textContent: def.name }));
+      const groups = new Map<string, HTMLOptGroupElement>();
+      for (const def of Object.values(INSTRUMENTS)) {
+        const option = el('option', { value: def.id, textContent: def.name });
+        if (!def.family) {
+          select.append(option);
+          continue;
+        }
+        if (!groups.has(def.family)) groups.set(def.family, el('optgroup', { label: def.family }));
+        groups.get(def.family)!.append(option);
+      }
+      select.append(...groups.values());
       select.value = track.instrument;
       const label = el('span', { className: 'import__name' }, el('strong', { textContent: track.name }), el('small', { textContent: ` ${track.detail}` }));
       list.append(el('li', {}, ...(box ? [box] : []), label, select));

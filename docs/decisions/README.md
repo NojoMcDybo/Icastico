@@ -65,3 +65,4 @@ Was wird dadurch leichter, was schwerer?
 | 0035 | [Schutzregel für geladene Inhalte (CSP)](0035-schutzregel-csp.md) | angenommen |
 | 0036 | [Mehrere Strophen Liedtext](0036-mehrere-strophen.md) | angenommen |
 | 0037 | [Akkord nach Namen eingeben](0037-akkord-nach-namen.md) | angenommen |
+| 0038 | [Neun weitere Instrumente](0038-weitere-instrumente.md) | angenommen |

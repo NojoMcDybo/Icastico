@@ -12,7 +12,7 @@
 import { type Fraction, ZERO, add, compare, eq, frac, le, lt, sub } from '../time';
 import { type Pitch, STEPS, midiOf, spellMidi } from '../pitch';
 import { GUITAR_STRINGS, validTuning } from '../tab';
-import { type InstrumentId, getInstrument } from '../instruments';
+import { type InstrumentId, getInstrument, instrumentHint } from '../instruments';
 import { MAX_VERSES } from '../lyrics';
 import {
   type StaffGroup,
@@ -148,6 +148,8 @@ const sanitize = (s: string): string => s.replace(/[^A-Za-z0-9_-]/g, '_').replac
 
 function instrumentFor(name: string, program: number | undefined, staves: number): InstrumentId {
   if (staves >= 2) return 'piano';
+  const hinted = instrumentHint(name, program);
+  if (hinted) return hinted;
   if (/guit|gitar|laute|lute|ukulele|banjo/i.test(name) || (program !== undefined && program >= 24 && program <= 31)) return 'guitar';
   if (/piano|klavier|keyboard|cembalo|harpsichord|organ|orgel|flügel/i.test(name)) return 'piano';
   return 'voice';
@@ -209,7 +211,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
     const staves = Math.max(1, ...measures.flatMap((m) => childrenNamed(m, 'attributes').map((a) => intOf(childText(a, 'staves'), 1))));
     const instrument = instrumentFor(info.name, info.program, staves);
     const def = getInstrument(instrument);
-    if (instrument !== 'piano' && instrument !== 'guitar' && /./.test(info.name) && !/gesang|voice|vocal|sopran|alt|tenor|bass|chor|melod/i.test(info.name)) {
+    if (instrument === 'voice' && /./.test(info.name) && !/gesang|voice|vocal|sopran|alt|tenor|bass|chor|melod/i.test(info.name)) {
       notes.push(`„${info.name}“ wurde als ${def.name} übernommen (weitere Instrumente folgen).`);
     }
     if (staves > def.staves.length) notes.push(`„${info.name || sourceId}“ hat ${staves} Notensysteme; überzählige wurden auf das letzte gelegt.`);

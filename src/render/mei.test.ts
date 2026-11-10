@@ -4,7 +4,8 @@ import { Engraver } from './verovio';
 import { demoScore } from '../core/demo';
 import { frac } from '../core/time';
 import { parseLine } from '../core/line';
-import { emptyScore } from '../core/templates';
+import { createScore, DEFAULT_SETUP, emptyScore } from '../core/templates';
+import type { InstrumentId } from '../core/instruments';
 import { runCommand } from '../core/editor/commands';
 import { createEditorState, getVoice, type EditorState } from '../core/editor/state';
 
@@ -57,6 +58,17 @@ describe('scoreToMei', () => {
   });
 });
 
+describe('the new instruments in MEI (ADR 0038)', () => {
+  const meiOf = (id: InstrumentId): string => scoreToMei(createScore({ ...DEFAULT_SETUP, instruments: [id] })).mei;
+
+  it('the viola gets the alto clef, the contrabass an 8 below, the recorder an 8 above', () => {
+    expect(meiOf('viola')).toContain('clef.shape="C" clef.line="3"');
+    expect(meiOf('contrabass')).toContain('clef.shape="F" clef.line="4" clef.dis="8" clef.dis.place="below"');
+    expect(meiOf('recorder')).toContain('clef.shape="G" clef.line="2" clef.dis="8" clef.dis.place="above"');
+    expect(meiOf('violin')).not.toContain('clef.dis');
+  });
+});
+
 describe('upbeat in MEI', () => {
   it('writes measure 0 as intentionally short', () => {
     const { mei } = scoreToMei({ ...demoScore(), pickup: frac(1, 4) });
@@ -78,6 +90,14 @@ describe('Verovio renders our MEI', () => {
     expect(pages.length).toBeGreaterThan(0);
     expect(pages[0]).toContain('id="v6-m2-1"');
     expect(pages[0]).toContain('Erste Skizze');
+  });
+
+  it('every new instrument is drawn without warnings', () => {
+    const ids = ['violin', 'viola', 'cello', 'contrabass', 'ebass', 'flute', 'recorder', 'oboe', 'bassoon'] as const;
+    const { log, pages } = engraver.engrave(scoreToMei(createScore({ ...DEFAULT_SETUP, instruments: ids })).mei);
+    expect(log).toBe('');
+    expect(pages[0]).toContain('Viola');
+    expect(pages[0]).toContain('Fagott');
   });
 
   it('with an upbeat and key/meter changes, still without warnings', () => {

@@ -176,6 +176,18 @@ describe('guessInstrument', () => {
     expect(guessInstrument({ name: 'Piano', notes: [] })).toBe('piano');
     expect(guessInstrument({ name: 'Lead Vocal', notes: [] })).toBe('voice');
   });
+  it('knows the strings, basses and winds by name and program (ADR 0038)', () => {
+    expect(guessInstrument({ name: 'Violin I', notes: [] })).toBe('violin');
+    expect(guessInstrument({ name: 'Spur 2', program: 41, notes: [] })).toBe('viola');
+    expect(guessInstrument({ name: 'Cello', notes: [] })).toBe('cello');
+    expect(guessInstrument({ name: 'Kontrabass', notes: [] })).toBe('contrabass');
+    expect(guessInstrument({ name: 'Bass', notes: [] })).toBe('ebass');
+    expect(guessInstrument({ name: 'Spur 4', program: 33, notes: [] })).toBe('ebass');
+    expect(guessInstrument({ name: 'Blockflöte', notes: [] })).toBe('recorder');
+    expect(guessInstrument({ name: 'Flute', notes: [] })).toBe('flute');
+    expect(guessInstrument({ name: 'Spur 5', program: 68, notes: [] })).toBe('oboe');
+    expect(guessInstrument({ name: 'Fagott', notes: [] })).toBe('bassoon');
+  });
   it('then by the notes', () => {
     expect(guessInstrument({ name: 'Spur 1', notes: notes([60, 62, 64, 62, 60]) })).toBe('voice');
     expect(guessInstrument({ name: 'Spur 1', notes: notes([36, 60, 84]) })).toBe('piano');

@@ -10,7 +10,7 @@ import processorUrl from 'spessasynth_lib/dist/spessasynth_processor.min.js?url'
 import { INSTRUMENTS, type InstrumentId } from '../core/instruments';
 import type { PlaybackPlan } from '../core/playback';
 import type { Engine, Playing } from './engine';
-import { BASE_CHANNEL, BEND_CENTER, type MidiAction, midiActions } from './midiPlan';
+import { AUDITION_CHANNEL, BEND_CENTER, type MidiAction, midiActions } from './midiPlan';
 
 const AUDITION_VELOCITY = 100;
 const AUDITION_MS = 700;
@@ -138,7 +138,7 @@ export class Sampler implements Engine {
     }
     const { ctx, synth } = this.loaded;
     if (ctx.state !== 'running') await ctx.resume();
-    const channel = BASE_CHANNEL[instrument];
+    const channel = AUDITION_CHANNEL;
     // After a stop the synthesizer is silenced until its queued notes have run out: wait for that.
     const start = { time: Math.max(ctx.currentTime, this.drainUntil + 0.03) };
     synth.programChange(channel, PROGRAMS[instrument], start);

@@ -794,7 +794,7 @@ try {
   await type('Escape');
   await saved();
   const shaped = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Verlauf-Test.icastico'))[1].contents;
-  check(/"version": 16/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 16)');
+  check(/"version": 17/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 17)');
   await type('Control+Enter');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true', null, { timeout: 30000 });
   await page.waitForTimeout(1500);
@@ -1224,6 +1224,22 @@ try {
   await type('Control+z');
   check((await page.locator('.page g.chord').count()) === 0 && (await page.locator('.page g.harm').count()) === 0, 'Akkord nach Namen: ein Schritt Rückgängig nimmt Töne und Akkordsymbol zurück');
 
+  // ── Weitere Instrumente: Viola aus dem Auswahlfeld (ADR 0038) ──
+  await newScore('Viola-Test');
+  await type('5', 'c', 'd', 'e', 'Escape');
+  const staffsBeforeViola = await page.locator('.page g.staff').count();
+  await page.click('#doc-title');
+  await page.waitForSelector('.modal h2:text("Partitur-Einstellungen")');
+  check((await page.locator('.modal select[data-more-instruments] option').count()) >= 10, 'Instrumente: ein Auswahlfeld bietet die weiteren Instrumente an');
+  await page.selectOption('.modal select[data-more-instruments]', 'viola');
+  check((await page.locator('.modal select[data-more-instruments]').inputValue()) === '', 'Instrumente: nach der Wahl springt das Auswahlfeld auf die erste Zeile zurück');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction((n) => document.querySelectorAll('.page g.staff').length > n, staffsBeforeViola);
+  check(/Viola|Va./.test(await page.locator('.page').first().textContent()), 'Instrumente: die Zeile „Viola“ steht in der Partitur');
+  check(await page.locator('.page g.clef').evaluateAll((gs) => gs.some((g) => g.innerHTML.includes('E05C'))), 'Instrumente: die Viola hat einen C-Schlüssel');
+  await page.screenshot({ path: join(outDir, 'viola.png') });
+  await type('Control+z');
+
   // ── Punktierung per Ziffernblock-Komma, Bindebogen mit T ──
   await newScore('Bogen-Test');
   await type('5', 'c', 'd', 'Escape');
@@ -1266,7 +1282,7 @@ try {
   await page.screenshot({ path: join(outDir, 'tabulatur-instrument.png') });
   await saved();
   const tabFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Tab-Instrument.icastico'))[1].contents;
-  check(/"instrument": "tab"/.test(tabFile) && /"version": 16/.test(tabFile), 'Tabulatur: die Zeile steht als Instrument „tab“ in der Datei (Format 16)');
+  check(/"instrument": "tab"/.test(tabFile) && /"version": 17/.test(tabFile), 'Tabulatur: die Zeile steht als Instrument „tab“ in der Datei (Format 17)');
   await page.locator('.page g.note').first().click({ force: true });
   await type('Control+Delete');
   check((await page.locator('.page g.note').count()) >= 1, 'Tabulatur-Zeile: die Noten der anderen Zeile bleiben beim Bearbeiten erhalten');
@@ -1650,7 +1666,7 @@ try {
   await page.screenshot({ path: join(outDir, 'zeichen.png') });
   await saved();
   const signsFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Zeichen-Test.icastico'))[1].contents;
-  check(/"version": 16/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 16)');
+  check(/"version": 17/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 17)');
   await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
   await page.click('.transport__play');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');

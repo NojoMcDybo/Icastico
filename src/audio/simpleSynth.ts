@@ -17,11 +17,23 @@ interface Timbre {
   readonly release: number;
 }
 
+const BOWED: Timbre = { harmonics: [1, 0.4, 0.25, 0.1], attack: 0.04, decay: 0.3, sustain: 0.8, release: 0.18 };
+
 const TIMBRES: Record<InstrumentId, Timbre> = {
   voice: { harmonics: [1, 0.4, 0.25, 0.1], attack: 0.06, decay: 0.3, sustain: 0.8, release: 0.18 },
   guitar: { harmonics: [1, 0.7, 0.5, 0.3, 0.15, 0.08], attack: 0.004, decay: 0.5, sustain: 0.15, release: 0.12 },
   tab: { harmonics: [1, 0.7, 0.5, 0.3, 0.15, 0.08], attack: 0.004, decay: 0.5, sustain: 0.15, release: 0.12 },
   piano: { harmonics: [1, 0.55, 0.3, 0.18, 0.1, 0.05], attack: 0.004, decay: 0.9, sustain: 0.25, release: 0.25 },
+  // Strings and winds: a soft start that holds, like the voice; the basses are plucked like the guitar.
+  violin: BOWED,
+  viola: BOWED,
+  cello: BOWED,
+  contrabass: { harmonics: [1, 0.7, 0.5, 0.3, 0.15, 0.08], attack: 0.004, decay: 0.5, sustain: 0.15, release: 0.12 },
+  ebass: { harmonics: [1, 0.7, 0.5, 0.3, 0.15, 0.08], attack: 0.004, decay: 0.5, sustain: 0.15, release: 0.12 },
+  flute: BOWED,
+  recorder: BOWED,
+  oboe: BOWED,
+  bassoon: BOWED,
 };
 
 /** The synthesizer sound of the piano roll: organ-like, the tone stays as loud as it started until the key is let go. */
