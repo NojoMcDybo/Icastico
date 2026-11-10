@@ -33,7 +33,7 @@ Eingabewegen, die zum Instrument passen – bis hin zu Audio→Noten.
 | Instrument | Notation | Typische Eingabe (Idee, noch zu klären) |
 |---|---|---|
 | Gesang | Violinschlüssel (später: Bass/Tenor), Liedtext | Einsingen (Audio→Noten), Tastatur |
-| Gitarre | Violinschlüssel mit 8 darunter; Tabulatur vorerst **nicht nötig** | Tastatur, Audio, später Griffbrett |
+| Gitarre | Violinschlüssel mit 8 darunter; Tabulatur mit Stimmungen (ADR 0022, 0032) | Tastatur, Audio, später Griffbrett |
 | Klavier | Akkolade (zwei Systeme) | MIDI-Keyboard, Tastatur |
 
 ## Erster Audio-Fall

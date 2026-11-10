@@ -26,6 +26,7 @@
   --paper-ink: #1a1a1a;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --spring: cubic-bezier(0.22, 1.18, 0.36, 1);
+  --topbar-h: 56px;
   --font: 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
   color-scheme: dark;
 }
@@ -181,7 +182,7 @@ button {
 
 .workstation {
   display: grid;
-  grid-template-rows: 56px minmax(0, 1fr) 28px;
+  grid-template-rows: var(--topbar-h) minmax(0, 1fr) 28px;
   height: 100vh;
 }
 
@@ -1813,10 +1814,38 @@ button.lcd__cell:nth-child(3) {
   background: rgb(117 184 255 / 0.18);
 }
 
-@media (max-width: 1000px) {
+/* Narrower windows: first the name gives way and the display gets slimmer … */
+@media (max-width: 1440px) {
+  .topbar {
+    grid-template-columns: 40px minmax(0, 140px) minmax(0, 1fr) 72px 88px 104px minmax(0, 150px) 32px;
+  }
+
+  .brand {
+    display: none;
+  }
+
   .lcd__cell {
     width: 54px;
     padding-inline: 6px;
+  }
+}
+
+/* … then the transport gets a row of its own, so that nothing ever lies on top of the title. */
+@media (max-width: 1320px) {
+  :root {
+    --topbar-h: 100px;
+  }
+
+  .topbar {
+    grid-template-columns: 40px minmax(0, 1fr) 72px 88px 104px minmax(0, 150px) 32px;
+    grid-template-rows: 56px 44px;
+    row-gap: 0;
+  }
+
+  .transport {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    align-self: start;
   }
 }
 
@@ -2213,7 +2242,7 @@ button.lcd__cell:nth-child(3) {
 .symbols {
   position: fixed;
   right: 18px;
-  top: 58px;
+  top: calc(var(--topbar-h) + 2px);
   z-index: 25;
   width: 348px;
   max-height: calc(100% - 120px);

@@ -84,8 +84,12 @@ export function pdfDialog(options: PrintDialogOptions): Promise<PrintChoice | nu
     let timer = 0;
     const draw = () => {
       try {
-        // The ids of the drawn shapes belong to the score on the desk: the preview must not repeat them (the glyph definitions are the same, so they may).
-        const pages = options.preview(setupNow()).map((svg) => svg.replace(/<g id="[^"]*"/g, '<g'));
+        // The ids of the drawn shapes belong to the score on the desk: the preview must not repeat them. The glyph definitions
+        // (<defs>) keep theirs: every notehead and clef points at one, and they are named anew for each engraving.
+        const pages = options.preview(setupNow()).map((svg) => {
+          const body = svg.indexOf('</defs>') + 1;
+          return svg.slice(0, body) + svg.slice(body).replace(/<g id="[^"]*"/g, '<g');
+        });
         preview.replaceChildren(
           ...pages.map((svg, i) => {
             const page = el('div', { className: 'print__page' });

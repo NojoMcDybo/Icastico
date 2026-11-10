@@ -34,8 +34,8 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Neue Partitur (Strg+N) mit Dialog: Titel, Komponist, Instrumente (Reihenfolge, mehrfach), Tonart, Taktart, Auftakt; merkt sich die letzte Wahl
 - [x] Partitur-Einstellungen (Strg+, oder Klick auf den Titel): Titel, Komponist, Tonart/Taktart ab Takt, Auftakt – rückgängig machbar (ADR 0008)
 - [x] Auftakt im Modell, in der Notation und im Dateiformat (Version 2, alte Dateien werden weiter geöffnet)
-- [ ] Instrumente in bestehender Partitur hinzufügen/entfernen/umbenennen
-- [ ] Transponieren
+- [ ] Instrumente in bestehender Partitur entfernen/umbenennen (hinzufügen geht seit 0.18.1 in den Partitur-Einstellungen)
+- [x] Transponieren (Strg+Umschalt+T, siehe Schritt 3)
 - [x] Bibliothek `Dokumente/Icastico` mit Sammlungen, Suche, Papierkorb, Explorer-Knopf (ADR 0009)
 - [x] Automatisches Speichern, Dateiname folgt dem Titel, Start mit der zuletzt bearbeiteten Partitur
 - [x] Design nach der Owner-App Folio: Bibliothek als Startbildschirm mit Vorschau-Kacheln, Farben/Schrift/Knöpfe (ADR 0009)
@@ -77,7 +77,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 
 ## Schritt 3 – Klang & Austausch
 
-- [ ] Wiedergabe (SoundFont-Synth in Rust), Cursor läuft mit
+- [x] Wiedergabe mit Instrumentenklängen, Abspielmarke und blaue Noten laufen mit – anders gelöst als geplant: im Web-Teil statt in Rust (SpessaSynth, ADR 0015)
 - [ ] MIDI-Keyboard-Eingabe (Step + Echtzeit mit Quantisierer)
 - [x] MusicXML importieren (`.musicxml`, `.xml`, `.mxl`; Strg+Umschalt+I): Noten, Akkorde, Stimmen, Haltebögen, Tonart, Taktart, Auftakt, Tempo, Triolen/Quintolen/Septolen, Liedtext (1. Strophe), Akkordsymbole (ADR 0017, 0019, 0020)
 - [x] Belegung „Finale-Ziffernblock“ (ADR 0018): Ziffernblock = Notenwert, Vorschau-Note am Cursor, Enter setzt sie, ↑/↓ und Zahlenreihe ändern sie
@@ -109,6 +109,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Tabulatur als eigenes Instrument (neben der Notenschrift, Noten hineinkopieren; Dateiformat 12) und die acht geplanten Funktionen: Kreuz/B und Oktave für die nächste Note, Metronom, Cycle, Zoom, Quantisieren, Drucken (ADR 0030)
 - [x] Rückmeldungen nach 0.21.0: Akkordtöne einzeln mit Alt+↑/↓ wählen und mit ↑/↓ ändern; Segno, Coda, Sprünge und Tempoanweisungen genau auf der Note (Format 13); Takte pro Zeile und Zeilenumbrüche aus MusicXML (Format 14); Tabulatur mit Stimmungen (Drop D, offene Stimmungen, jede Saite einzeln), Bundzahl tippen, ↑/↓ auf andere Saite, markierte Noten in die Tabulatur ziehen, keine Notenwerte in der Tabulaturzeile (Format 15; ADR 0031, 0032)
 - [x] Rückmeldungen nach 0.22.0: Liedtext-Fenster verschiebbar, Silben in der Partitur wählen, löschen, kopieren, ausschneiden, verschieben; Drucken und PDF in einem Dialog mit Seitenvorschau und Takten pro Zeile; Taktstriche durch alle Zeilen; „TAB“ statt Schlüssel und die Stimmung über der Tabulaturzeile (auch in MusicXML); Kopieren und Ziehen in die Tabulatur verliert keine Noten mehr; ein Akkordton wird allein markiert (ADR 0033)
+- [x] Überarbeitung nach 0.24.0: die Seitenvorschau im Druckdialog zeigt wieder Notenköpfe und Schlüssel; in schmaleren Fenstern (unter etwa 1440 px) überdeckt die Transportleiste den Titel nicht mehr – erst weicht der Schriftzug, unter 1320 px bekommt der Transport eine eigene Zeile; der Oberflächentest prüft beides
 - [x] Startbild: beim Öffnen baut sich ein E7♯9 auf und der Klang erscheint als Sand auf einer schwingenden Platte (Chladni-Figur); Klick oder Taste überspringt (ADR 0034)
 - [ ] Finale-Dateien (`.musx`) direkt lesen – verschlüsseltes Binärformat, bewusst zurückgestellt (ADR 0021)
 - [ ] Seitenlayout von Hand (Umbrüche, Systemabstand, Kopf-/Fußzeile), mehrere Strophen, Tabulatur-Spieltechniken
@@ -122,7 +123,6 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 
 ## Später
 
-- Gitarren-Tabulatur, Akkordsymbole, Liedtext
-- N-Tolen
+- Lange Stücke (ab etwa 100 Takten mit mehreren Zeilen dauert jede Änderung 0,3–0,7 s, weil immer alle Seiten neu gesetzt werden): nur die sichtbaren Seiten zeichnen oder den Notensatz im Hintergrund rechnen
 - Eigene Funktionen des Owners (Makros/Skripte)
 - Signierte Installer (Windows SmartScreen, macOS Gatekeeper)

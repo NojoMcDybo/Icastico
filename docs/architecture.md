@@ -16,8 +16,10 @@
       ▲                                  │
  Eingabe-Adapter                   Ausgabe-Adapter
  Tastatur, Maus          (S1)      Notationsschicht → MEI → Verovio → SVG  ✅
- MIDI-Keyboard (Rust)    (S3)      Wiedergabe: Synth (Rust)               (S3)
- Audio→Noten (Rust)      (S4)      MusicXML, MIDI, PDF                    (S3+)
+ MIDI-Keyboard (Web MIDI) ✅       Wiedergabe: Web Audio, SpessaSynth     ✅
+ Sprache (Vosk)           ✅       MusicXML, MIDI, PDF, Drucken           ✅
+ Import: MusicXML, MIDI,  ✅
+ Aufnahme → Noten (YIN)
 ```
 
 ## Schichten
@@ -70,7 +72,7 @@ ausführlich getestet.
 
 - `keys.ts` – Tastendruck → layoutunabhängige Kombination („Alt+5“, „Plus“).
 - `keymaps/library.json` + `library.ts` – Bibliothek der Tastenbelegungen
-  (Finale, Logic Pro), daraus Belegungen, Tastenhilfe und Doku (ADR 0012).
+  (Finale, Logic Pro, Finale-Ziffernblock), daraus Belegungen, Tastenhilfe und Doku (ADR 0011, 0018).
 - `pianoRoll.ts` / `pianoRollGeometry.ts` – Piano-Roll als zweite Ansicht (eigenes SVG);
   Geometrie rein und getestet, Bearbeitungen über `core/editor/rollEdits.ts` (ADR 0013).
 - `core/symbols.ts` – Bibliothek der Sonderzeichen (Daten), `core/playOrder.ts` – Spielreihenfolge bei Wiederholungen (ADR 0024), `ui/symbolPalette.ts` – die Palette; `core/export/` – MusicXML- und PDF-Ausgabe (ADR 0021, 0023); `core/tab.ts` – Gitarrengriffe (ADR 0022); `core/extract.ts` – Einzelstimme; `render/tab.ts` – Bundzahlen in der Tab-Zeile; `ui/pdfExport.ts`, `ui/pdfDialog.ts` – PDF-Seiten; `core/import/` – MusicXML-Import (XML-Leser, `.mxl`, Übersetzung in die Partitur; ADR 0017); `core/curve.ts` – Kurven für Lautstärke und Gleitverlauf (ADR 0016); `ui/curvePopup.ts` – das Menü dazu; `core/playback.ts` – Abspielplan (reine Logik); `audio/synth.ts` – eingebauter Klang (Web Audio); `ui/player.ts`, `ui/transport.ts` – Wiedergabe und Transportleiste (ADR 0015).

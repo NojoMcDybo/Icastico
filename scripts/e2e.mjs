@@ -1214,12 +1214,33 @@ try {
   await page.waitForSelector('.modal h2:text("Drucken / PDF")');
   await page.waitForSelector('.print__page svg');
   check((await page.locator('.print__page').count()) >= 1 && (await page.locator('#pdf-print').isVisible()) && (await page.locator('#pdf-save').isVisible()), 'Drucken: Strg+P öffnet den Dialog mit Seitenvorschau, „Drucken“ und „PDF speichern“');
+  check(
+    await page.evaluate(() => {
+      const uses = [...document.querySelectorAll('.print__page svg use')];
+      return uses.length > 0 && uses.every((u) => document.getElementById((u.getAttribute('xlink:href') ?? u.getAttribute('href') ?? '').slice(1)) && u.getBoundingClientRect().width > 0);
+    }),
+    'Drucken: in der Seitenvorschau sind Notenköpfe und Schlüssel zu sehen (jedes Zeichen findet seine Vorlage)',
+  );
   await page.click('#pdf-print');
   check((await page.evaluate(() => window.__printed)) >= 1, 'Drucken: „Drucken“ legt die Seiten der Partitur zum Drucken bereit und öffnet den Druckdialog');
   await page.emulateMedia({ media: 'print' });
   check((await page.locator('.workstation').isHidden()) && (await page.locator('#print-root').isVisible()), 'Drucken: im Druck sind nur die Notenseiten zu sehen, nicht die Bedienelemente');
   await page.emulateMedia({ media: 'screen' });
   await page.evaluate(() => document.getElementById('print-root')?.remove());
+  // ── Obere Leiste in schmaleren Fenstern: nichts liegt übereinander, die Anzeige bleibt ──
+  for (const width of [900, 1200, 1366, 1400, 1500]) {
+    await page.setViewportSize({ width, height: 800 });
+    const bar = await page.evaluate(() => {
+      const shown = (c) => getComputedStyle(c).display !== 'none' && getComputedStyle(c).visibility !== 'hidden';
+      const parts = [...document.querySelector('.topbar').children].filter(shown).flatMap((c) => (c.id === 'transport' ? [...c.children] : [c]));
+      const boxes = parts.map((c) => c.getBoundingClientRect());
+      const overlap = boxes.some((a, i) => boxes.some((b, j) => j > i && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5));
+      const lcd = document.querySelector('.lcd');
+      return { overlap, outside: boxes.some((r) => r.left < 0 || r.right > innerWidth + 0.5), clipped: lcd.scrollWidth > lcd.clientWidth, title: document.getElementById('doc-title').getBoundingClientRect().width };
+    });
+    check(!bar.overlap && !bar.outside && !bar.clipped && bar.title >= 100, `Obere Leiste bei ${width} px Breite: Titel, Transport, Anzeige und Knöpfe liegen nebeneinander, nichts ist abgeschnitten`);
+  }
+  await page.setViewportSize({ width: 1400, height: 900 });
 
   await newScore('Quantisieren-Test');
   await type('5', 'c', 'd', 'e', 'Escape');
