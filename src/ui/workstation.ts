@@ -1084,7 +1084,9 @@ export class Workstation {
     if (!changes) return this.update();
     const result = applyScoreChanges(this.state.score, changes);
     if ('score' in result && result.score !== this.state.score) {
-      this.history.apply({ ...this.state, score: result.score, message: 'Partitur-Einstellungen übernommen' });
+      // A line was taken out: cursor, selection and marked passage may have been in it.
+      const fresh = changes.removeParts?.length ? { caret: null, selection: null, range: null, input: { ...this.state.input, chordEvent: null, ghost: null } } : {};
+      this.history.apply({ ...this.state, ...fresh, score: result.score, message: 'Partitur-Einstellungen übernommen' });
     }
     this.update();
   }
@@ -1787,6 +1789,7 @@ export class Workstation {
           this.refresh();
         }, this.lastRedrawMs);
       }
+      this.el.pages.setAttribute('aria-busy', 'true'); // the paper is behind the model until that redraw (the e2e test waits for it)
       this.auditionEdits();
       this.renderTransport();
       this.renderStatus();
@@ -1798,6 +1801,7 @@ export class Workstation {
   }
 
   private refresh(): void {
+    this.el.pages.removeAttribute('aria-busy');
     this.renderLanes(); // first: a lane that just appeared needs its size before the notation is engraved
     try {
       if (!this.history.inGesture) this.renderIfNeeded();

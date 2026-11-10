@@ -110,6 +110,10 @@ export interface ScoreChanges {
   readonly meter?: TimeSignature;
   /** Instruments to add at the bottom (a guitar may come with its tablature). */
   readonly addInstruments?: readonly { readonly instrument: InstrumentId; readonly tab?: boolean }[];
+  /** Lines to take out, with everything written in them (part ids). One line always stays. */
+  readonly removeParts?: readonly string[];
+  /** New names of lines (part id → name); an empty name changes nothing. */
+  readonly renameParts?: Readonly<Record<string, string>>;
   /** Bars per line: a number (1–16), 0 = automatic; absent = as it is (kept line breaks of an imported file stay). */
   readonly perSystem?: number;
   /** Tablature on / off per existing guitar line (part id → on). */
@@ -164,7 +168,21 @@ export function applyScoreChanges(score: Score, changes: ScoreChanges): { score:
       }),
     };
   }
+  for (const [partId, name] of Object.entries(changes.renameParts ?? {})) {
+    if (name.trim()) next = { ...next, parts: next.parts.map((p) => (p.id === partId ? { ...p, name: name.trim() } : p)) };
+  }
+  const gone = new Set(changes.removeParts ?? []);
+  if (gone.size > 0) {
+    const parts = next.parts.filter((p) => !gone.has(p.id));
+    // What pointed into a removed line goes with it: ties and glides, and a bracket that would hold fewer than two lines.
+    const tones = new Set(parts.flatMap((p) => p.voices.flatMap((v) => v.events.flatMap((e) => e.tones.map((t) => t.id)))));
+    const links = (next.links ?? []).filter((l) => tones.has(l.from) && tones.has(l.to));
+    const groups = (next.groups ?? []).map((g) => ({ ...g, parts: g.parts.filter((id) => !gone.has(id)) })).filter((g) => g.parts.length >= 2);
+    const { links: _links, groups: _groups, ...rest } = next;
+    next = { ...rest, parts, ...(links.length > 0 ? { links } : {}), ...(groups.length > 0 ? { groups } : {}) };
+  }
   for (const add of changes.addInstruments ?? []) next = addInstrument(next, add.instrument, add.tab ?? false).score;
+  if (next.parts.length === 0) return { error: 'Mindestens ein Instrument muss bleiben.' };
   if (changes.perSystem !== undefined) {
     const { layout: _old, ...rest } = next;
     next = changes.perSystem >= 1 ? { ...rest, layout: { perSystem: changes.perSystem } } : rest;

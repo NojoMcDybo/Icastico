@@ -129,16 +129,39 @@ export function scoreDialog(options: Options): Promise<ScoreSetup | ScoreChanges
     // Instruments of an existing score: the ones it has (guitar: tablature on / off) and more to add
     const addedInstruments: { instrument: InstrumentId; tab: boolean }[] = [];
     const tabBoxes = new Map<string, HTMLInputElement>();
+    const nameFields = new Map<string, HTMLInputElement>();
+    const removed = new Set<string>();
     if (!isNew) {
-      const have = el('ol', { className: 'instruments' });
+      const have = el('ol', { className: 'instruments instruments--have' });
       for (const p of options.initial.parts) {
-        const li = el('li', {}, el('span', { textContent: p.name }));
+        const name = el('input', { type: 'text', className: 'instruments__name', value: p.name, placeholder: p.name });
+        name.setAttribute('aria-label', `Name der Zeile ${p.name}`);
+        nameFields.set(p.id, name);
+        const li = el('li', {}, name);
         if (p.instrument === 'guitar') {
           const box = el('input', { type: 'checkbox', checked: p.tab, id: `f-tab-${p.id}` });
           box.setAttribute('aria-label', `${p.name}: Tabulatur`);
           tabBoxes.set(p.id, box);
           li.append(el('label', { className: 'instruments__tab' }, box, ' Tabulatur'));
         }
+        // Taking a line out only counts with "Übernehmen" (and Ctrl+Z brings it back): until then it is struck through.
+        const remove = el('button', { type: 'button', textContent: '✕', title: 'Zeile entfernen' });
+        remove.dataset.remove = p.id;
+        const mark = () => {
+          const out = removed.has(p.id);
+          li.classList.toggle('is-removed', out);
+          name.disabled = out;
+          remove.textContent = out ? '↩' : '✕';
+          remove.title = out ? 'Zeile doch behalten' : 'Zeile entfernen';
+          remove.setAttribute('aria-label', `${p.name}: ${out ? 'doch behalten' : 'entfernen'}`);
+          remove.setAttribute('aria-pressed', String(out));
+        };
+        remove.addEventListener('click', () => {
+          if (!removed.delete(p.id)) removed.add(p.id);
+          mark();
+        });
+        mark();
+        li.append(remove);
         have.append(li);
       }
       const adding = el('ol', { className: 'instruments instruments--new' });
@@ -173,7 +196,7 @@ export function scoreDialog(options: Options): Promise<ScoreSetup | ScoreChanges
         });
         more.append(b);
       }
-      form.append(row('Instrumente', el('div', {}, have, adding, more, el('p', { className: 'form__hint', textContent: 'Neue Zeilen kommen unten dazu. Entfernen geht hier noch nicht.' }))));
+      form.append(row('Instrumente', el('div', {}, have, adding, more, el('p', { className: 'form__hint', textContent: 'Neue Zeilen kommen unten dazu. ✕ nimmt eine Zeile mit allen ihren Noten heraus – erst mit „Übernehmen“, Strg+Z holt sie zurück.' }))));
     }
 
     // Tuning of every guitar and tablature line: a preset, or each string set by hand (Drop D, open tunings …)
@@ -356,6 +379,9 @@ export function scoreDialog(options: Options): Promise<ScoreSetup | ScoreChanges
         ...(perLine.value !== 'keep' ? { perSystem: Number(perLine.value) } : {}),
         ...(addedInstruments.length > 0 ? { addInstruments: addedInstruments.map((a) => ({ instrument: a.instrument, tab: a.tab })) } : {}),
       };
+      const renames = Object.fromEntries(i.parts.flatMap((p) => { const name = nameFields.get(p.id)?.value.trim() ?? ''; return name && name !== p.name && !removed.has(p.id) ? [[p.id, name] as const] : []; }));
+      if (Object.keys(renames).length > 0) (changes as { renameParts?: Record<string, string> }).renameParts = renames;
+      if (removed.size > 0) (changes as { removeParts?: string[] }).removeParts = [...removed];
       const tabChanges = Object.fromEntries(i.parts.filter((p) => tabBoxes.get(p.id) && tabBoxes.get(p.id)!.checked !== p.tab).map((p) => [p.id, tabBoxes.get(p.id)!.checked]));
       if (Object.keys(tabChanges).length > 0) (changes as { tab?: Record<string, boolean> }).tab = tabChanges;
       const tuningChanges = Object.fromEntries(

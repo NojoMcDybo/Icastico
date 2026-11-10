@@ -1090,6 +1090,48 @@ body.is-dragging-note * {
   cursor: default;
 }
 
+/* The lines a score already has: the name can be typed over, ✕ strikes the line out until the dialog is confirmed. */
+.instruments--have li::before {
+  content: counter(instrument) '.';
+  width: 16px;
+  color: var(--faint);
+}
+
+.form .instruments__name {
+  flex: 1;
+  min-width: 0;
+}
+
+.instruments li.is-removed .instruments__name {
+  color: var(--faint);
+  text-decoration: line-through;
+}
+
+.instruments li.is-removed .instruments__tab {
+  visibility: hidden;
+}
+
+/* Tuning of a guitar line: its name and the preset, below them the six strings in a row. */
+.tuning {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px 10px;
+  margin-bottom: 8px;
+}
+
+.tuning__strings {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.form .tuning__string {
+  min-width: 0;
+  padding: 0 6px;
+}
+
 .instruments__empty {
   color: var(--dim);
   font-style: italic;
@@ -1151,6 +1193,10 @@ body.is-dragging-note * {
 }
 
 .instruments__tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
   margin-left: auto;
   color: var(--dim);
   font-size: 12px;

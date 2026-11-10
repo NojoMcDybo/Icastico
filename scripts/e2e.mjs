@@ -48,6 +48,8 @@ try {
   const notes = () => page.locator('.page g.note').count();
   const type = async (...keys) => {
     for (const k of keys) await page.keyboard.press(k);
+    // After a slow redraw the app draws the next key presses a moment later (one redraw for all): wait for the paper.
+    await page.waitForFunction(() => !document.querySelector('#pages[aria-busy]'));
   };
   const saved = () => page.waitForFunction(() => !document.querySelector('#doc-title')?.textContent?.endsWith('•'), null, { timeout: 5000 });
   /** Files in the (browser) library: path → title. */
@@ -974,6 +976,35 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.page g.staff').length >= 3);
   check((await page.locator('.page text, .page tspan').filter({ hasText: /^Tab$/ }).count()) >= 1 || (await page.locator('.page g.staff').count()) >= 3, 'Einstellungen: die neue Gitarrenzeile mit Tabulatur steht in der Partitur');
   await type('Control+z');
+
+  // ── Partitur-Einstellungen: Zeile umbenennen und entfernen ──
+  const openSettings = async () => {
+    await page.click('#doc-title');
+    await page.waitForSelector('.modal h2:text("Partitur-Einstellungen")');
+  };
+  const applySettings = async () => {
+    await page.click('.modal button[type="submit"]');
+    await page.waitForSelector('.modal', { state: 'detached' });
+  };
+  await openSettings();
+  const linesBefore = await page.locator('.instruments--have li').count();
+  await page.click('.modal [data-instrument="piano"]');
+  await applySettings();
+  await openSettings();
+  await page.fill('.instruments--have li:first-child .instruments__name', 'Sopran-Test');
+  await page.click('.instruments--have li:last-child [data-remove]');
+  check((await page.locator('.instruments--have li').count()) === linesBefore + 1 && (await page.locator('.instruments--have li.is-removed').count()) === 1, 'Einstellungen: ✕ streicht eine Zeile durch, sie bleibt bis „Übernehmen“ stehen');
+  await applySettings();
+  check((await page.locator('.page g.label').filter({ hasText: 'Sopran-Test' }).count()) >= 1, 'Einstellungen: die umbenannte Zeile heißt in der Partitur „Sopran-Test“');
+  await openSettings();
+  check((await page.locator('.instruments--have li').count()) === linesBefore, 'Einstellungen: die entfernte Zeile ist aus der Partitur verschwunden');
+  for (const b of await page.locator('.instruments--have [data-remove]').all()) await b.click();
+  await page.click('.modal button[type="submit"]');
+  check(/Mindestens ein Instrument/.test(await page.textContent('.modal .form__error')), 'Einstellungen: die letzte Zeile lässt sich nicht entfernen');
+  await type('Escape');
+  await page.waitForSelector('.modal', { state: 'detached' });
+  await type('Control+z', 'Control+z');
+  check((await page.locator('.page g.label').filter({ hasText: 'Sopran-Test' }).count()) === 0, 'Einstellungen: Strg+Z nimmt Umbenennen und Entfernen zurück');
 
   // ── Tonart-Fenster: Transponieren steht darunter ──
   await page.click('.lcd__cell:has-text("TONART")');

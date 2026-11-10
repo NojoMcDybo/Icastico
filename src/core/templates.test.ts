@@ -180,6 +180,49 @@ describe('adding instruments to an existing score', () => {
   });
 });
 
+describe('removing and renaming instruments of an existing score', () => {
+  const three = (): Score => {
+    const base = createScore({ ...DEFAULT_SETUP, instruments: ['voice', 'guitar', 'piano'] });
+    const tone = (id: string) => ({ id: `${id}-t`, pitch: { step: 'C', alter: 0, octave: 4 } as const });
+    const note = (id: string, at: number) => ({ id, onset: frac(at, 4), duration: frac(1, 4), tones: [tone(id)] });
+    const fill = (partId: string, events: ReturnType<typeof note>[]) => (p: Score['parts'][number]) => (p.id === partId ? { ...p, voices: p.voices.map((v, i) => (i === 0 ? { ...v, events } : v)) } : p);
+    return {
+      ...base,
+      parts: base.parts.map(fill('voice', [note('a', 0), note('b', 1)])).map(fill('guitar', [note('c', 0), note('d', 1)])),
+      links: [
+        { id: 'l1', kind: 'tie', from: 'a-t', to: 'b-t' },
+        { id: 'l2', kind: 'tie', from: 'c-t', to: 'd-t' },
+      ],
+      groups: [{ parts: ['voice', 'guitar', 'piano'], symbol: 'bracket' }],
+    };
+  };
+
+  it('takes a line out with its notes, its ties and its place in a bracket', () => {
+    const s = ok(applyScoreChanges(three(), { removeParts: ['guitar'] }));
+    expect(s.parts.map((p) => p.id)).toEqual(['voice', 'piano']);
+    expect(s.links).toEqual([{ id: 'l1', kind: 'tie', from: 'a-t', to: 'b-t' }]);
+    expect(s.groups).toEqual([{ parts: ['voice', 'piano'], symbol: 'bracket' }]);
+  });
+
+  it('drops a bracket that would hold a single line, and the list of ties when none is left', () => {
+    const s = ok(applyScoreChanges(three(), { removeParts: ['voice', 'guitar'] }));
+    expect(s.parts.map((p) => p.id)).toEqual(['piano']);
+    expect(s.links).toBeUndefined();
+    expect(s.groups).toBeUndefined();
+  });
+
+  it('keeps at least one line – unless a new one comes in the same step', () => {
+    expect(applyScoreChanges(three(), { removeParts: ['voice', 'guitar', 'piano'] })).toEqual({ error: 'Mindestens ein Instrument muss bleiben.' });
+    const swapped = ok(applyScoreChanges(three(), { removeParts: ['voice', 'guitar', 'piano'], addInstruments: [{ instrument: 'voice' }] }));
+    expect(swapped.parts.map((p) => p.name)).toEqual(['Gesang']);
+  });
+
+  it('renames a line; an empty name leaves it as it is', () => {
+    const s = ok(applyScoreChanges(three(), { renameParts: { voice: '  Sopran ', piano: '   ' } }));
+    expect(s.parts.map((p) => p.name)).toEqual(['Sopran', 'Gitarre', 'Klavier']);
+  });
+});
+
 describe('bars per line in the score settings', () => {
   it('sets, changes and clears the bars per line (0 = automatic), also over imported breaks', () => {
     const base = createScore(DEFAULT_SETUP);

@@ -34,7 +34,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Neue Partitur (Strg+N) mit Dialog: Titel, Komponist, Instrumente (Reihenfolge, mehrfach), Tonart, Taktart, Auftakt; merkt sich die letzte Wahl
 - [x] Partitur-Einstellungen (Strg+, oder Klick auf den Titel): Titel, Komponist, Tonart/Taktart ab Takt, Auftakt – rückgängig machbar (ADR 0008)
 - [x] Auftakt im Modell, in der Notation und im Dateiformat (Version 2, alte Dateien werden weiter geöffnet)
-- [ ] Instrumente in bestehender Partitur entfernen/umbenennen (hinzufügen geht seit 0.18.1 in den Partitur-Einstellungen)
+- [x] Instrumente in bestehender Partitur hinzufügen, umbenennen (Name überschreiben) und entfernen (✕, gilt erst mit „Übernehmen“, Strg+Z holt die Zeile zurück; Haltebögen und Klammern der Zeile gehen mit) – in den Partitur-Einstellungen
 - [x] Transponieren (Strg+Umschalt+T, siehe Schritt 3)
 - [x] Bibliothek `Dokumente/Icastico` mit Sammlungen, Suche, Papierkorb, Explorer-Knopf (ADR 0009)
 - [x] Automatisches Speichern, Dateiname folgt dem Titel, Start mit der zuletzt bearbeiteten Partitur
