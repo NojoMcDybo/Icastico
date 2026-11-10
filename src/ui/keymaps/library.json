@@ -631,6 +631,12 @@
           "via": "Bibliothek (Strg+O): Menü ⋯ an der Partitur"
         },
         {
+          "id": "library.drag",
+          "title": "Partitur in eine Sammlung verschieben: Kachel auf die Sammlung, auf „Alle“ (aus der Sammlung heraus) oder auf den Papierkorb ziehen",
+          "command": "ui.control",
+          "via": "Bibliothek (Strg+O): Kachel mit der Maus ziehen"
+        },
+        {
           "id": "library.export",
           "title": "Exportieren: PDF, MusicXML, MIDI oder Icastico-Datei",
           "command": "ui.control",

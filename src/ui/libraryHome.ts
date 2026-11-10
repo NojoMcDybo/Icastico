@@ -83,6 +83,7 @@ export class LibraryHome {
   private highlighted = 0;
   private menu: HTMLElement | null = null;
   private thumbQueue = 0;
+  private justDragged = false;
   private update: { text: string; install: () => void } | null = null;
   private readonly back = el('button', { type: 'button', className: 'round home__back', title: 'Zurück zur Partitur (Esc)' });
   private readonly subtitle = el('p', { className: 'home__subtitle' });
@@ -282,7 +283,12 @@ export class LibraryHome {
         el('span', { className: 'tile__meta', textContent: meta }),
       );
       open.style.animationDelay = `${Math.min(i * 22, 260)}ms`;
-      open.addEventListener('click', () => void this.activate(item));
+      open.addEventListener('click', () => {
+        if (this.justDragged) return; // the click that ends a drag does not open the score
+        void this.activate(item);
+      });
+      if (!item.trashed) open.addEventListener('pointerdown', (e) => this.beginTileDrag(item, e));
+      open.addEventListener('dragstart', (e) => e.preventDefault()); // the browser's own drag of the preview picture would cancel ours
       const more = el('button', { type: 'button', className: 'round round--sm tile__more' });
       more.innerHTML = DOTS;
       more.setAttribute('aria-label', `${item.title}: weitere Aktionen`);
@@ -317,6 +323,60 @@ export class LibraryHome {
     }
     this.grid.replaceChildren(...tiles);
     this.fillThumbnails(items);
+  }
+
+  /** The pill a dragged score may be dropped on at this point: another collection, "Alle" (out of its collection) or the trash. */
+  private dropTarget(item: LibraryItem, x: number, y: number): HTMLElement | null {
+    const pill = document.elementFromPoint(x, y)?.closest<HTMLElement>('.home__pills .pill[data-view]') ?? null;
+    const view = pill?.dataset.view;
+    if (!pill || !view) return null;
+    if (view === 'trash') return pill;
+    if (view === 'all') return item.collection ? pill : null;
+    return view.startsWith('collection:') && view.slice('collection:'.length) !== item.collection ? pill : null;
+  }
+
+  /** Dragging a tile onto a pill moves the score there (pointer events, like every drag in the app). */
+  private beginTileDrag(item: LibraryItem, e: PointerEvent): void {
+    if (e.button !== 0) return;
+    const start = { x: e.clientX, y: e.clientY };
+    let label: HTMLElement | null = null;
+    let target: HTMLElement | null = null;
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== e.pointerId) return;
+      if (!label) {
+        if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 8) return;
+        label = el('div', { className: 'home__drag', textContent: item.title });
+        document.body.append(label);
+        this.root.classList.add('is-dragging-tile');
+      }
+      label.style.left = `${ev.clientX}px`;
+      label.style.top = `${ev.clientY}px`;
+      const next = this.dropTarget(item, ev.clientX, ev.clientY);
+      if (next !== target) {
+        target?.classList.remove('is-drop');
+        next?.classList.add('is-drop');
+        target = next;
+      }
+    };
+    const end = (ev: PointerEvent) => {
+      if (ev.pointerId !== e.pointerId) return;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+      if (!label) return; // a plain click
+      label.remove();
+      this.root.classList.remove('is-dragging-tile');
+      target?.classList.remove('is-drop');
+      this.justDragged = true;
+      window.setTimeout(() => (this.justDragged = false), 80);
+      const view = ev.type === 'pointerup' ? target?.dataset.view : undefined;
+      if (view === 'trash') void this.trash(item);
+      else if (view === 'all') void this.move(item, null);
+      else if (view) void this.move(item, view.slice('collection:'.length));
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
   }
 
   /** Engraves the preview pictures one per frame, so the grid appears at once. */

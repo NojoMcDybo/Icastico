@@ -48,7 +48,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Bibliothek der Tastenbelegungen: Finale + Logic Pro, umschaltbar in F1, inkl. geplanter Funktionen (`docs/tastenbelegung.md`), ADR 0011
 - [ ] Owner prüft die Finale-Annahmen und ergänzt unbekannte Finale-Tasten (z. B. Triolen)
 - [ ] Mac-Release nachholen (bei v0.6.0 war kein GitHub-Mac-Rechner frei)
-- [ ] Partituren per Ziehen in Sammlungen verschieben
+- [x] Partituren per Ziehen in Sammlungen verschieben: Kachel in der Bibliothek auf eine Sammlung, auf „Alle“ (aus der Sammlung heraus) oder auf den Papierkorb ziehen; das Ziel leuchtet blau
 - [ ] Notationsregeln verfeinern (Synkopen, Halbtakt-Balken in 4/4)
 - [x] Vorbereitung Piano-Roll und Gleiten: jeder Ton hat eine dauerhafte Nummer, Dateiformat 3, ältere Dateien werden umgewandelt und vor dem ersten Speichern gesichert (ADR 0012)
 - [x] Vorbereitung Piano-Roll: einzelne Akkordtöne sind auswählbar (Klick auf den Notenkopf), eine Ziehgeste ergibt später genau einen Rückgängig-Schritt und wird nie halbfertig gespeichert; ein Zeichenfehler macht nur die letzte Änderung rückgängig, nicht frühere

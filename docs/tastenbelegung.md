@@ -115,6 +115,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Tastenhilfe | `F1` / `?` *(Icastico)* | `F1` / `?` *(Icastico)* | (wie Finale) | ✓ |
 | Befehlspalette: jede Funktion suchen und ausführen | `Strg+K` *(Icastico)* | `Strg+K` *(Icastico)* | (wie Finale) | ✓ |
 | Partitur in der Bibliothek: Öffnen, Duplizieren, in eine Sammlung verschieben, Speicherort öffnen, in den Papierkorb | *Bibliothek (Strg+O): Menü ⋯ an der Partitur* | *Bibliothek (Strg+O): Menü ⋯ an der Partitur* | (wie Finale) | ✓ |
+| Partitur in eine Sammlung verschieben: Kachel auf die Sammlung, auf „Alle“ (aus der Sammlung heraus) oder auf den Papierkorb ziehen | *Bibliothek (Strg+O): Kachel mit der Maus ziehen* | *Bibliothek (Strg+O): Kachel mit der Maus ziehen* | (wie Finale) | ✓ |
 | Exportieren: PDF, MusicXML, MIDI oder Icastico-Datei | *Bibliothek: Menü ⋯ → Exportieren (PDF, MusicXML und MIDI auch mit den Tasten oben)* | *Bibliothek: Menü ⋯ → Exportieren (PDF, MusicXML und MIDI auch mit den Tasten oben)* | (wie Finale) | ✓ |
 | Sammlungen: Partituren ordnen, Sammlung umbenennen oder (leer) löschen | *Bibliothek: Reiter oben und Menü ⋯ an der Sammlung* | *Bibliothek: Reiter oben und Menü ⋯ an der Sammlung* | (wie Finale) | ✓ |
 | Papierkorb: Partitur wiederherstellen, endgültig löschen, Papierkorb leeren | *Bibliothek: Reiter „Papierkorb“* | *Bibliothek: Reiter „Papierkorb“* | (wie Finale) | ✓ |

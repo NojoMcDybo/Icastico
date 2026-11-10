@@ -230,6 +230,31 @@ try {
   await page.click('.modal button');
   await type('Escape');
 
+  // ── Partitur mit der Maus auf eine Sammlung ziehen ──
+  await openLibrary();
+  await view('Alle');
+  /** Drags the tile of a score onto a pill; tells whether the pill lit up on the way. */
+  const dragTile = async (name, pillView) => {
+    const from = await page.locator('.tile-item', { hasText: name }).first().locator('.tile__cover').boundingBox();
+    const to = await page.locator(`.home__pills .pill[data-view="${pillView}"]`).boundingBox();
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(from.x + from.width / 2 - 30, from.y + from.height / 2 - 30, { steps: 3 });
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 6 });
+    const lit = (await page.locator(`.home__pills .pill.is-drop[data-view="${pillView}"]`).count()) === 1 && (await page.locator('.home__drag').count()) === 1;
+    await page.mouse.up();
+    return lit;
+  };
+  const hasFile = (path) => page.waitForFunction((p) => p in JSON.parse(localStorage.getItem('icastico.browserLibrary') ?? '{"files":{}}').files, path, { timeout: 5000 });
+  const litAll = await dragTile('Wiegenlied', 'all');
+  await hasFile('/Icastico/Wiegenlied.icastico');
+  check(litAll && !('/Icastico/Volkslieder/Wiegenlied.icastico' in (await files())), 'Bibliothek: eine Kachel auf „Alle“ gezogen holt die Partitur aus ihrer Sammlung (die Pille leuchtet beim Darüberziehen)');
+  check(await page.locator('#library').isVisible(), 'Bibliothek: nach dem Ziehen bleibt die Bibliothek offen, die Partitur wird nicht geöffnet');
+  const litBack = await dragTile('Wiegenlied', 'collection:Volkslieder');
+  await hasFile('/Icastico/Volkslieder/Wiegenlied.icastico');
+  check(litBack && (await page.locator('.home__drag').count()) === 0, 'Bibliothek: auf die Sammlung „Volkslieder“ gezogen liegt sie wieder dort');
+  await type('Escape');
+
   // ── Dateien von außerhalb ──
   const broken = join(outDir, 'Zukunft.icastico');
   writeFileSync(broken, JSON.stringify({ format: 'icastico', version: 99, score: {} }));
