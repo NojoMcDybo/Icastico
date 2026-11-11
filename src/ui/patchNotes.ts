@@ -12,6 +12,16 @@ export interface PatchNote {
 /** Newest first. Keep each line to one short sentence. */
 export const PATCH_NOTES: readonly PatchNote[] = [
   {
+    version: '0.26.0',
+    items: [
+      'Bis zu vier Strophen Liedtext: im Liedtext-Feld (L) wählen, in der Partitur stehen sie untereinander mit „1.“, „2.“ …',
+      'Akkord nach Namen (Strg+Umschalt+K): „Cm7“ oder „C/G“ eintippen, Umkehrung wählen, auf Wunsch mit Akkordsymbol darüber.',
+      'Neun weitere Instrumente: Violine, Viola, Cello, Kontrabass, E-Bass, Querflöte, Blockflöte, Oboe und Fagott.',
+      'Tempowechsel ab einem Takt: „♩ = …“ im Zeichen-Menü (Strg+J) – steht über der Zeile, klingt, und geht in MIDI und MusicXML mit.',
+      'Schlüsselwechsel ab einem Takt (Violin, Bass, Alt, Tenor, auch mit 8) im Zeichen-Menü; im ersten Takt ersetzt er den Anfangsschlüssel.',
+    ],
+  },
+  {
     version: '0.25.0',
     items: [
       'Befehlspalette (Strg+K): ein Suchfeld findet jede Funktion und führt sie aus – ihre Taste steht daneben.',
