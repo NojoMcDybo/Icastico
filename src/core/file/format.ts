@@ -14,7 +14,7 @@ import { type Fraction, compare, fracToString, parseFrac } from '../time';
 import { parsePitch, pitchToString } from '../pitch';
 import { CLEF_IDS, type ClefId, type InstrumentId, INSTRUMENTS } from '../instruments';
 import { type Curve, type CurveKind, DEFAULT_VOLUME, curveProblem } from '../curve';
-import { type BarMark, type ScoreLayout, type Link, type NoteEvent, type Part, type Score, type Tone, type Voice, validateScore } from '../model';
+import { type BarMark, type FreeText, type RestMark, type ScoreLayout, type Link, type NoteEvent, type Part, type Score, type Tone, type Voice, validateScore } from '../model';
 import { MAX_VERSES } from '../lyrics';
 
 export const FILE_EXTENSION = 'icastico';
@@ -37,9 +37,10 @@ export const FILE_EXTENSION = 'icastico';
  * 18 = optional `tempos` per score: tempo changes at the start of a bar (ADR 0039),
  * 19 = optional `clefs` per part: clef changes at the start of a bar (ADR 0040),
  * 20 = optional `hideLabel` per part: no description at the left of the line (ADR 0041),
- * 21 = optional `layout.systemsPerPage`: how many Akkoladen stand on a page (ADR 0042).
+ * 21 = optional `layout.systemsPerPage`: how many Akkoladen stand on a page (ADR 0042),
+ * 22 = optional `rests` per voice (hidden / moved rests), `stem` per note, `texts` per score (ADR 0043).
  */
-export const FORMAT_VERSION = 21;
+export const FORMAT_VERSION = 22;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -60,6 +61,7 @@ function scoreToJson(score: Score): unknown {
     ...(score.pickup ? { pickup: fracToString(score.pickup) } : {}),
     ...(score.tempo !== undefined ? { tempo: score.tempo } : {}),
     ...(score.tempos && score.tempos.length > 0 ? { tempos: score.tempos.map((t) => ({ at: fracToString(t.at), bpm: t.bpm })) } : {}),
+    ...(score.texts?.length ? { texts: score.texts.map((t) => ({ id: t.id, part: t.partId, staff: t.staff, at: fracToString(t.at), text: t.text, size: t.size, dx: t.dx, dy: t.dy })) } : {}),
     ...(score.layout && (score.layout.perSystem !== undefined || score.layout.breaks?.length || score.layout.systemsPerPage !== undefined) ? { layout: { ...(score.layout.perSystem !== undefined ? { perSystem: score.layout.perSystem } : {}), ...(score.layout.breaks?.length ? { breaks: [...score.layout.breaks] } : {}), ...(score.layout.systemsPerPage !== undefined ? { systemsPerPage: score.layout.systemsPerPage } : {}) } } : {}),
     ...(score.marks?.length ? { marks: score.marks.map((m) => ({ at: fracToString(m.at), kind: m.kind, ...(m.exact ? { exact: true } : {}) })) } : {}),
     ...(score.groups?.length ? { groups: score.groups.map((g) => ({ symbol: g.symbol, parts: [...g.parts] })) } : {}),
@@ -76,10 +78,12 @@ function scoreToJson(score: Score): unknown {
       voices: p.voices.map((v) => ({
         id: v.id,
         staff: v.staff,
+        ...(v.rests?.length ? { rests: v.rests.map((r) => ({ at: fracToString(r.at), ...(r.hidden ? { hidden: true } : {}), ...(r.shift ? { shift: r.shift } : {}) })) } : {}),
         events: v.events.map((e) => ({
           id: e.id,
           at: fracToString(e.onset),
           dur: fracToString(e.duration),
+          ...(e.stem ? { stem: e.stem } : {}),
           ...(e.lyric !== undefined ? { lyric: e.lyric } : {}),
           ...(e.verses ? { verses: { ...e.verses } } : {}),
           ...(e.marks?.length ? { marks: [...e.marks] } : {}),
@@ -213,6 +217,7 @@ function readEvent(v: unknown, where: string): NoteEvent {
     tones,
     ...(o.lyric !== undefined ? { lyric: str(o.lyric, `${where} (${id}).lyric`) } : {}),
     ...(o.verses !== undefined ? { verses: versesOf(o.verses, `${where} (${id}).verses`) } : {}),
+    ...(o.stem !== undefined ? { stem: stemOf(o.stem, `${where} (${id}).stem`) } : {}),
     ...(o.marks !== undefined && arr(o.marks, `${where} (${id}).marks`).length > 0
       ? { marks: arr(o.marks, `${where} (${id}).marks`).map((m, i) => str(m, `${where} (${id}).marks[${i}]`)) }
       : {}),
@@ -249,12 +254,31 @@ function readLink(v: unknown, i: number): Link {
   };
 }
 
+function stemOf(v: unknown, where: string): 'up' | 'down' {
+  const s = str(v, where);
+  return s === 'up' || s === 'down' ? s : fail(`${where}: Notenhals „${s}“ gibt es nicht.`);
+}
+
+function readRest(v: unknown, where: string): RestMark {
+  const o = obj(v, where);
+  return { at: time(o.at, `${where}.at`), ...(o.hidden === true ? { hidden: true as const } : {}), ...(o.shift !== undefined ? { shift: int(o.shift, `${where}.shift`) } : {}) };
+}
+
+function readText(v: unknown, i: number): FreeText {
+  const where = `Text ${i + 1}`;
+  const o = obj(v, where);
+  const num = (x: unknown, what: string): number => (typeof x === 'number' && Number.isFinite(x) ? x : fail(`${where}.${what}: eine Zahl wird erwartet.`));
+  return { id: str(o.id, `${where}.id`), partId: str(o.part, `${where}.part`), staff: int(o.staff, `${where}.staff`), at: time(o.at, `${where}.at`), text: str(o.text, `${where}.text`), size: int(o.size, `${where}.size`), dx: num(o.dx, 'dx'), dy: num(o.dy, 'dy') };
+}
+
 function readVoice(v: unknown, where: string): Voice {
   const o = obj(v, where);
   const id = str(o.id, `${where}.id`);
   const events = arr(o.events, `${where} (${id}).events`).map((e, i) => readEvent(e, `Note ${i + 1} in ${id}`));
   events.sort((a, b) => compare(a.onset, b.onset));
-  return { id, staff: int(o.staff, `${where} (${id}).staff`), events };
+  const rests = o.rests !== undefined ? arr(o.rests, `${where} (${id}).rests`).map((r, i) => readRest(r, `${where} (${id}), Pause ${i + 1}`)) : [];
+  rests.sort((a, b) => compare(a.at, b.at));
+  return { id, staff: int(o.staff, `${where} (${id}).staff`), events, ...(rests.length > 0 ? { rests } : {}) };
 }
 
 function readPart(v: unknown, where: string): Part {
@@ -321,6 +345,7 @@ function readScore(v: unknown): Score {
         }
       : {}),
     ...(o.layout !== undefined ? readLayout(o.layout) : {}),
+    ...(o.texts !== undefined && arr(o.texts, 'Texte').length > 0 ? { texts: arr(o.texts, 'Texte').map(readText) } : {}),
     ...(o.groups !== undefined && arr(o.groups, 'Klammern').length > 0
       ? {
           groups: arr(o.groups, 'Klammern').map((g, i) => {
@@ -389,6 +414,8 @@ const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
   19: (doc) => ({ ...doc, version: 20 }),
   // 20 → 21: the optional "systemsPerPage" of the layout. Version-20 files let the engraver fill the pages.
   20: (doc) => ({ ...doc, version: 21 }),
+  // 21 → 22: the optional "rests" of voices, "stem" of notes and "texts" of the score. Version-21 files have none.
+  21: (doc) => ({ ...doc, version: 22 }),
 };
 
 /** Applies `fn` to every event object of a (still unvalidated) score; anything unexpected is left for the reader to reject. */

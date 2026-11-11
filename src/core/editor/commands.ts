@@ -38,6 +38,7 @@ import {
 import { applyRollEdit } from './rollEdits';
 import { deleteRange, extendRange, rangeSpan, selectAllNotes } from './range';
 import { toggleTabAnywhere, translateToTab } from './tabOps';
+import { eraseRests, flipStems, hideRests, shiftRests } from './layoutOps';
 import { moveToString, setFret } from './tabEdit';
 import { freshLinkId, linksOf, withLinks, withValidLinks } from './linkOps';
 import { clearRange, insertSorted, makeRoom } from './voiceOps';
@@ -778,6 +779,7 @@ function toRest(s: EditorState): EditorState {
 /** Delete: a selected single tone of a chord goes alone, otherwise the whole note becomes a rest. */
 function deleteNote(s: EditorState): EditorState {
   if (rangeSpan(s)) return deleteRange(s); // a marked passage goes as a whole
+  if (s.selection?.kind === 'gap') return eraseRests(s) ?? toRest(s);
   const t = target(s);
   const toneId = s.selection?.kind === 'event' ? s.selection.toneId : undefined;
   if (t && toneId && t.event.tones.length > 1) {
@@ -853,7 +855,7 @@ function detachTone(s: EditorState): EditorState {
 function backspace(s: EditorState): EditorState {
   if (rangeSpan(s)) return deleteRange(s);
   const caret = s.caret;
-  if (!caret) return toRest(s);
+  if (!caret) return eraseRests(s) ?? toRest(s); // a selected rest cannot go, so it is hidden (ADR 0043)
   const prev = getVoice(s.score, caret).voice.events.find((e) => eq(eventEnd(e), caret.time));
   if (!prev) return navHorizontal(s, -1);
   const score = updateEvents(s.score, caret, (events) => events.filter((e) => e.id !== prev.id));
@@ -868,6 +870,9 @@ function backspace(s: EditorState): EditorState {
 }
 
 function step(s: EditorState, delta: number): EditorState {
+  // On a selected rest it moves the rest up or down (ADR 0043).
+  const restMoved = shiftRests(s, delta);
+  if (restMoved) return restMoved;
   // On a tablature line a number moves to the next string instead (the sound stays).
   const onString = moveToString(s, delta);
   if (onString) return onString;
@@ -1204,7 +1209,9 @@ export const COMMANDS = {
   'edit.toRest': { title: 'Note in Pause umwandeln', run: toRest },
   'edit.delete': { title: 'Note löschen', run: deleteNote },
   'edit.backspace': { title: 'Zurück löschen', run: backspace },
-  'edit.step': { title: 'Tonhöhe um eine Stufe', run: step },
+  'edit.step': { title: 'Tonhöhe um eine Stufe (bei einer gewählten Pause: die Pause verschieben)', run: step },
+  'stem.flip': { title: 'Halsrichtung der markierten Noten umdrehen', run: flipStems },
+  'rest.hide': { title: 'Gewählte Pause(n) unsichtbar machen / wieder zeigen', run: hideRests },
   'edit.octave': { title: 'Tonhöhe um eine Oktave', run: octave },
   'edit.alter': { title: 'Vorzeichen: Halbton höher/tiefer', run: alter },
   'edit.semitone': { title: 'Um einen Halbton transponieren', run: semitone },

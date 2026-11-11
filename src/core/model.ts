@@ -72,6 +72,8 @@ export interface NoteEvent {
   readonly verses?: Readonly<Record<number, string>>;
   /** Special signs on the note (ADR 0024): ids from the sign library, e.g. "mf", "stacc", "fermata". Absent = none. */
   readonly marks?: readonly string[];
+  /** Stem direction forced by the user (ADR 0043); absent = the engraver decides. */
+  readonly stem?: 'up' | 'down';
 }
 
 /** A sign that belongs to a bar (ADR 0024): repeat, ending bracket, segno, coda, jump. `at` is the start of that bar. */
@@ -100,7 +102,35 @@ export interface Voice {
   readonly staff: number;
   /** Sorted by onset, non-overlapping. */
   readonly events: readonly NoteEvent[];
+  /** How single rests are shown, found by the start of the rest (ADR 0043); absent = all shown where the engraver puts them. */
+  readonly rests?: readonly RestMark[];
 }
+
+/** A rest that is hidden and / or moved up or down (ADR 0043): `at` is where the rest starts, `shift` counts staff steps (half a line distance). */
+export interface RestMark {
+  readonly at: Fraction;
+  readonly hidden?: true;
+  readonly shift?: number;
+}
+
+/** A text of its own on a staff (ADR 0043): anchored at a time, moved by `dx` / `dy` (staff steps; `dy` up) from its usual place above the staff. */
+export interface FreeText {
+  readonly id: string;
+  readonly partId: string;
+  /** Index into the instrument's staves. */
+  readonly staff: number;
+  readonly at: Fraction;
+  readonly text: string;
+  /** Size in points. */
+  readonly size: number;
+  readonly dx: number;
+  readonly dy: number;
+}
+
+export const MIN_TEXT_SIZE = 6;
+export const MAX_TEXT_SIZE = 72;
+export const DEFAULT_TEXT_SIZE = 14;
+export const MAX_REST_SHIFT = 12;
 
 /** A staff written in another clef from a bar on (ADR 0040). */
 export interface ClefChange {
@@ -152,6 +182,8 @@ export interface Score {
   readonly groups?: readonly StaffGroup[];
   /** How the music is broken into lines; absent = automatic (as many bars as fit). */
   readonly layout?: ScoreLayout;
+  /** Free texts on the staves (ADR 0043); absent = none. */
+  readonly texts?: readonly FreeText[];
 }
 
 /** Line breaks (ADR 0031): a fixed number of bars per line, or the bars (0-based index) where a new line starts (as taken from a MusicXML file). */
@@ -424,6 +456,29 @@ export function validateScore(score: Score): string[] {
   for (const part of score.parts) {
     if (part.tuning && (!validTuning(part.tuning) || (part.instrument !== 'guitar' && part.instrument !== 'tab'))) problems.push(`${part.name}: Die Stimmung gibt es nur für Gitarre und Tabulatur, mit sechs Saiten zwischen C1 und E6.`);
     for (const v of part.voices) for (const e of v.events) for (const t of e.tones) if (t.string !== undefined && !(Number.isInteger(t.string) && t.string >= 1 && t.string <= 6)) problems.push(`${part.name}: Ton ${t.id} liegt auf einer Saite, die es nicht gibt.`);
+  }
+  for (const part of score.parts) {
+    for (const v of part.voices) {
+      const seen = new Set<string>();
+      for (const r of v.rests ?? []) {
+        const key = `${r.at.n}/${r.at.d}`;
+        if (r.at.n < 0 || seen.has(key)) problems.push(`${part.name}: Pause bei ${key} ist doppelt oder liegt vor dem Anfang.`);
+        seen.add(key);
+        if (r.shift !== undefined && !(Number.isInteger(r.shift) && Math.abs(r.shift) <= MAX_REST_SHIFT)) problems.push(`${part.name}: Eine Pause lässt sich höchstens um ${MAX_REST_SHIFT} Stufen verschieben.`);
+        if (!r.hidden && !r.shift) problems.push(`${part.name}: Pause bei ${key} hat weder Verschiebung noch ist sie unsichtbar.`);
+      }
+      for (const e of v.events) if (e.stem !== undefined && e.stem !== 'up' && e.stem !== 'down') problems.push(`${part.name}: Notenhals „${String(e.stem)}“ gibt es nicht.`);
+    }
+  }
+  const textIds = new Set<string>();
+  for (const t of score.texts ?? []) {
+    const part = score.parts.find((p) => p.id === t.partId);
+    if (!part || t.staff < 0 || t.staff >= getInstrument(part.instrument).staves.length) problems.push(`Text „${t.text}“ gehört zu keiner Zeile.`);
+    if (textIds.has(t.id)) problems.push(`Der Text ${t.id} kommt doppelt vor.`);
+    textIds.add(t.id);
+    if (t.text.trim() === '' || t.text.length > 200) problems.push('Ein Text darf nicht leer und höchstens 200 Zeichen lang sein.');
+    if (!(Number.isInteger(t.size) && t.size >= MIN_TEXT_SIZE && t.size <= MAX_TEXT_SIZE)) problems.push(`Textgröße: erlaubt sind ${MIN_TEXT_SIZE} bis ${MAX_TEXT_SIZE} Punkt.`);
+    if (!Number.isFinite(t.dx) || !Number.isFinite(t.dy) || t.at.n < 0) problems.push(`Text „${t.text}“ steht an einer ungültigen Stelle.`);
   }
   if (score.tempo !== undefined && !(Number.isInteger(score.tempo) && score.tempo >= MIN_TEMPO && score.tempo <= MAX_TEMPO)) {
     problems.push(`Tempo ${score.tempo} ist ungültig (erlaubt: ${MIN_TEMPO}–${MAX_TEMPO}).`);

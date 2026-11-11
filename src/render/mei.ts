@@ -15,7 +15,7 @@ import { MAX_VERSES, lyricOf, syllableId, versesUsed } from '../core/lyrics';
 import { type Fraction, ZERO, compare, div, eq, gt, isZero, le, lt, sub, frac } from '../core/time';
 import { barSign, noteSymbol, voltaNumber } from '../core/symbols';
 import { CLEFS, getInstrument, type Clef, type ClefId } from '../core/instruments';
-import { keyAlteration, type Pitch } from '../core/pitch';
+import { keyAlteration, STEPS, type Pitch } from '../core/pitch';
 import { GUITAR_STRINGS, assignFrets, tuningLabel, tuningOf, type Fingering } from '../core/tab';
 import {
   beamGroups,
@@ -50,6 +50,8 @@ export interface MeiOptions {
   readonly hiddenStaves?: ReadonlySet<string>;
   /** Bars (0-based index) that start a new page instead of just a new line (Akkoladen per page, ADR 0042). */
   readonly pageBreaks?: ReadonlySet<number>;
+  /** Draw rests the user hid, faintly (editing view); off for print (ADR 0043). */
+  readonly showHiddenRests?: boolean;
 }
 
 /** A staff of the engraving: its MEI number and where it belongs in the score. */
@@ -64,6 +66,8 @@ export const staffElementId = (measureNumber: number, staffN: number): string =>
 
 export interface MeiResult {
   readonly mei: string;
+  /** xml:id of the rests the user hid (ADR 0043): the editing view draws them faintly. */
+  readonly hiddenRests: readonly string[];
   /** The xml:id of every bar in order, as drawn (`m<number>`): lets a drawing be read back as bar indexes. */
   readonly measureIds: readonly string[];
   /** xml:id of a tablature note → the fret number to draw in its place (ADR 0022). */
@@ -139,29 +143,51 @@ function noteXml(item: NotatedNote, accidentals: AccidentalState, tiedIn: Readon
   const tie =
     item.tiedFromPrevious && item.tiedToNext ? 'm' : item.tiedToNext ? 'i' : item.tiedFromPrevious ? 't' : '';
   const tieAttr = tie ? ` tie="${tie}"` : '';
+  const stem = item.stem ? ` stem.dir="${item.stem}"` : '';
   // A note tied in from the previous measure does not repeat its accidental.
   const pitchAttrs = (p: Pitch, toneId: string) =>
     `pname="${p.step.toLowerCase()}" oct="${p.octave}"${accidentals.attrsFor(p, item.tiedFromPrevious || tiedIn.has(toneId))}`;
 
   if (item.tones.length === 1) {
-    const head = `${indent}<note xml:id="${item.id}" ${durAttrs(item.duration)} ${pitchAttrs(item.tones[0]!.pitch, item.tones[0]!.id)}${tieAttr}${artic}`;
+    const head = `${indent}<note xml:id="${item.id}" ${durAttrs(item.duration)} ${pitchAttrs(item.tones[0]!.pitch, item.tones[0]!.id)}${tieAttr}${stem}${artic}`;
     return verse ? `${head}>${verse}</note>` : `${head}/>`;
   }
   const notes = item.tones
     .map((t) => `${indent}  <note xml:id="${chordNoteId(item, t)}" ${pitchAttrs(t.pitch, t.id)}${tieAttr}/>`)
     .join('\n');
-  return `${indent}<chord xml:id="${item.id}" ${durAttrs(item.duration)}${artic}>\n${notes}${verse ? `\n${indent}  ${verse}` : ''}\n${indent}</chord>`;
+  return `${indent}<chord xml:id="${item.id}" ${durAttrs(item.duration)}${stem}${artic}>\n${notes}${verse ? `\n${indent}  ${verse}` : ''}\n${indent}</chord>`;
 }
 
-function itemXml(item: NotatedItem, accidentals: AccidentalState, tiedIn: ReadonlySet<string>, indent: string, verse = '', artic = ''): string {
+/** Where a moved rest sits: the pitch of the middle line of the staff, `shift` staff steps higher. */
+function restPlace(center: Pitch, shift: number | undefined): string {
+  if (!shift) return '';
+  const index = STEPS.indexOf(center.step) + shift;
+  const step = STEPS[((index % 7) + 7) % 7]!;
+  const octave = center.octave + Math.floor(index / 7);
+  return ` ploc="${step.toLowerCase()}" oloc="${octave}"`;
+}
+
+interface RestLook {
+  /** Pitch of the middle line of the staff the rest is on. */
+  readonly center: Pitch;
+  readonly showHidden: boolean;
+}
+
+function itemXml(item: NotatedItem, accidentals: AccidentalState, tiedIn: ReadonlySet<string>, indent: string, verse = '', artic = '', look?: RestLook): string {
   switch (item.kind) {
     case 'note':
       return noteXml(item, accidentals, tiedIn, indent, verse, artic);
-    case 'rest':
-      // The gap a glide travels through is time without a rest sign.
-      return `${indent}<${item.invisible ? 'space' : 'rest'} xml:id="${item.id}" ${durAttrs(item.duration)}/>`;
-    case 'measureRest':
-      return `${indent}<mRest xml:id="${item.id}"/>`;
+    case 'rest': {
+      // The gap a glide travels through is time without a rest sign; a rest the user hid is not printed.
+      const hidden = item.hidden === true;
+      if (item.invisible || (hidden && !look?.showHidden)) return `${indent}<space xml:id="${item.id}" ${durAttrs(item.duration)}/>`;
+      return `${indent}<rest xml:id="${item.id}" ${durAttrs(item.duration)}${look ? restPlace(look.center, item.shift) : ''}/>`;
+    }
+    case 'measureRest': {
+      const hidden = item.hidden === true;
+      if (hidden && !look?.showHidden) return `${indent}<mSpace xml:id="${item.id}"/>`;
+      return `${indent}<mRest xml:id="${item.id}"${look ? restPlace(look.center, item.shift) : ''}/>`;
+    }
   }
 }
 
@@ -239,6 +265,7 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
 
   const measures = measuresOf(score, 1, options.coverTime);
   const elements = new Map<string, ElementRef>();
+  const hiddenRests: string[] = [];
 
   // Global staff numbering across all parts.
   const slots: StaffSlot[] = [];
@@ -279,8 +306,10 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
           const base = { partId: part.id, voiceId: voice.id, measureNumber: m.number, staffN };
           if (it.kind === 'measureRest') {
             elements.set(it.id, { ...base, kind: 'measureRest', onset: m.start });
+            if (it.hidden) hiddenRests.push(it.id);
           } else if (it.kind === 'rest') {
             elements.set(it.id, { ...base, kind: 'rest', onset: it.onset });
+            if (it.hidden) hiddenRests.push(it.id);
           } else {
             const known = pieces.get(it.eventId);
             pieces.set(it.eventId, { first: known?.first ?? it, firstMeasure: known?.firstMeasure ?? m.number, last: it, lastMeasure: m.number });
@@ -489,7 +518,7 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
             const first = item.kind === 'note' && !item.tiedFromPrevious;
             const verse = first ? (syllables.get(item.eventId) ?? '') : '';
             const artic = first ? (articOf.get(item.eventId) ?? '') : '';
-            body.push(itemXml(item, accidentals, tiedIn, indent, verse, artic));
+            body.push(itemXml(item, accidentals, tiedIn, indent, verse, artic, { center: clefAt(slot.part, slot.staffIndex, m.start).center, showHidden: options.showHiddenRests === true }));
           }
           if (beam && i === beam[1]) body.push('            </beam>');
           if (brackets.some((g) => g.end === i)) body.push('            </tuplet>');
@@ -522,6 +551,12 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
       const beats = div(sub(c.at, m.gridStart), frac(1, m.sig.unit));
       body.push(`        <harm xml:id="harm-${m.number}-${c.at.n}-${c.at.d}" staff="${slots[0]!.n}" tstamp="${(beats.n / beats.d + 1).toFixed(4)}">${esc(c.text)}</harm>`);
     }
+    for (const t of score.texts ?? []) {
+      const slot = slots.find((s) => s.part.id === t.partId && s.staffIndex === t.staff && !s.tab);
+      if (!slot || !le(m.start, t.at) || !lt(t.at, m.end)) continue;
+      const beats = div(sub(t.at, m.gridStart), frac(1, m.sig.unit));
+      body.push(`        <dir xml:id="free-${t.id}" staff="${slot.n}" tstamp="${(beats.n / beats.d + 1).toFixed(4)}" place="above" ho="${t.dx}" vo="${t.dy}"><rend fontsize="${t.size}pt" fontstyle="normal">${esc(t.text)}</rend></dir>`);
+    }
     body.push('      </measure>');
   });
   if (openEnding) body.push('      </ending>');
@@ -545,6 +580,7 @@ ${body.join('\n')}
 `;
   return {
     mei,
+    hiddenRests,
     measureIds: measures.map((m) => `m${m.number}`),
     elements,
     syllables: syllableRefs,

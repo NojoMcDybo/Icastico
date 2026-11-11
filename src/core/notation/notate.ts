@@ -25,6 +25,7 @@ import {
   ZERO,
   add,
   div,
+  eq,
   frac,
   gt,
   isDyadic,
@@ -63,7 +64,15 @@ export interface NotatedNote {
   readonly tones: readonly Tone[];
   readonly tiedFromPrevious: boolean;
   readonly tiedToNext: boolean;
+  /** Stem direction forced by the user (ADR 0043). */
+  readonly stem?: 'up' | 'down';
   readonly tuplet?: TupletMark;
+}
+
+/** How the user wants the rest that starts at `at` (hidden, moved), from the marks of the voice. */
+function restLook(voice: Voice, at: Fraction): { hidden?: true; shift?: number } {
+  const mark = voice.rests?.find((r) => eq(r.at, at));
+  return mark ? { ...(mark.hidden ? { hidden: true as const } : {}), ...(mark.shift ? { shift: mark.shift } : {}) } : {};
 }
 
 export interface NotatedRest {
@@ -73,12 +82,18 @@ export interface NotatedRest {
   readonly duration: WrittenDuration;
   /** Not drawn (the gap of a glide is time, not a rest). */
   readonly invisible?: boolean;
+  /** The user hid it (ADR 0043): not printed, but still there for selecting. */
+  readonly hidden?: boolean;
+  /** Moved up (+) or down (−) by this many staff steps. */
+  readonly shift?: number;
   readonly tuplet?: TupletMark;
 }
 
 export interface NotatedMeasureRest {
   readonly kind: 'measureRest';
   readonly id: string;
+  readonly hidden?: boolean;
+  readonly shift?: number;
 }
 
 export type NotatedItem = NotatedNote | NotatedRest | NotatedMeasureRest;
@@ -200,6 +215,7 @@ export function notateVoice(voice: Voice, measures: readonly Measure[], unshown:
           onset,
           duration: w,
           ...(invisible ? { invisible: true } : {}),
+          ...restLook(voice, onset),
           ...(tuplet ? { tuplet: { ...tuplet, group: 0 } } : {}),
         });
         onset = add(onset, realValue(w, tuplet));
@@ -229,6 +245,7 @@ export function notateVoice(voice: Voice, measures: readonly Measure[], unshown:
           tones: ev.tones,
           tiedFromPrevious: k > 0 || gt(segStart, ev.onset),
           tiedToNext: k < pieces.length - 1 || continuesIntoNextMeasure,
+          ...(ev.stem ? { stem: ev.stem } : {}),
           ...(tuplet ? { tuplet: { ...tuplet, group: 0 } } : {}),
         });
         onset = add(onset, realValue(w, tuplet));
@@ -242,7 +259,7 @@ export function notateVoice(voice: Voice, measures: readonly Measure[], unshown:
     const hasNotes = items.some((it) => it.kind === 'note');
     // A measure inside a glide gap stays invisible time instead of turning into a whole-measure rest.
     const hidden = items.some((it) => it.kind === 'rest' && it.invisible);
-    result.push(hasNotes || hidden ? items : [{ kind: 'measureRest', id: `${voice.id}-m${m.number}-mr` }]);
+    result.push(hasNotes || hidden ? items : [{ kind: 'measureRest', id: `${voice.id}-m${m.number}-mr`, ...restLook(voice, m.start) }]);
   }
   return result;
 }

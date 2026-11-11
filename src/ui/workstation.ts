@@ -45,6 +45,8 @@ import { dirOf, fileNameOf, preferredFileName } from '../library/library';
 import type { LibraryStore } from '../library/store';
 import { type ElementRef, type MeiResult, staffElementId } from '../render/mei';
 import { engraveScore } from '../render/engraveScore';
+import { textDialog } from './textDialog';
+import { addText, changeText, eraseText, moveText } from '../core/editor/layoutOps';
 import type { Engraver } from '../render/verovio';
 import type { Platform } from '../platform/files';
 import { APP_VERSION } from '../version';
@@ -151,7 +153,7 @@ const SIGN_TOLERANCE = 6;
 type SignDrag =
   | { kind: 'note'; id: string; glyph: string; from?: { ref: VoiceRef; eventId: string }; where?: undefined }
   /** A chord symbol, tempo or clef change, tie or glide: chosen by a click, taken away with Backspace (ADR 0041); never dragged. */
-  | { kind: 'object'; id: string; what: 'chord' | 'tempo' | 'clef' | 'link'; glyph: string; at?: Fraction; partId?: string; staff?: number; from?: undefined; where?: undefined }
+  | { kind: 'object'; id: string; what: 'chord' | 'tempo' | 'clef' | 'link' | 'text'; glyph: string; at?: Fraction; partId?: string; staff?: number; from?: undefined; where?: undefined }
   | { kind: 'bar'; id: string; glyph: string; from?: Fraction; /** The measure (and side of its barline) the sign was seen at. */ where?: { measure: number; side?: 'left' | 'right' } };
 const HINT = 'Enter: Eingabe · Strg+N: neu · Strg+O: Bibliothek · F1: alle Tasten';
 const EMPTY_HINT = 'Strg+N: neue Partitur · Strg+O: Bibliothek · F1: alle Tasten';
@@ -632,6 +634,9 @@ export class Workstation {
       case 'layout.range':
         void this.barsPerLineMarked();
         return;
+      case 'text.free':
+        void this.addFreeText();
+        return;
       case 'file.new':
         void this.fileNew();
         return;
@@ -1107,6 +1112,120 @@ export class Workstation {
     this.update();
   }
 
+  /** The voice and time a new text is put at: the caret, the selected note or rest, else the start of the first line. */
+  private textPlace(): { ref: VoiceRef; at: Fraction } | null {
+    const s = this.state;
+    const where = s.caret ?? s.selection;
+    if (where) return { ref: { partId: where.partId, voiceId: where.voiceId }, at: this.focusTime() };
+    const first = allVoiceRefs(s.score)[0];
+    return first ? { ref: first, at: ZERO } : null;
+  }
+
+  /** A text of its own on the staff (ADR 0043): words and size asked for, then chosen so it can be dragged anywhere. */
+  private async addFreeText(): Promise<void> {
+    if (this.empty) return;
+    const place = this.textPlace();
+    if (!place) return;
+    const choice = await textDialog({
+      title: 'Text in die Partitur',
+      confirm: 'Einfügen',
+      hint: 'Der Text steht über der Zeile an der gewählten Stelle. Mit der Maus lässt er sich überall hinziehen; Doppelklick ändert ihn, die Rücktaste löscht ihn.',
+    });
+    if (choice && choice.text.trim() !== '') {
+      const added = addText(this.state, place.ref, place.at, choice.text, choice.size);
+      if (added) {
+        this.history.apply(added.state);
+        this.selectedSign = { kind: 'object', what: 'text', id: added.id, glyph: `free-${added.id}` };
+      }
+    }
+    this.update();
+  }
+
+  /** Double click on a text: other words and / or another size (empty words take it away). */
+  private async editText(id: string): Promise<void> {
+    const text = (this.state.score.texts ?? []).find((t) => t.id === id);
+    if (!text) return;
+    const choice = await textDialog({ title: 'Text ändern', initial: { text: text.text, size: text.size }, confirm: 'Übernehmen', hint: 'Leer lassen, um den Text zu entfernen.' });
+    if (choice) {
+      this.history.apply(changeText(this.state, id, choice.text, choice.size));
+      if (choice.text.trim() === '') this.selectedSign = null;
+    }
+    this.update();
+  }
+
+  /** Press on a text: a click chooses it; pulling it puts it where the pointer lets go (any staff, any time, any offset). */
+  private beginTextDrag(object: Extract<SignDrag, { kind: 'object' }>, e: PointerEvent): void {
+    if (e.button !== 0) return;
+    const box = document.getElementById(object.glyph)?.getBoundingClientRect();
+    const grabX = box ? e.clientX - box.left : 0;
+    const grabY = box ? e.clientY - box.top : 0;
+    const label = (this.state.score.texts ?? []).find((t) => t.id === object.id)?.text ?? '';
+    let ghost: HTMLElement | null = null;
+    const move = (m: PointerEvent) => {
+      if (!ghost) {
+        if (Math.hypot(m.clientX - e.clientX, m.clientY - e.clientY) < 5) return;
+        ghost = document.createElement('div');
+        ghost.className = 'sign-ghost';
+        ghost.textContent = label;
+        document.body.append(ghost);
+      }
+      ghost.style.transform = `translate(${m.clientX + 10}px, ${m.clientY + 10}px)`;
+    };
+    const end = (up: PointerEvent | null) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', cancel);
+      this.swallowClick = true;
+      window.setTimeout(() => (this.swallowClick = false), 80);
+      this.selectedSign = object;
+      if (!ghost) return void (up && this.update()); // never moved: a click chooses the text, Backspace takes it away
+      ghost.remove();
+      if (up && this.el.pages.contains(up.target as Node)) this.dropText(object.id, up.clientX - grabX, up.clientY - grabY, up);
+      else this.update();
+    };
+    const cancel = () => end(null);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', cancel);
+  }
+
+  /** The note or rest nearest to a point, the staff counting more than the distance along it: the text is anchored there. */
+  private textAnchorAt(x: number, y: number): ElementRef | null {
+    let best: ElementRef | null = null;
+    let bestDistance = Infinity;
+    for (const [id, ref] of this.result?.elements ?? []) {
+      if (ref.kind === 'chordNote' || !ref.eventId) continue;
+      const r = document.getElementById(id)?.getBoundingClientRect();
+      const staff = document.getElementById(staffElementId(ref.measureNumber, ref.staffN))?.getBoundingClientRect();
+      if (!r || !staff || r.width === 0) continue;
+      const dy = Math.max(staff.top - y, 0, y - staff.bottom);
+      const dx = Math.max(r.left - x, 0, x - r.right);
+      const distance = dy * 4 + dx;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = ref;
+      }
+    }
+    return best;
+  }
+
+  /** Puts the text so that its top left corner lands at (left, top): anchored to the nearest note, then the offset is measured against where the text plainly stands. */
+  private dropText(id: string, left: number, top: number, up: PointerEvent): void {
+    const anchor = this.textAnchorAt(up.clientX, up.clientY);
+    if (!anchor) return this.update();
+    const place = { partId: anchor.partId, staff: getVoice(this.state.score, anchor).voice.staff, at: anchor.onset };
+    this.history.beginGesture();
+    this.history.apply(moveText(this.state, id, { ...place, dx: 0, dy: 0 }));
+    this.renderIfNeeded(); // refresh() does not draw during a gesture; the plain place is needed to measure from
+    const plain = document.getElementById(`free-${id}`)?.getBoundingClientRect();
+    if (plain) {
+      const unit = this.stepPixels(anchor); // one staff step = the unit of the offsets
+      this.history.apply(moveText(this.state, id, { ...place, dx: (left - plain.left) / unit, dy: -(top - plain.top) / unit }));
+    }
+    this.history.commitGesture();
+    this.update();
+  }
+
   /** Bars per Akkolade for the marked bars only (ADR 0042): the lines before and after keep their breaks. */
   private async barsPerLineMarked(): Promise<void> {
     if (this.empty) return;
@@ -1224,6 +1343,7 @@ export class Workstation {
     const sign = this.signUnder(e);
     if (sign) return this.beginSignDrag(sign, e); // a placed sign is picked up, not the note next to it
     const object = this.objectUnder(e);
+    if (object?.kind === 'object' && object.what === 'text') return this.beginTextDrag(object, e);
     if (object) {
       this.selectedSign = object;
       this.swallowClick = true;
@@ -1487,7 +1607,7 @@ export class Workstation {
    * Chord symbols, tempo and clef changes, ties and glides under the pointer (directly, or just beside them unless it is on
    * a note): the object is chosen and Backspace takes it away (ADR 0041).
    */
-  private objectUnder(e: PointerEvent): SignDrag | null {
+  private objectUnder(e: MouseEvent): SignDrag | null {
     const elements = this.result?.elements;
     const read = (node: Element | null): SignDrag | null => {
       for (let n = node; n && n !== this.el.pages; n = n.parentElement) {
@@ -1501,7 +1621,7 @@ export class Workstation {
     for (let n = e.target as Element | null; n && n !== this.el.pages; n = n.parentElement) if (elements?.has(n.id)) return null;
     let best: SignDrag | null = null;
     let bestDistance = SIGN_TOLERANCE;
-    for (const candidate of this.el.pages.querySelectorAll('g.harm, g.tempo, g.tie, g.gliss, g.clef')) {
+    for (const candidate of this.el.pages.querySelectorAll('g.harm, g.tempo, g.tie, g.gliss, g.clef, g.dir')) {
       const found = read(candidate);
       if (!found) continue;
       const r = candidate.getBoundingClientRect();
@@ -1529,6 +1649,8 @@ export class Workstation {
       const bar = measuresOf(score, 1).find((m) => m.number === Number(clef[3]));
       return bar ? { kind: 'object', what: 'clef', id, glyph: id, partId: clef[1]!, staff: Number(clef[2]), at: bar.start } : null;
     }
+    const text = /^free-(.+)$/.exec(id);
+    if (text) return (score.texts ?? []).some((t) => t.id === text[1]) ? { kind: 'object', what: 'text', id: text[1]!, glyph: id } : null;
     const link = /^(?:tie|gliss)-(.+)$/.exec(id);
     return link ? { kind: 'object', what: 'link', id: link[1]!, glyph: id } : null;
   }
@@ -1604,6 +1726,7 @@ export class Workstation {
       else if (sign.what === 'tempo' && sign.at) this.history.apply(eraseTempoChange(s, sign.at));
       else if (sign.what === 'clef' && sign.at && sign.partId !== undefined && sign.staff !== undefined) this.history.apply(eraseClefChange(s, sign.partId, sign.staff, sign.at));
       else if (sign.what === 'link') this.history.apply(eraseLink(s, sign.id));
+      else if (sign.what === 'text') this.history.apply(eraseText(s, sign.id));
     }
     this.update();
   }
@@ -1776,6 +1899,8 @@ export class Workstation {
   /** A double click on a bar marks all its notes (on the staff that was clicked). */
   private onDoubleClick(e: MouseEvent): void {
     if (this.empty) return;
+    const text = this.objectUnder(e);
+    if (text?.kind === 'object' && text.what === 'text') return void this.editText(text.id);
     // Blank paper between the staff lines belongs to no drawn shape, so find the bar and the staff by where the pointer is.
     const inside = (el: Element) => {
       const r = el.getBoundingClientRect();
@@ -2528,7 +2653,7 @@ export class Workstation {
 
     const started = performance.now();
     const scale = Math.max(10, Math.round((SCALE * this.zoom) / 100));
-    const { mei: result, engraved } = engraveScore(this.engraver, s.score, { ...(coverTime ? { coverTime } : {}), hiddenStaves: hidden }, {
+    const { mei: result, engraved } = engraveScore(this.engraver, s.score, { ...(coverTime ? { coverTime } : {}), hiddenStaves: hidden, showHiddenRests: true }, {
       pageWidth: Math.round((width * 100) / scale),
       scale,
     });
@@ -2557,6 +2682,8 @@ export class Workstation {
     const elements = this.result?.elements;
     this.el.pages.querySelectorAll('.is-selected, .is-range, .is-sign-selected').forEach((n) => n.classList.remove('is-selected', 'is-range', 'is-sign-selected'));
     if (this.selectedSign) this.signNode(this.selectedSign)?.classList.add('is-sign-selected');
+    this.el.pages.querySelectorAll('.is-hidden-rest').forEach((n) => n.classList.remove('is-hidden-rest'));
+    for (const id of this.result?.hiddenRests ?? []) document.getElementById(id)?.classList.add('is-hidden-rest');
     this.el.pages.querySelectorAll('.caret, .ghost').forEach((n) => n.remove());
     if (!elements) {
       this.el.pages.querySelectorAll('.staff-mode').forEach((n) => n.remove());

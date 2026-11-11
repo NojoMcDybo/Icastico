@@ -2749,3 +2749,8 @@ button.lcd__cell:nth-child(3) {
 .splash__chord.is-on {
   opacity: 1;
 }
+
+/* A rest the user hid: not printed, drawn faintly on screen so it can still be chosen (ADR 0043) */
+.page .is-hidden-rest {
+  opacity: 0.28;
+}

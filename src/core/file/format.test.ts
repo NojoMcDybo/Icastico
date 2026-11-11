@@ -24,6 +24,7 @@ import version17File from './fixtures/version17.icastico?raw';
 import version18File from './fixtures/version18.icastico?raw';
 import version19File from './fixtures/version19.icastico?raw';
 import version20File from './fixtures/version20.icastico?raw';
+import version21File from './fixtures/version21.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -659,5 +660,52 @@ describe('format version 21: Akkoladen per page', () => {
     expect(parseScoreFile(withLayout({ systemsPerPage: 2 })).layout).toEqual({ systemsPerPage: 2 });
     expect(() => parseScoreFile(withLayout({ systemsPerPage: 0 }))).toThrow(/Akkoladen pro Seite/);
     expect(() => parseScoreFile(withLayout({ systemsPerPage: 'viele' }))).toThrow();
+  });
+});
+
+describe('format version 22: hand-placed rests, stems and texts', () => {
+  it('opens files saved with format version 21 (Akkoladen per page) and saves them as the current version', () => {
+    const score = parseScoreFile(version21File);
+    expect(fileVersion(version21File)).toBe(21);
+    expect(score.layout).toEqual({ perSystem: 4, systemsPerPage: 2 });
+    expect(score.texts).toBeUndefined();
+    expect(score.parts.every((p) => p.voices.every((v) => v.rests === undefined))).toBe(true);
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  type Doc = { score: { texts?: unknown; parts: { voices: { rests?: unknown; events: { id: string; at: string; dur: string; stem?: unknown; tones: unknown[] }[] }[] }[] } };
+  const edited = (change: (doc: Doc) => void): string => {
+    const doc = JSON.parse(serializeScore(parseScoreFile(version21File), '0')) as Doc;
+    doc.score.parts[0]!.voices[0]!.events = [{ id: 'e1', at: '0', dur: '1/4', tones: [{ id: 'e1-t1', pitch: 'C5' }] }];
+    change(doc);
+    return JSON.stringify(doc);
+  };
+
+  it('keeps hidden and moved rests, forced stems and free texts', () => {
+    const score = parseScoreFile(
+      edited((doc) => {
+        doc.score.parts[0]!.voices[0]!.rests = [{ at: '3/4', shift: -2 }, { at: '1/4', hidden: true }];
+        doc.score.parts[0]!.voices[0]!.events[0]!.stem = 'down';
+        doc.score.texts = [{ id: 'text-1', part: 'voice', staff: 0, at: '1/2', text: 'dolce', size: 16, dx: 1.5, dy: 4 }];
+      }),
+    );
+    const voice = score.parts[0]!.voices[0]!;
+    expect(voice.rests).toEqual([{ at: frac(1, 4), hidden: true }, { at: frac(3, 4), shift: -2 }]); // put in order
+    expect(voice.events[0]!.stem).toBe('down');
+    expect(score.texts).toEqual([{ id: 'text-1', partId: 'voice', staff: 0, at: frac(1, 2), text: 'dolce', size: 16, dx: 1.5, dy: 4 }]);
+    expect(parseScoreFile(serializeScore(score, '0'))).toEqual(score);
+  });
+
+  it('refuses nonsense: a stem to the side, a rest with nothing to say, a text without a line or of the wrong size', () => {
+    expect(() => parseScoreFile(edited((d) => { d.score.parts[0]!.voices[0]!.events[0]!.stem = 'left'; }))).toThrow(/Notenhals/);
+    expect(() => parseScoreFile(edited((d) => { d.score.parts[0]!.voices[0]!.rests = [{ at: '1/4' }]; }))).toThrow(/weder/);
+    expect(() => parseScoreFile(edited((d) => { d.score.parts[0]!.voices[0]!.rests = [{ at: '1/4', shift: 40 }]; }))).toThrow(/Stufen/);
+    const text = (patch: object) => edited((d) => { d.score.texts = [{ id: 't', part: 'voice', staff: 0, at: '0', text: 'x', size: 12, dx: 0, dy: 0, ...patch }]; });
+    expect(() => parseScoreFile(text({ part: 'gibtsnicht' }))).toThrow(/keiner Zeile/);
+    expect(() => parseScoreFile(text({ size: 3 }))).toThrow(/Textgröße/);
+    expect(() => parseScoreFile(text({ text: '  ' }))).toThrow(/nicht leer/);
+    expect(() => parseScoreFile(text({ dx: 'links' }))).toThrow();
   });
 });

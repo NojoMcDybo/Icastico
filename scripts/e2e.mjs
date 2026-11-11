@@ -794,7 +794,7 @@ try {
   await type('Escape');
   await saved();
   const shaped = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Verlauf-Test.icastico'))[1].contents;
-  check(/"version": 21/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 21)');
+  check(/"version": 22/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 22)');
   await type('Control+Enter');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true', null, { timeout: 30000 });
   await page.waitForTimeout(1500);
@@ -1342,7 +1342,7 @@ try {
   await page.screenshot({ path: join(outDir, 'tabulatur-instrument.png') });
   await saved();
   const tabFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Tab-Instrument.icastico'))[1].contents;
-  check(/"instrument": "tab"/.test(tabFile) && /"version": 21/.test(tabFile), 'Tabulatur: die Zeile steht als Instrument „tab“ in der Datei (Format 21)');
+  check(/"instrument": "tab"/.test(tabFile) && /"version": 22/.test(tabFile), 'Tabulatur: die Zeile steht als Instrument „tab“ in der Datei (Format 22)');
   await page.locator('.page g.note').first().click({ force: true });
   await type('Control+Delete');
   check((await page.locator('.page g.note').count()) >= 1, 'Tabulatur-Zeile: die Noten der anderen Zeile bleiben beim Bearbeiten erhalten');
@@ -1750,7 +1750,7 @@ try {
   await page.screenshot({ path: join(outDir, 'zeichen.png') });
   await saved();
   const signsFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Zeichen-Test.icastico'))[1].contents;
-  check(/"version": 21/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 21)');
+  check(/"version": 22/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 22)');
   await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
   await page.click('.transport__play');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');
@@ -1785,6 +1785,64 @@ try {
   await page.click('#symbols-button');
   await page.waitForSelector('.symbols', { state: 'hidden' });
   await page.setViewportSize({ width: 1400, height: 900 });
+
+  // ── Pausen, Halsrichtung und freie Texte (ADR 0043) ──
+  await newScore('Pausen-Test');
+  await type('5', 'c', 'd', 'Escape'); // two quarters in 3/4: the rest of the bar is a quarter rest
+  const restNode = () => page.locator('.page g.rest').first();
+  check((await page.locator('.page g.rest').count()) >= 1, 'Pause: der Rest des Takts ist als Pause gezeichnet');
+  await restNode().click({ force: true });
+  check((await page.locator('.page g.rest.is-selected, .page .is-selected g.rest, .page g.rest .is-selected').count()) >= 1 || (await page.locator('.page .is-selected').count()) >= 1, 'Pause: ein Klick wählt sie aus');
+  await type('v');
+  check((await page.locator('.page .is-hidden-rest').count()) >= 1 && /unsichtbar/.test(await status()), 'Pause: V macht sie unsichtbar (am Bildschirm schwach sichtbar)');
+  await type('v');
+  check((await page.locator('.page .is-hidden-rest').count()) === 0 && /wieder sichtbar/.test(await status()), 'Pause: V zeigt sie wieder');
+  const restY = (await restNode().boundingBox()).y;
+  await type('ArrowUp');
+  check(/höher/.test(await status()) && (await restNode().boundingBox()).y < restY, 'Pause: Pfeil nach oben verschiebt sie höher');
+  await type('Backspace');
+  check(/unsichtbar/.test(await status()), 'Pause: die Rücktaste macht sie unsichtbar');
+
+  await page.locator('.page g.note').first().click({ force: true });
+  await type('Control+Shift+h');
+  check(/Hals nach (oben|unten)/.test(await status()), 'Halsrichtung: Strg+Umschalt+H dreht den Hals der gewählten Note');
+  await type('Control+Shift+h');
+  check(/Hals nach (oben|unten)/.test(await status()), 'Halsrichtung: nochmal gibt dem Notensatz die Wahl zurück');
+
+  await type('Control+k');
+  await page.waitForSelector('.palette__input');
+  await page.keyboard.type('Text in die Partitur');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#text-input');
+  await page.fill('#text-input', 'rit.');
+  await page.fill('#text-size', '24');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForSelector('.page g.dir[id^="free-"]');
+  const textNode = () => page.locator('.page g.dir[id^="free-"]').first();
+  check(/rit\./.test(await textNode().textContent()), 'Freier Text: „rit.“ steht über der Zeile');
+  const textBefore = await textNode().boundingBox();
+  check((await page.locator('.page .is-sign-selected').count()) >= 1, 'Freier Text: nach dem Einfügen ist er gewählt');
+  // Drag it to the right and down: it stays where it is let go
+  await page.mouse.move(textBefore.x + textBefore.width / 2, textBefore.y + textBefore.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(textBefore.x + 100, textBefore.y + 40, { steps: 8 });
+  await page.mouse.move(textBefore.x + 160, textBefore.y + 60, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  const textAfter = await textNode().boundingBox();
+  check(Math.abs(textAfter.x - (textBefore.x + 160 - textBefore.width / 2)) < 12 && Math.abs(textAfter.y - (textBefore.y + 60 - textBefore.height / 2)) < 12, `Freier Text: mit der Maus verschoben, bleibt er dort (vorher ${Math.round(textBefore.x)}/${Math.round(textBefore.y)}, jetzt ${Math.round(textAfter.x)}/${Math.round(textAfter.y)})`);
+  await page.screenshot({ path: join(outDir, 'freier-text.png') });
+  await textNode().dblclick({ force: true });
+  await page.waitForSelector('#text-input');
+  await page.fill('#text-input', 'a tempo');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction(() => /a tempo/.test(document.querySelector('.page g.dir[id^="free-"]')?.textContent ?? ''));
+  check(true, 'Freier Text: Doppelklick ändert die Worte');
+  await textNode().click({ force: true });
+  await type('Backspace');
+  check((await page.locator('.page g.dir[id^="free-"]').count()) === 0, 'Freier Text: die Rücktaste löscht ihn');
+  await type('Control+z');
+  check((await page.locator('.page g.dir[id^="free-"]').count()) === 1, 'Freier Text: Strg+Z holt ihn zurück');
 
   // ── Zeichen: Taktstriche, Klammer um Zeilen, anklicken + Rücktaste löscht ──
   await page.setViewportSize({ width: 1400, height: 1100 });

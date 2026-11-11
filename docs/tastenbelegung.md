@@ -141,7 +141,10 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | MIDI-Keyboard: Taste spielen gibt die Note ein (bei laufender Aufnahme; mehrere Tasten zugleich = Akkord) | `MIDI` *(Icastico)* | `MIDI` *(Icastico)* | (wie Finale) | ✓ |
 | Metronom an / aus (bei der Wiedergabe ein Klick auf jedem Schlag) | `M` *(Icastico)* | `K` – Die Akkordsymbole liegen in dieser Belegung auf Umschalt+K. | (wie Finale) | ✓ |
 | Tempowechsel ab diesem Takt (♩ = …) | *Zeichen-Menü (Strg+J): Tempo-Anweisungen → ♩ = …* | *Zeichen-Menü (Strg+J): Tempo-Anweisungen → ♩ = …* | (wie Finale) | ✓ |
+| Halsrichtung der markierten Noten umdrehen (nochmal: wieder automatisch) | `Strg+Umschalt+H` *(Annahme)* – Wunsch aus der Rückmelderunde: irgendein Tastenkürzel – Finale-Taste ist L, die hier schon das Liedtext-Feld öffnet. | `Strg+Umschalt+H` *(Icastico)* | (wie Finale) | ✓ |
+| Gewählte Pause(n) unsichtbar machen / wieder zeigen (Pause anklicken; mit ↑/↓ lässt sie sich verschieben) | `V` *(Annahme)* – Wunsch aus der Rückmelderunde. | `V` *(Icastico)* | (wie Finale) | ✓ |
 | Takte pro Akkolade für die markierten Takte (sonst den Takt der gewählten Note) | *Befehlspalette (Strg+K): „Takte pro Akkolade für markierte Takte“; für das ganze Stück: Partitur-Einstellungen* | *Befehlspalette (Strg+K): „Takte pro Akkolade für markierte Takte“; für das ganze Stück: Partitur-Einstellungen* | (wie Finale) | ✓ |
+| Text in die Partitur setzen (Größe wählbar; mit der Maus überall hinziehen, Doppelklick ändert, Rücktaste löscht) | *Befehlspalette (Strg+K): „Text in die Partitur setzen“* | *Befehlspalette (Strg+K): „Text in die Partitur setzen“* | (wie Finale) | ✓ |
 | Cycle: die markierte Passage (sonst das ganze Stück) immer wieder abspielen – an / aus | `Strg+Umschalt+L` *(Icastico)* | `C` | (wie Finale) | ✓ |
 | Zum Anfang springen (der Stopp-Knopf springt dorthin, wenn nichts läuft) | *Knopf ⏮ in der oberen Leiste* | *Knopf ⏮ in der oberen Leiste* | (wie Finale) | ✓ |
 | Einen Takt zurück / vor | *Knöpfe ⏪ und ⏩ in der oberen Leiste* | *Knöpfe ⏪ und ⏩ in der oberen Leiste* | (wie Finale) | ✓ |

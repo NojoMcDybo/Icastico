@@ -768,10 +768,30 @@
           "via": "Zeichen-Menü (Strg+J): Tempo-Anweisungen → ♩ = …"
         },
         {
+          "id": "stem.flip",
+          "title": "Halsrichtung der markierten Noten umdrehen (nochmal: wieder automatisch)",
+          "command": "stem.flip",
+          "finale": { "keys": ["Mod+Shift+H"], "source": "annahme", "note": "Wunsch aus der Rückmelderunde: irgendein Tastenkürzel – Finale-Taste ist L, die hier schon das Liedtext-Feld öffnet." },
+          "logic": { "keys": ["Mod+Shift+H"], "source": "icastico" }
+        },
+        {
+          "id": "rest.hide",
+          "title": "Gewählte Pause(n) unsichtbar machen / wieder zeigen (Pause anklicken; mit ↑/↓ lässt sie sich verschieben)",
+          "command": "rest.hide",
+          "finale": { "keys": ["V"], "source": "annahme", "note": "Wunsch aus der Rückmelderunde." },
+          "logic": { "keys": ["V"], "source": "icastico" }
+        },
+        {
           "id": "layout.range",
           "title": "Takte pro Akkolade für die markierten Takte (sonst den Takt der gewählten Note)",
           "command": "layout.range",
           "via": "Befehlspalette (Strg+K): „Takte pro Akkolade für markierte Takte“; für das ganze Stück: Partitur-Einstellungen"
+        },
+        {
+          "id": "text.free",
+          "title": "Text in die Partitur setzen (Größe wählbar; mit der Maus überall hinziehen, Doppelklick ändert, Rücktaste löscht)",
+          "command": "text.free",
+          "via": "Befehlspalette (Strg+K): „Text in die Partitur setzen“"
         },
         {
           "id": "play.cycle",

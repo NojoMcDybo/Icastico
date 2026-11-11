@@ -30,6 +30,7 @@ export type UiCommandId =
   | 'input.chordName'
   | 'tempo.change'
   | 'layout.range'
+  | 'text.free'
   | 'view.voiceTest'
   | 'play.record'
   | 'play.loopRange'
@@ -86,6 +87,7 @@ export const UI_COMMANDS: ReadonlySet<string> = new Set<UiCommandId>([
   'input.chordName',
   'tempo.change',
   'layout.range',
+  'text.free',
   'view.voiceTest',
   'play.record',
   'play.loopRange',

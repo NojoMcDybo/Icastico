@@ -569,3 +569,52 @@ describe('line breaks (ADR 0031)', () => {
     expect(systems(eight())).toBe(1); // wide page: all eight bars fit on one line
   });
 });
+
+describe('hand-placed things in MEI (ADR 0043)', () => {
+  const base = demoScore();
+  const withVoice = (change: (v: (typeof base.parts)[0]['voices'][0]) => (typeof base.parts)[0]['voices'][0]) => ({
+    ...base,
+    parts: base.parts.map((p, i) => (i === 0 ? { ...p, voices: p.voices.map((v, k) => (k === 0 ? change(v) : v)) } : p)),
+  });
+
+  it('writes the stem direction a note was given', () => {
+    const score = withVoice((v) => ({ ...v, events: v.events.map((e, i) => (i === 0 ? { ...e, stem: 'up' as const } : e)) }));
+    expect(scoreToMei(score).mei.match(/stem\.dir="up"/g)).toHaveLength(1);
+    expect(scoreToMei(base).mei).not.toContain('stem.dir');
+  });
+
+  // Three quarter notes C D E in 4/4: the last quarter of the bar is a rest at 3/4.
+  const withRest = (mark: { hidden?: true; shift?: number }): Score => {
+    const s = createScore(DEFAULT_SETUP);
+    const part = s.parts[0]!;
+    const events = [0, 1, 2].map((i) => ({ id: `n${i}`, onset: frac(i, 4), duration: frac(1, 4), tones: [{ id: `n${i}-t1`, pitch: { step: 'C' as const, alter: 0, octave: 5 } }] }));
+    return { ...s, parts: [{ ...part, voices: [{ ...part.voices[0]!, events, rests: [{ at: frac(3, 4), ...mark }] }, ...part.voices.slice(1)] }, ...s.parts.slice(1)] };
+  };
+
+  it('prints a hidden rest as time only, and lets the editing view draw it faintly', () => {
+    const printed = scoreToMei(withRest({ hidden: true }));
+    expect(printed.mei).not.toMatch(/<rest /);
+    expect(printed.mei).toMatch(/<space xml:id="voice-v1-m1-r1"/);
+    const editing = scoreToMei(withRest({ hidden: true }), { showHiddenRests: true });
+    expect(editing.mei).toMatch(/<rest xml:id="voice-v1-m1-r1"/);
+    expect(editing.hiddenRests).toEqual(['voice-v1-m1-r1']);
+    expect(editing.elements.get('voice-v1-m1-r1')).toMatchObject({ kind: 'rest' }); // still clickable
+  });
+
+  it('puts a moved rest at the pitch of the middle line plus its steps', () => {
+    // the treble clef: middle line B4; two steps up = D5
+    expect(scoreToMei(withRest({ shift: 2 })).mei).toContain('<rest xml:id="voice-v1-m1-r1" dur="4" ploc="d" oloc="5"/>');
+    expect(scoreToMei(withRest({ shift: -1 })).mei).toMatch(/ploc="a" oloc="4"/);
+    expect(scoreToMei(withRest({ hidden: true })).mei).not.toContain('ploc');
+  });
+
+  it('writes a free text as a direction with its size and offset', () => {
+    const part = base.parts[0]!;
+    const score = { ...base, texts: [{ id: 'text-1', partId: part.id, staff: 0, at: frac(0, 1), text: 'Zart & leise', size: 18, dx: 2, dy: 5 }] };
+    const mei = scoreToMei(score).mei;
+    expect(mei).toContain('<dir xml:id="free-text-1"');
+    expect(mei).toContain('ho="2" vo="5"');
+    expect(mei).toContain('fontsize="18pt"');
+    expect(mei).toContain('Zart &amp; leise');
+  });
+});
