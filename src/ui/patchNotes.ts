@@ -12,6 +12,16 @@ export interface PatchNote {
 /** Newest first. Keep each line to one short sentence. */
 export const PATCH_NOTES: readonly PatchNote[] = [
   {
+    version: '0.27.0',
+    items: [
+      'Pausen anklicken: V macht sie unsichtbar, ↑/↓ verschiebt sie, die Rücktaste blendet sie aus.',
+      'Strg+Umschalt+H dreht die Halsrichtung der gewählten Noten um.',
+      'Eigener Text in der Partitur (Strg+K, „Text“): Größe wählbar, mit der Maus überall hinziehen, Doppelklick ändert, Rücktaste löscht.',
+      'Takte pro Akkolade auch für markierte Takte, Akkoladen pro Seite einstellbar – in der Anzeige und im PDF.',
+      'Die Tabulatur nimmt jede Bundzahl; Zeilenbeschriftungen lassen sich ausblenden; Akkordsymbole, Wechsel und Bögen lassen sich anklicken und löschen; MusicXML-Tabulatur wird gelesen.',
+    ],
+  },
+  {
     version: '0.26.0',
     items: [
       'Bis zu vier Strophen Liedtext: im Liedtext-Feld (L) wählen, in der Partitur stehen sie untereinander mit „1.“, „2.“ …',
