@@ -29,6 +29,7 @@ import {
   MAX_TEMPO,
   MIN_TEMPO,
   measureLength,
+  setTempoChange,
   validateScore,
 } from '../model';
 import { placeable, writable } from './grid';
@@ -193,6 +194,8 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
   const lineBreaks: number[] = [];
   const keys: KeyChange[] = [];
   let tempo: number | undefined;
+  /** Tempos after the first one, at the start of a bar (ADR 0039). */
+  const tempoChanges: { at: Fraction; bpm: number }[] = [];
   let pickup: Fraction | undefined;
   /** Start of every measure, taken from the first part and reused for the others. */
   const starts: Fraction[] = [];
@@ -288,7 +291,12 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
         } else if (el.name === 'direction' || el.name === 'sound') {
           const sound = el.name === 'sound' ? el : child(el, 'sound');
           const bpm = sound?.attrs.tempo ? Number(sound.attrs.tempo) : NaN;
-          if (partIndex === 0 && tempo === undefined && Number.isFinite(bpm)) tempo = Math.max(MIN_TEMPO, Math.min(MAX_TEMPO, Math.round(bpm)));
+          if (partIndex === 0 && Number.isFinite(bpm)) {
+            const clamped = Math.max(MIN_TEMPO, Math.min(MAX_TEMPO, Math.round(bpm)));
+            if (tempo === undefined) tempo = clamped;
+            else if (cursor === 0) tempoChanges.push({ at: here, bpm: clamped });
+            else skip('Tempowechsel mitten im Takt');
+          }
           for (const type of el.name === 'direction' ? childrenNamed(el, 'direction-type') : []) {
             for (const d of child(type, 'dynamics')?.children ?? []) if (noteSymbol(d.name)?.group === 'dynamic') comingMarks.push(d.name);
             const wedge = child(type, 'wedge');
@@ -488,7 +496,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
   const ident = child(root, 'identification');
   const composer = ident ? childrenNamed(ident, 'creator').find((c) => c.attrs.type === 'composer')?.text : undefined;
 
-  const score: Score = {
+  const unchanged: Score = {
     title,
     ...(composer ? { composer } : {}),
     meter,
@@ -502,6 +510,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
     ...(chordSymbols.size ? { chords: [...chordSymbols.values()].sort((a, b) => compare(a.at, b.at)) } : {}),
     parts,
   };
+  const score = tempoChanges.reduce((s, c) => setTempoChange(s, c.at, c.bpm), unchanged);
   const problems = validateScore(score);
   if (problems.length > 0) {
     throw new ImportError(`Die Partitur lässt sich nicht übernehmen:\n- ${problems.slice(0, 5).join('\n- ')}`);

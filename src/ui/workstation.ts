@@ -32,11 +32,11 @@ import { exportMusicXml, type ExportResult } from '../core/export/musicxml';
 import { exportMidi } from '../core/export/midi';
 import type { ExportChoice } from './libraryHome';
 import { getInstrument } from '../core/instruments';
-import { type Score, keyAt, measuresOf, meterAt, withTempo } from '../core/model';
-import { secondsOf, tempoOf, timeAt } from '../core/playback';
+import { type Score, MAX_TEMPO, MIN_TEMPO, keyAt, measuresOf, meterAt, setTempoChange, tempoAt, withTempoAt } from '../core/model';
+import { secondsOf, timeAt } from '../core/playback';
 import { durationName } from '../core/notation/notate';
 import { type Pitch, STEPS, midiOf, pitchToString } from '../core/pitch';
-import { type Fraction, ZERO, eq, le, lt, toNumber } from '../core/time';
+import { type Fraction, ZERO, eq, isZero, le, lt, toNumber } from '../core/time';
 import { tuningOf } from '../core/tab';
 import { tabTarget } from '../core/editor/tabEdit';
 import { MAX_FRET } from '../core/tab';
@@ -296,7 +296,7 @@ export class Workstation {
     this.player = new Player({
       frame: (seconds) => {
         // The music may be played in another order than written (repeats): show the bar that sounds.
-        this.playPos = this.playMap.toScore(timeAt(this.state.score, seconds));
+        this.playPos = this.playMap.toScore(timeAt(this.playMap.score, seconds)); // the seconds belong to the score that plays
         this.renderPlayhead();
       },
       stopped: () => {
@@ -623,6 +623,9 @@ export class Workstation {
         return;
       case 'input.chordName':
         void this.enterChordName();
+        return;
+      case 'tempo.change':
+        void this.changeTempo();
         return;
       case 'file.new':
         void this.fileNew();
@@ -1071,6 +1074,34 @@ export class Workstation {
     this.update();
   }
 
+  /** A new tempo from the bar of the selection on (the start tempo in the first bar) – an undoable change (ADR 0039). */
+  private async changeTempo(): Promise<void> {
+    if (this.empty) return;
+    const score = this.state.score;
+    const time = this.focusTime();
+    const measures = measuresOf(score, 1, time);
+    const here = measures.find((m) => le(m.start, time) && lt(time, m.end)) ?? measures[0]!;
+    const first = isZero(here.start);
+    const existing = (score.tempos ?? []).some((c) => eq(c.at, here.start));
+    const text = await promptText({
+      title: first ? 'Anfangstempo' : `Tempowechsel ab Takt ${here.number}`,
+      label: `Viertel pro Minute, ${MIN_TEMPO}–${MAX_TEMPO}.${existing ? ' Leer lassen, um den Wechsel zu entfernen.' : ''}`,
+      value: String(tempoAt(score, here.start)),
+      confirm: 'Übernehmen',
+      check: (v) => {
+        if (v.trim() === '' && existing) return null;
+        const bpm = Number(v);
+        return Number.isInteger(bpm) && bpm >= MIN_TEMPO && bpm <= MAX_TEMPO ? null : `Bitte eine ganze Zahl von ${MIN_TEMPO} bis ${MAX_TEMPO} eingeben.`;
+      },
+    });
+    if (text !== null) {
+      const bpm = text.trim() === '' ? null : Number(text);
+      const next = setTempoChange(score, here.start, bpm);
+      if (next !== score) this.history.apply({ ...this.state, score: next, message: bpm === null ? `Tempowechsel in Takt ${here.number} entfernt` : first ? `Anfangstempo ${bpm}` : `Tempo ${bpm} ab Takt ${here.number}` });
+    }
+    this.update();
+  }
+
   /** Title, key, meter, upbeat of the open score – an undoable change. */
   async scoreSettings(): Promise<void> {
     if (this.empty) return;
@@ -1376,6 +1407,7 @@ export class Workstation {
   private insertSign(kind: PaletteKind, index: number): void {
     if (this.empty) return;
     if (kind === 'group') return this.run('mark.group', index); // the same button again takes the bracket off
+    if (kind === 'tempo') return this.run('tempo.change'); // a tempo change is a question (which tempo?), not a sign
     const id = kind === 'note' ? NOTE_SYMBOLS[index]!.id : BAR_SIGNS[index]!.id;
     const at = signsAtFocus(this.state);
     if ((kind === 'note' ? at.note : at.bar).includes(id)) {
@@ -2204,7 +2236,7 @@ export class Workstation {
     }
     const score = this.state.score;
     this.playMap = playMapOf(score);
-    void this.player.start(this.playMap.score, secondsOf(score, this.playMap.fromScore(this.playPos)), this.loop).then(() => this.renderTransport());
+    void this.player.start(this.playMap.score, secondsOf(this.playMap.score, this.playMap.fromScore(this.playPos)), this.loop).then(() => this.renderTransport());
   }
 
   /** Moves the playhead; if the music is playing it continues from there. */
@@ -2232,9 +2264,10 @@ export class Workstation {
   }
 
   private setTempo(bpm: number): void {
-    const score = withTempo(this.state.score, bpm);
-    if (score === this.state.score || tempoOf(score) === tempoOf(this.state.score)) return;
-    this.history.apply({ ...this.state, score, message: `Tempo ${tempoOf(score)}` });
+    // The tempo in force where the transport shows it: the start tempo or the change before that bar.
+    const score = withTempoAt(this.state.score, this.playPos, bpm);
+    if (score === this.state.score || tempoAt(score, this.playPos) === tempoAt(this.state.score, this.playPos)) return;
+    this.history.apply({ ...this.state, score, message: `Tempo ${tempoAt(score, this.playPos)}` });
     this.update();
   }
 

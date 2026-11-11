@@ -31,6 +31,13 @@ export interface MeterChange {
   readonly sig: TimeSignature;
 }
 
+/** A new tempo from the start of a bar on. */
+export interface TempoChange {
+  readonly at: Fraction;
+  /** Quarter notes per minute. */
+  readonly bpm: number;
+}
+
 export interface KeyChange {
   readonly at: Fraction;
   /** Circle of fifths: 1 = G major / E minor, -1 = F major / D minor. */
@@ -120,6 +127,8 @@ export interface Score {
   readonly pickup?: Fraction;
   /** Tempo in quarter notes per minute; absent = DEFAULT_TEMPO. */
   readonly tempo?: number;
+  /** Tempo changes after the start, each at the beginning of a bar, ascending; the tempo at the start is `tempo` (ADR 0039). Absent = none. */
+  readonly tempos?: readonly TempoChange[];
   readonly parts: readonly Part[];
   /** Ties and slides between tones; absent = none. */
   readonly links?: readonly Link[];
@@ -181,6 +190,41 @@ export function withTempo(score: Score, bpm: number): Score {
   const { tempo: _old, ...rest } = score;
   const tempo = Math.round(Math.max(MIN_TEMPO, Math.min(MAX_TEMPO, bpm)));
   return tempo === DEFAULT_TEMPO ? rest : { ...rest, tempo };
+}
+
+const clampTempo = (bpm: number): number => Math.round(Math.max(MIN_TEMPO, Math.min(MAX_TEMPO, bpm)));
+
+/** The tempo in force at a time. */
+export function tempoAt(score: Score, time: Fraction): number {
+  let bpm = score.tempo ?? DEFAULT_TEMPO;
+  for (const change of score.tempos ?? []) {
+    if (le(change.at, time)) bpm = change.bpm;
+    else break;
+  }
+  return bpm;
+}
+
+/** Sets (bpm) or removes (null) the change that starts at `at`. A change equal to the tempo before it is dropped; at the very start it is the start tempo. */
+export function setTempoChange(score: Score, at: Fraction, bpm: number | null): Score {
+  if (le(at, ZERO)) return bpm === null ? score : withTempo(score, bpm);
+  const list = (score.tempos ?? []).filter((c) => !eq(c.at, at));
+  if (bpm !== null) list.push({ at, bpm: clampTempo(bpm) });
+  list.sort((a, b) => compare(a.at, b.at));
+  const kept: TempoChange[] = [];
+  let before = score.tempo ?? DEFAULT_TEMPO;
+  for (const c of list) {
+    if (c.bpm === before) continue;
+    kept.push(c);
+    before = c.bpm;
+  }
+  const { tempos: _old, ...rest } = score;
+  return kept.length > 0 ? { ...rest, tempos: kept } : rest;
+}
+
+/** Changes the tempo that is in force at `time`: the start tempo, or the change before that time. */
+export function withTempoAt(score: Score, time: Fraction, bpm: number): Score {
+  const change = [...(score.tempos ?? [])].reverse().find((c) => le(c.at, time));
+  return change ? setTempoChange(score, change.at, bpm) : withTempo(score, bpm);
 }
 
 export interface Measure {
@@ -361,6 +405,15 @@ export function validateScore(score: Score): string[] {
   }
   if (score.tempo !== undefined && !(Number.isInteger(score.tempo) && score.tempo >= MIN_TEMPO && score.tempo <= MAX_TEMPO)) {
     problems.push(`Tempo ${score.tempo} ist ungültig (erlaubt: ${MIN_TEMPO}–${MAX_TEMPO}).`);
+  }
+  const tempos = score.tempos ?? [];
+  const barStarts = new Set(tempos.length > 0 ? measuresOf(score, 1, tempos.reduce((m, c) => (gt(c.at, m) ? c.at : m), ZERO)).map((m) => `${m.start.n}/${m.start.d}`) : []);
+  let lastTempo: Fraction | null = null;
+  for (const change of tempos) {
+    if (!(Number.isInteger(change.bpm) && change.bpm >= MIN_TEMPO && change.bpm <= MAX_TEMPO)) problems.push(`Tempo ${change.bpm} ist ungültig (erlaubt: ${MIN_TEMPO}–${MAX_TEMPO}).`);
+    if (!gt(change.at, ZERO) || (lastTempo && !gt(change.at, lastTempo))) problems.push(`Tempowechsel bei ${change.at.n}/${change.at.d}: Die Wechsel müssen hinter dem Anfang stehen und aufsteigen.`);
+    else if (!barStarts.has(`${change.at.n}/${change.at.d}`)) problems.push(`Tempowechsel bei ${change.at.n}/${change.at.d} liegt nicht auf einem Taktanfang.`);
+    lastTempo = change.at;
   }
   const pickup = score.pickup;
   if (pickup && (lt(pickup, ZERO) || !lt(pickup, measureLength(score.meter[0]!.sig)))) {

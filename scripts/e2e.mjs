@@ -794,7 +794,7 @@ try {
   await type('Escape');
   await saved();
   const shaped = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Verlauf-Test.icastico'))[1].contents;
-  check(/"version": 17/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 17)');
+  check(/"version": 18/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 18)');
   await type('Control+Enter');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true', null, { timeout: 30000 });
   await page.waitForTimeout(1500);
@@ -1224,6 +1224,31 @@ try {
   await type('Control+z');
   check((await page.locator('.page g.chord').count()) === 0 && (await page.locator('.page g.harm').count()) === 0, 'Akkord nach Namen: ein Schritt Rückgängig nimmt Töne und Akkordsymbol zurück');
 
+  // ── Tempowechsel ab einem Takt (ADR 0039) ──
+  await newScore('Tempowechsel-Test');
+  await type('5', 'c', 'd', 'e', 'f', 'g', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'Escape'); // four bars of 3/4
+  await page.locator('.page g.note').nth(6).click({ force: true });
+  await type('Control+k');
+  await page.waitForSelector('.palette__input');
+  await page.keyboard.type('Tempowechsel');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#prompt-input');
+  const tempoTitle = await page.locator('.modal h2').textContent();
+  check(/Takt 3/.test(tempoTitle), `Tempowechsel: das Fenster nennt den Takt der gewählten Note (Takt 3; steht: ${tempoTitle})`);
+  await page.fill('#prompt-input', '15');
+  await page.click('.modal button[type="submit"]');
+  check((await page.locator('.form__error').count()) === 1 && /20/.test(await page.locator('.form__error').textContent()), 'Tempowechsel: ein Tempo außerhalb von 20 bis 400 wird abgelehnt');
+  await page.fill('#prompt-input', '132');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction(() => document.querySelectorAll('.page g.tempo').length === 2);
+  check((await page.locator('.page g.tempo').count()) === 2 && /132/.test(await page.locator('.page g.tempo').last().textContent()), 'Tempowechsel: „♩ = 132“ steht über Takt 3, das Anfangstempo über Takt 1');
+  check((await lcd('TEMPO').textContent()) === '132', 'Tempowechsel: die Tempo-Zelle zeigt 132, solange Takt 3 gewählt ist');
+  await page.locator('.page g.note').nth(0).click({ force: true });
+  check((await lcd('TEMPO').textContent()) === '100', 'Tempowechsel: in Takt 1 zeigt die Tempo-Zelle das Anfangstempo (100)');
+  await page.screenshot({ path: join(outDir, 'tempowechsel.png') });
+  await type('Control+z');
+  check((await page.locator('.page g.tempo').count()) === 0, 'Tempowechsel: Strg+Z nimmt den Wechsel zurück');
+
   // ── Weitere Instrumente: Viola aus dem Auswahlfeld (ADR 0038) ──
   await newScore('Viola-Test');
   await type('5', 'c', 'd', 'e', 'Escape');
@@ -1282,7 +1307,7 @@ try {
   await page.screenshot({ path: join(outDir, 'tabulatur-instrument.png') });
   await saved();
   const tabFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Tab-Instrument.icastico'))[1].contents;
-  check(/"instrument": "tab"/.test(tabFile) && /"version": 17/.test(tabFile), 'Tabulatur: die Zeile steht als Instrument „tab“ in der Datei (Format 17)');
+  check(/"instrument": "tab"/.test(tabFile) && /"version": 18/.test(tabFile), 'Tabulatur: die Zeile steht als Instrument „tab“ in der Datei (Format 18)');
   await page.locator('.page g.note').first().click({ force: true });
   await type('Control+Delete');
   check((await page.locator('.page g.note').count()) >= 1, 'Tabulatur-Zeile: die Noten der anderen Zeile bleiben beim Bearbeiten erhalten');
@@ -1666,7 +1691,7 @@ try {
   await page.screenshot({ path: join(outDir, 'zeichen.png') });
   await saved();
   const signsFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Zeichen-Test.icastico'))[1].contents;
-  check(/"version": 17/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 17)');
+  check(/"version": 18/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 18)');
   await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
   await page.click('.transport__play');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');

@@ -66,3 +66,4 @@ Was wird dadurch leichter, was schwerer?
 | 0036 | [Mehrere Strophen Liedtext](0036-mehrere-strophen.md) | angenommen |
 | 0037 | [Akkord nach Namen eingeben](0037-akkord-nach-namen.md) | angenommen |
 | 0038 | [Neun weitere Instrumente](0038-weitere-instrumente.md) | angenommen |
+| 0039 | [Tempowechsel ab einem Takt](0039-tempowechsel.md) | angenommen |

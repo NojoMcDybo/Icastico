@@ -1,0 +1,33 @@
+{
+  "format": "icastico",
+  "version": 17,
+  "app": "0.27.0",
+  "score": {
+    "title": "Gespeichert mit 0.27.0",
+    "meter": [
+      { "at": "0", "count": 4, "unit": 4 }
+    ],
+    "keys": [
+      { "at": "0", "fifths": 0 }
+    ],
+    "tempo": 90,
+    "parts": [
+      {
+        "id": "viola",
+        "name": "Viola",
+        "instrument": "viola",
+        "voices": [
+          { "id": "viola-v1", "staff": 0, "events": [] }
+        ]
+      },
+      {
+        "id": "voice",
+        "name": "Gesang",
+        "instrument": "voice",
+        "voices": [
+          { "id": "voice-v1", "staff": 0, "events": [] }
+        ]
+      }
+    ]
+  }
+}

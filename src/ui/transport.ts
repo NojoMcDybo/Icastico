@@ -3,8 +3,8 @@
  * tempo, meter and key – like the display of a DAW. Tempo, meter and key can be
  * changed by clicking them; the buttons move the playhead and play.
  */
-import { type Score, MAX_TEMPO, MIN_TEMPO, keyAt, meterAt } from '../core/model';
-import { barBeat, keyName, tempoOf } from '../core/playback';
+import { type Score, MAX_TEMPO, MIN_TEMPO, keyAt, meterAt, tempoAt } from '../core/model';
+import { barBeat, keyName } from '../core/playback';
 import type { Fraction } from '../core/time';
 
 export interface TransportHost {
@@ -129,7 +129,7 @@ export class Transport {
     };
     this.tempo.el.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 || !this.current || this.editing || e.target instanceof HTMLInputElement) return;
-      drag = { y: e.clientY, bpm: tempoOf(this.current.score), moved: false };
+      drag = { y: e.clientY, bpm: tempoAt(this.current.score, this.current.time), moved: false };
       this.tempo.el.setPointerCapture(e.pointerId);
     });
     this.tempo.el.addEventListener('pointermove', (e) => {
@@ -150,7 +150,7 @@ export class Transport {
       (e) => {
         if (!this.current || this.editing) return;
         e.preventDefault();
-        host.setTempo(tempoOf(this.current.score) + (e.deltaY < 0 ? 1 : -1));
+        host.setTempo(tempoAt(this.current.score, this.current.time) + (e.deltaY < 0 ? 1 : -1));
       },
       { passive: false },
     );
@@ -165,7 +165,7 @@ export class Transport {
     const { bar, beat } = barBeat(info.score, info.time);
     this.bar.value.textContent = String(bar);
     this.beat.value.textContent = String(beat);
-    if (!this.editing) this.tempo.value.textContent = String(tempoOf(info.score));
+    if (!this.editing) this.tempo.value.textContent = String(tempoAt(info.score, info.time));
     const sig = meterAt(info.score, info.time);
     this.meter.value.textContent = `${sig.count}/${sig.unit}`;
     this.key.value.textContent = keyName(keyAt(info.score, info.time));
@@ -186,7 +186,7 @@ export class Transport {
     input.className = 'lcd__input';
     input.min = String(MIN_TEMPO);
     input.max = String(MAX_TEMPO);
-    input.value = String(tempoOf(this.current.score));
+    input.value = String(tempoAt(this.current.score, this.current.time));
     input.setAttribute('aria-label', 'Tempo in Vierteln pro Minute');
     this.tempo.value.replaceChildren(input);
     input.focus();

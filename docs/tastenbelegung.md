@@ -140,6 +140,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Aufnahme: Sprache und MIDI-Keyboard hören zu | `R` *(Icastico)* – Vom Owner bestimmt (Plan Sprachbefehle). In Finale macht R aus einer Note eine Pause; das geht hier mit Entf. | `R` | (wie Finale) | ✓ |
 | MIDI-Keyboard: Taste spielen gibt die Note ein (bei laufender Aufnahme; mehrere Tasten zugleich = Akkord) | `MIDI` *(Icastico)* | `MIDI` *(Icastico)* | (wie Finale) | ✓ |
 | Metronom an / aus (bei der Wiedergabe ein Klick auf jedem Schlag) | `M` *(Icastico)* | `K` – Die Akkordsymbole liegen in dieser Belegung auf Umschalt+K. | (wie Finale) | ✓ |
+| Tempowechsel ab diesem Takt (♩ = …) | *Zeichen-Menü (Strg+J): Tempo-Anweisungen → ♩ = …* | *Zeichen-Menü (Strg+J): Tempo-Anweisungen → ♩ = …* | (wie Finale) | ✓ |
 | Cycle: die markierte Passage (sonst das ganze Stück) immer wieder abspielen – an / aus | `Strg+Umschalt+L` *(Icastico)* | `C` | (wie Finale) | ✓ |
 | Zum Anfang springen (der Stopp-Knopf springt dorthin, wenn nichts läuft) | *Knopf ⏮ in der oberen Leiste* | *Knopf ⏮ in der oberen Leiste* | (wie Finale) | ✓ |
 | Einen Takt zurück / vor | *Knöpfe ⏪ und ⏩ in der oberen Leiste* | *Knöpfe ⏪ und ⏩ in der oberen Leiste* | (wie Finale) | ✓ |

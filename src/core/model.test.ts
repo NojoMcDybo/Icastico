@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { frac, ZERO } from './time';
-import { freshToneId, measuresOf, validateScore, type Score } from './model';
+import { freshToneId, measuresOf, setTempoChange, tempoAt, validateScore, withTempoAt, type Score } from './model';
 import { parseLine } from './line';
 import { demoScore } from './demo';
 
@@ -92,5 +92,45 @@ describe('validateScore', () => {
       ],
     });
     expect(validateScore(score).join()).toMatch(/Taktstrich/);
+  });
+});
+
+describe('tempo changes (ADR 0039)', () => {
+  const start = base({ tempo: 120 });
+
+  it('tempoAt: the start tempo, then each change from its bar on', () => {
+    const s = setTempoChange(setTempoChange(start, frac(1), 90), frac(3), 140);
+    expect([0, 1, 2, 3, 5].map((t) => tempoAt(s, frac(t)))).toEqual([120, 90, 90, 140, 140]);
+    expect(tempoAt(base(), frac(7))).toBe(100);
+  });
+
+  it('setTempoChange: replaces, removes, drops a change equal to the tempo before it, keeps the order', () => {
+    let s = setTempoChange(start, frac(2), 90);
+    s = setTempoChange(s, frac(1), 100);
+    expect(s.tempos).toEqual([{ at: frac(1), bpm: 100 }, { at: frac(2), bpm: 90 }]);
+    expect(setTempoChange(s, frac(1), 120).tempos).toEqual([{ at: frac(2), bpm: 90 }]); // as the start tempo: no change
+    expect(setTempoChange(s, frac(2), 100).tempos).toEqual([{ at: frac(1), bpm: 100 }]);
+    expect(setTempoChange(setTempoChange(s, frac(1), null), frac(2), null).tempos).toBeUndefined();
+    expect(setTempoChange(s, frac(2), 9999).tempos![1]!.bpm).toBe(400);
+  });
+
+  it('at the very start it is the start tempo', () => {
+    expect(setTempoChange(start, ZERO, 80).tempo).toBe(80);
+  });
+
+  it('withTempoAt changes the tempo that is in force there, without making a new change', () => {
+    const s = setTempoChange(start, frac(2), 90);
+    expect(withTempoAt(s, frac(1), 110).tempo).toBe(110);
+    expect(withTempoAt(s, frac(1), 110).tempos).toEqual(s.tempos);
+    expect(withTempoAt(s, frac(3), 70).tempos).toEqual([{ at: frac(2), bpm: 70 }]);
+    expect(withTempoAt(s, frac(3), 70).tempo).toBe(120);
+  });
+
+  it('validateScore: changes must start a bar, ascend and stay in range', () => {
+    expect(validateScore(setTempoChange(start, frac(2), 90))).toEqual([]);
+    expect(validateScore(base({ tempos: [{ at: frac(3, 2), bpm: 90 }] }))[0]).toMatch(/Taktanfang/);
+    expect(validateScore(base({ tempos: [{ at: frac(2), bpm: 90 }, { at: frac(1), bpm: 80 }] }))[0]).toMatch(/aufsteigen/);
+    expect(validateScore(base({ tempos: [{ at: ZERO, bpm: 90 }] }))[0]).toMatch(/Tempowechsel/);
+    expect(validateScore(base({ tempos: [{ at: frac(1), bpm: 5 }] }))[0]).toMatch(/Tempo 5/);
   });
 });

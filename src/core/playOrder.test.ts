@@ -4,7 +4,7 @@ import { planPlayback } from './playback';
 import { emptyScore } from './templates';
 import { parseLine } from './line';
 import { frac, ZERO } from './time';
-import { type BarMark, type Score } from './model';
+import { type BarMark, type Score, setTempoChange } from './model';
 import { type BarSignKind } from './symbols';
 
 /** Eight bars of 4/4, one whole note each: C D E F G A B C. */
@@ -62,6 +62,21 @@ describe('play order', () => {
     expect(map.fromScore(frac(1))).toEqual(frac(1)); // bar 2, first time
     expect(map.toScore(frac(3))).toEqual(frac(1)); // the second time through bar 2
     expect(map.toScore(ZERO)).toEqual(ZERO);
+  });
+});
+
+describe('tempo changes in the unrolled score (ADR 0039)', () => {
+  it('a repeat of bars 1–2 with a change in bar 2: the second pass starts at the tempo it began with', () => {
+    const score = setTempoChange(bars([[0, 'repeatStart'], [1, 'repeatEnd']]), frac(1), 60);
+    const unrolled = playMapOf(score).score;
+    // pass 1: bar 1 at 100, bar 2 at 60 (play time 1); pass 2: bar 1 again at 100 (play time 2), bar 2 at 60 (play time 3)
+    expect(unrolled.tempo ?? 100).toBe(100);
+    expect(unrolled.tempos).toEqual([{ at: frac(1), bpm: 60 }, { at: frac(2), bpm: 100 }, { at: frac(3), bpm: 60 }]);
+  });
+
+  it('a score without a repeat keeps its tempos', () => {
+    const score = setTempoChange(bars(), frac(2), 80);
+    expect(playMapOf(score).score).toBe(score);
   });
 });
 

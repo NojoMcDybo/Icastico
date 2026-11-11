@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { frac } from './time';
-import { withTempo, type Score } from './model';
+import { setTempoChange, withTempo, type Score } from './model';
 import { emptyScore } from './templates';
 import { keyName, barBeat, levelAt, pitchAt, planFrom, planPlayback, planUntil, secondsOf, timeAt, withClicks } from './playback';
 import { runCommand } from './editor/commands';
@@ -21,6 +21,28 @@ function melody(): EditorState {
   return cmd(s, 'edit.escape');
 }
 const withTempoScore = (s: Score, bpm: number): Score => withTempo(s, bpm);
+
+describe('tempo changes (ADR 0039)', () => {
+  // 4/4, 120 for the first two bars (2 s each), then 60 (4 s per bar)
+  const score = setTempoChange(withTempo(emptyScore(), 120), frac(2), 60);
+
+  it('seconds count the tempo of each stretch', () => {
+    expect(secondsOf(score, frac(1))).toBeCloseTo(2);
+    expect(secondsOf(score, frac(2))).toBeCloseTo(4);
+    expect(secondsOf(score, frac(3))).toBeCloseTo(8);
+    expect(secondsOf(score, frac(5, 2))).toBeCloseTo(6);
+  });
+
+  it('timeAt turns the seconds back into the time, in every stretch', () => {
+    for (const t of [frac(0), frac(1, 2), frac(1), frac(2), frac(9, 4), frac(3), frac(7, 2)]) expect(timeAt(score, secondsOf(score, t))).toEqual(t);
+  });
+
+  it('a score without changes behaves as before', () => {
+    const plain = withTempo(emptyScore(), 120);
+    expect(secondsOf(plain, frac(1))).toBeCloseTo(2);
+    expect(timeAt(plain, 2)).toEqual(frac(1));
+  });
+});
 
 describe('playback plan', () => {
   it('times follow the tempo: at 120 a quarter note is half a second', () => {

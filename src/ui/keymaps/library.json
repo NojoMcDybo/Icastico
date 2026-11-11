@@ -762,6 +762,12 @@
           "logic": { "keys": ["K"], "source": "doku", "note": "Die Akkordsymbole liegen in dieser Belegung auf Umschalt+K." }
         },
         {
+          "id": "tempo.change",
+          "title": "Tempowechsel ab diesem Takt (♩ = …)",
+          "command": "tempo.change",
+          "via": "Zeichen-Menü (Strg+J): Tempo-Anweisungen → ♩ = …"
+        },
+        {
           "id": "play.cycle",
           "title": "Cycle: die markierte Passage (sonst das ganze Stück) immer wieder abspielen – an / aus",
           "command": "play.cycle",

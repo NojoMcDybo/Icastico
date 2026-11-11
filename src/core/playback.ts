@@ -10,7 +10,7 @@
  * time relative to that (0–1, linear between the points) – a note's loudness curve, and through a
  * glide's gap the crossfade between the two notes, along the same curve as the pitch.
  */
-import { type Fraction, add, frac, lt, mul, sub, toNumber } from './time';
+import { type Fraction, ZERO, add, frac, le, lt, mul, sub, toNumber } from './time';
 import { DEFAULT_VOLUME, curveAt } from './curve';
 import type { InstrumentId } from './instruments';
 import { DEFAULT_TEMPO, type Link, type NoteEvent, type Score, type ToneSpot, eventEnd, locateTones, measuresOf } from './model';
@@ -71,11 +71,60 @@ export function withClicks(plan: PlaybackPlan, score: Score): PlaybackPlan {
   return { notes: [...plan.notes, ...clicks].sort((a, b) => a.start - b.start), length: Math.max(plan.length, ...clicks.map((c) => c.end)) };
 }
 
-/** Seconds for a time on the timeline (a quarter note lasts 60 / tempo seconds). */
-export const secondsOf = (score: Score, t: Fraction): number => (toNumber(t) * 240) / tempoOf(score);
+/** One stretch of constant tempo: where it starts (time and seconds) and how fast. */
+interface Section {
+  readonly at: Fraction;
+  readonly seconds: number;
+  readonly bpm: number;
+}
+
+const sectionsCache = new WeakMap<Score, readonly Section[]>();
+
+/** The stretches of constant tempo of a score, computed once per score (secondsOf runs for every note). */
+function sectionsOf(score: Score): readonly Section[] {
+  let sections = sectionsCache.get(score);
+  if (!sections) {
+    const list = [{ at: ZERO, bpm: tempoOf(score) }, ...(score.tempos ?? [])];
+    let seconds = 0;
+    sections = list.map((c, i) => {
+      const section = { at: c.at, seconds, bpm: c.bpm };
+      const next = list[i + 1];
+      if (next) seconds += (toNumber(next.at) - toNumber(c.at)) * 240 / c.bpm;
+      return section;
+    });
+    sectionsCache.set(score, sections);
+  }
+  return sections;
+}
+
+/** Seconds for a time on the timeline (a quarter note lasts 60 / tempo seconds; tempo changes count, ADR 0039). */
+export function secondsOf(score: Score, t: Fraction): number {
+  const sections = sectionsOf(score);
+  let s = sections[0]!;
+  for (const section of sections) {
+    if (le(section.at, t)) s = section;
+    else break;
+  }
+  return s.seconds + (toNumber(t) - toNumber(s.at)) * 240 / s.bpm;
+}
+
+/** The time on the timeline for a number of seconds, in whole notes, not rounded (the MIDI export needs the fine ticks). */
+export function wholeNotesAt(score: Score, seconds: number): number {
+  return Math.max(0, wholeNotes960(score, seconds) / 960);
+}
+
+function wholeNotes960(score: Score, seconds: number): number {
+  const sections = sectionsOf(score);
+  let s = sections[0]!;
+  for (const section of sections) {
+    if (section.seconds <= seconds) s = section;
+    else break;
+  }
+  return toNumber(s.at) * 960 + ((seconds - s.seconds) * s.bpm * 960) / 240;
+}
 
 /** The time on the timeline for a number of seconds (rounded to 1/960 of a whole note – good for display). */
-export const timeAt = (score: Score, seconds: number): Fraction => frac(Math.max(0, Math.round((seconds * tempoOf(score) * 960) / 240)), 960);
+export const timeAt = (score: Score, seconds: number): Fraction => frac(Math.max(0, Math.round(wholeNotes960(score, seconds))), 960);
 
 /** Keeps a strike strength inside MIDI's range. */
 const clampVelocity = (v: number): number => Math.max(1, Math.min(127, Math.round(v)));

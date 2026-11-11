@@ -5,7 +5,8 @@
  */
 import { INSTRUMENTS, type InstrumentId } from '../instruments';
 import { type Score } from '../model';
-import { type SoundNote, planPlayback, tempoOf } from '../playback';
+import { type SoundNote, planPlayback, tempoOf, wholeNotesAt } from '../playback';
+import { ZERO, toNumber } from '../time';
 import { playMapOf } from '../playOrder';
 
 const PPQ = 480;
@@ -41,14 +42,19 @@ function track(events: readonly TrackEvent[]): number[] {
 }
 
 export function exportMidi(score: Score): Uint8Array {
-  const tempo = tempoOf(score);
-  const toTick = (seconds: number): number => Math.max(0, Math.round((seconds * tempo * PPQ) / 60));
-  const plan = planPlayback(playMapOf(score).score);
+  const playScore = playMapOf(score).score; // repeats laid out: its tempo changes are at play time
+  const toTick = (seconds: number): number => Math.round(wholeNotesAt(playScore, seconds) * 4 * PPQ);
+  const plan = planPlayback(playScore);
+  const tempoEvents: TrackEvent[] = [{ at: ZERO, bpm: tempoOf(playScore) }, ...(playScore.tempos ?? [])].map((c) => ({
+    tick: Math.round(toNumber(c.at) * 4 * PPQ),
+    order: 0,
+    bytes: [0xff, 0x51, 3, ...u32(Math.round(60_000_000 / c.bpm)).slice(1)],
+  }));
   const sig = score.meter[0]!.sig;
 
   const conductor: TrackEvent[] = [
     { tick: 0, order: 0, bytes: [0xff, 0x03, ...varLength(score.title.length), ...ascii(score.title.replace(/[^\x20-\x7e]/g, '?'))] },
-    { tick: 0, order: 0, bytes: [0xff, 0x51, 3, ...u32(Math.round(60_000_000 / tempo)).slice(1)] },
+    ...tempoEvents,
     { tick: 0, order: 0, bytes: [0xff, 0x58, 4, sig.count, Math.round(Math.log2(sig.unit)), 24, 8] },
   ];
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FileFormatError, FORMAT_VERSION, fileVersion, parseScoreFile, serializeScore } from './format';
 import { pitchToString } from '../pitch';
-import { type Score, validateScore, withTempo } from '../model';
+import { type Score, setTempoChange, validateScore, withTempo } from '../model';
 import { frac } from '../time';
 import { applyScoreChanges, createScore, DEFAULT_SETUP } from '../templates';
 import version1File from './fixtures/version1.icastico?raw';
@@ -20,6 +20,7 @@ import version13File from './fixtures/version13.icastico?raw';
 import version14File from './fixtures/version14.icastico?raw';
 import version15File from './fixtures/version15.icastico?raw';
 import version16File from './fixtures/version16.icastico?raw';
+import version17File from './fixtures/version17.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -538,5 +539,39 @@ describe('format version 17: more instruments', () => {
     const doc = JSON.parse(serializeScore(parseScoreFile(version16File), '0')) as { score: { parts: { instrument: string }[] } };
     doc.score.parts[0]!.instrument = 'theremin';
     expect(() => parseScoreFile(JSON.stringify(doc))).toThrow(/Instrument/);
+  });
+});
+
+describe('format version 18: tempo changes', () => {
+  it('opens files saved with format version 17 (viola, start tempo) and saves them as the current version', () => {
+    const score = parseScoreFile(version17File);
+    expect(fileVersion(version17File)).toBe(17);
+    expect(score.tempo).toBe(90);
+    expect(score.tempos).toBeUndefined();
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  it('keeps the tempo changes, written as fractions of a whole note', () => {
+    const base = parseScoreFile(version17File);
+    const score = setTempoChange(setTempoChange(base, frac(2), 132), frac(4), 60);
+    expect(score.tempos).toEqual([{ at: frac(2), bpm: 132 }, { at: frac(4), bpm: 60 }]);
+    expect(serializeScore(score, '0')).toContain('"tempos"');
+    expect(parseScoreFile(serializeScore(score, '0'))).toEqual(score);
+  });
+
+  it('refuses a change in the middle of a bar, one at the start or out of order, and a tempo out of range', () => {
+    const base = parseScoreFile(version17File);
+    const withTempos = (tempos: unknown): string => {
+      const doc = JSON.parse(serializeScore(base, '0')) as { score: { tempos?: unknown } };
+      doc.score.tempos = tempos;
+      return JSON.stringify(doc);
+    };
+    expect(() => parseScoreFile(withTempos([{ at: '3/2', bpm: 100 }]))).toThrow(/Taktanfang/);
+    expect(() => parseScoreFile(withTempos([{ at: '0', bpm: 100 }]))).toThrow(/Tempowechsel/);
+    expect(() => parseScoreFile(withTempos([{ at: '2', bpm: 100 }, { at: '1', bpm: 90 }]))).toThrow(/Tempowechsel/);
+    expect(() => parseScoreFile(withTempos([{ at: '2', bpm: 999 }]))).toThrow(/Tempo/);
+    expect(() => parseScoreFile(withTempos([{ at: '2' }]))).toThrow();
   });
 });

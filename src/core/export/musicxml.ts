@@ -7,7 +7,7 @@
  * Left out (reported): glides and loudness lines (MusicXML has no equivalent we write), and everything the
  * notation does not show. Chord symbols and lyrics are written (ADR 0019).
  */
-import { type Fraction, add, frac, le, lt, sub } from '../time';
+import { type Fraction, add, eq, frac, le, lt, sub } from '../time';
 import { type Pitch, spellMidi } from '../pitch';
 import { getInstrument } from '../instruments';
 import { type Measure, type Part, type Score, type Voice, DEFAULT_TEMPO, measuresOf, systemBreaks, validateScore } from '../model';
@@ -179,8 +179,9 @@ export function exportMusicXml(score: Score, appVersion = ''): ExportResult {
           else if (sign?.text) out.push(`      <direction placement="above"><direction-type><words>${esc(sign.text)}</words></direction-type>${staff}</direction>`);
         }
       }
-      if (mi === 0 && partIndex === 0) {
-        const bpm = score.tempo ?? DEFAULT_TEMPO;
+      const change = (score.tempos ?? []).find((c) => eq(c.at, m.start));
+      if (partIndex === 0 && (mi === 0 || change)) {
+        const bpm = mi === 0 ? (score.tempo ?? DEFAULT_TEMPO) : change!.bpm;
         out.push(`      <direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${bpm}</per-minute></metronome></direction-type><sound tempo="${bpm}"/></direction>`);
       }
 

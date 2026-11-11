@@ -9,7 +9,7 @@
  * the coda.
  */
 import { type Fraction, ZERO, add, compare, eq, le, lt, sub } from './time';
-import { type Score, measuresOf } from './model';
+import { type Score, measuresOf, setTempoChange, tempoAt, withTempo } from './model';
 import { isJumpBack, voltaNumber } from './symbols';
 
 /** The written time [from, to) is played at [from + offset, to + offset). */
@@ -126,8 +126,13 @@ export function playMapOf(score: Score): PlayMap {
     for (const part of score.parts) for (const v of part.voices) for (const e of v.events) if (le(seg.from, e.onset) && lt(e.onset, seg.to)) for (const t of e.tones) inside.add(t.id);
     return (score.links ?? []).filter((l) => inside.has(l.from) && inside.has(l.to)).map((l) => ({ ...l, id: `${l.id}${copies[k]}`, from: `${l.from}${copies[k]}`, to: `${l.to}${copies[k]}` }));
   });
-  const { links: _links, ...rest } = score;
-  const unrolled: Score = { ...rest, parts, ...(links.length ? { links } : {}) };
+  const { links: _links, tempos: _tempos, ...rest } = score;
+  let unrolled: Score = withTempo({ ...rest, parts, ...(links.length ? { links } : {}) }, tempoAt(score, segments[0]!.from));
+  // The tempo of each stretch (it may differ from the one the stretch before it ended with) and every change inside it, moved to play time.
+  for (const seg of segments) {
+    unrolled = setTempoChange(unrolled, add(seg.from, seg.offset), tempoAt(score, seg.from));
+    for (const c of score.tempos ?? []) if (lt(seg.from, c.at) && lt(c.at, seg.to)) unrolled = setTempoChange(unrolled, add(c.at, seg.offset), c.bpm);
+  }
 
   return {
     score: unrolled,

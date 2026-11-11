@@ -115,6 +115,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Liederrunde, Paket 1: bis zu vier Strophen Liedtext – im Liedtext-Feld wählbar, in der Partitur untereinander mit „1.“, „2.“ …, Silben wählen/kopieren/verschieben je Strophe, MusicXML liest und schreibt alle vier, Dateiformat 16 (ADR 0036)
 - [x] Liederrunde, Paket 2: Akkord nach Namen (Strg+Umschalt+K): „Cm7“, „G7“, „C/G“ tippen, Umkehrung wählen, wahlweise mit Akkordsymbol darüber (ADR 0037)
 - [x] Liederrunde, Paket 3: neun weitere Instrumente – Violine, Viola, Cello, Kontrabass, E-Bass, Querflöte, Blockflöte, Oboe, Fagott (Auswahlfeld nach Familie, Schlüssel inkl. Altschlüssel, eigene MIDI-Kanäle je Klang, Erkennung beim Import), Dateiformat 17 (ADR 0038)
+- [x] Liederrunde, Paket 4: Tempowechsel ab einem Takt – „♩ = …“ im Zeichen-Menü oder in der Befehlspalette, gedruckt über der Zeile, Wiedergabe, Tempo-Zelle, MIDI- und MusicXML-Export folgen, Dateiformat 18 (ADR 0039)
 - [ ] Finale-Dateien (`.musx`) direkt lesen – verschlüsseltes Binärformat, bewusst zurückgestellt (ADR 0021)
 - [ ] Seitenlayout von Hand (Umbrüche, Systemabstand, Kopf-/Fußzeile), Tabulatur-Spieltechniken
 

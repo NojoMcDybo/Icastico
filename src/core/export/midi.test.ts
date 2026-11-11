@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
-import { withTempo } from '../model';
+import { setTempoChange, withTempo } from '../model';
+import { frac } from '../time';
 import { exportMidi, varLength } from './midi';
 
 /** Minimal reader: the header and, per track, the note-on events as [tick, key, velocity]. */
@@ -9,7 +10,7 @@ function read(bytes: Uint8Array) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const tag = (o: number) => String.fromCharCode(...bytes.subarray(o, o + 4));
   const header = { tag: tag(0), format: view.getUint16(8), tracks: view.getUint16(10), ppq: view.getUint16(12) };
-  const tracks: { ons: number[][]; tempo?: number; ended: boolean }[] = [];
+  const tracks: { ons: number[][]; tempo?: number; tempos: number[][]; ended: boolean }[] = [];
   let o = 14;
   while (o < bytes.length) {
     const size = view.getUint32(o + 4);
@@ -17,7 +18,7 @@ function read(bytes: Uint8Array) {
     const end = p + size;
     let tick = 0;
     let status = 0;
-    const t: { ons: number[][]; tempo?: number; ended: boolean } = { ons: [], ended: false };
+    const t: { ons: number[][]; tempo?: number; tempos: number[][]; ended: boolean } = { ons: [], tempos: [], ended: false };
     while (p < end) {
       let delta = 0;
       let b: number;
@@ -30,7 +31,10 @@ function read(bytes: Uint8Array) {
       if (status === 0xff) {
         const type = bytes[p++]!;
         const len = bytes[p++]!;
-        if (type === 0x51) t.tempo = (bytes[p]! << 16) | (bytes[p + 1]! << 8) | bytes[p + 2]!;
+        if (type === 0x51) {
+          t.tempo = (bytes[p]! << 16) | (bytes[p + 1]! << 8) | bytes[p + 2]!;
+          t.tempos.push([tick, t.tempo]);
+        }
         if (type === 0x2f) t.ended = true;
         p += len;
       } else if ((status & 0xf0) === 0xc0) {
@@ -67,6 +71,16 @@ describe('MIDI export', () => {
     const { tracks } = read(exportMidi(demoScore()));
     const first = tracks.slice(1).flatMap((t) => t.ons).sort((a, b) => a[0]! - b[0]!)[0]!;
     expect(first[0]).toBe(0);
+  });
+
+  it('a tempo change is a second tempo event at its tick, and the notes after it move accordingly (ADR 0039)', () => {
+    const score = setTempoChange(withTempo(demoScore(), 120), frac(1), 60); // from bar 2 half as fast
+    const { tracks } = read(exportMidi(score));
+    expect(tracks[0]!.tempos).toEqual([[0, 500_000], [1920, 1_000_000]]); // a whole note = 1920 ticks
+    const plain = read(exportMidi(withTempo(demoScore(), 120))).tracks.slice(1).flatMap((t) => t.ons);
+    const slowed = tracks.slice(1).flatMap((t) => t.ons);
+    // MIDI ticks count musical time, not seconds: the same notes sit on the same ticks whatever the tempo
+    expect(slowed.map((o) => o[0]).sort((a, b) => a! - b!)).toEqual(plain.map((o) => o[0]).sort((a, b) => a! - b!));
   });
 
   it('an empty score is still a valid file', () => {

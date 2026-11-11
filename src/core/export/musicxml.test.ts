@@ -5,7 +5,7 @@ import { demoScore } from '../demo';
 import { createScore, DEFAULT_SETUP, emptyScore } from '../templates';
 import { add, frac, ZERO } from '../time';
 import { midiOf, pitchToString } from '../pitch';
-import { validateScore, type Score } from '../model';
+import { setTempoChange, validateScore, type Score } from '../model';
 import { parseLine } from '../line';
 import { NOTE_SYMBOL_IDS } from '../symbols';
 
@@ -279,5 +279,23 @@ describe('the new instruments (ADR 0038)', () => {
   it('comes back as the same instruments', () => {
     const back = importMusicXml(exportMusicXml(score).xml).score;
     expect(back.parts.map((p) => p.instrument)).toEqual(ids);
+  });
+});
+
+describe('tempo changes (ADR 0039)', () => {
+  const score = setTempoChange(setTempoChange({ ...demoScore(), tempo: 100 }, frac(1), 132), frac(2), 60);
+
+  it('every change is written at its bar and comes back at the same bar', () => {
+    const { xml } = exportMusicXml(score);
+    expect(xml.match(/<sound tempo="/g)).toHaveLength(3);
+    const back = importMusicXml(xml).score;
+    expect(back.tempo).toBeUndefined(); // 100 is the default and is not stored
+    expect(back.tempos).toEqual([{ at: frac(1), bpm: 132 }, { at: frac(2), bpm: 60 }]);
+  });
+
+  it('a tempo in the middle of a bar is not taken over, and says so', () => {
+    const { xml } = exportMusicXml(score);
+    const result = importMusicXml(xml.replace(/(<measure number="2"[^>]*>)([\s\S]*?)(<note>)/, '$1$2<note><rest/><duration>1</duration></note><direction><sound tempo="77"/></direction>$3'));
+    expect(result.notes.join(' ')).toMatch(/Tempowechsel mitten im Takt/);
   });
 });

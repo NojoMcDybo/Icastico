@@ -6,10 +6,10 @@
 import { BAR_SIGNS, GROUP_SIGNS, NOTE_SYMBOLS, type BarSignCategory, type NoteSymbolGroup } from '../core/symbols';
 
 /** What a palette button stands for: a sign on a note, on a bar, or a bracket around lines (index into GROUP_SIGNS). */
-export type PaletteKind = 'note' | 'bar' | 'group';
+export type PaletteKind = 'note' | 'bar' | 'group' | 'tempo';
 
 export interface SymbolPaletteHost {
-  /** Double click: put a note sign (index into NOTE_SYMBOLS), a bar sign (BAR_SIGNS) or a bracket (GROUP_SIGNS) on the selection. */
+  /** Double click: put a note sign (index into NOTE_SYMBOLS), a bar sign (BAR_SIGNS) or a bracket (GROUP_SIGNS) on the selection; "tempo" asks for a tempo change. */
   insert(kind: PaletteKind, index: number): void;
   /** A button was pressed down: the workstation turns it into a drag onto the score once the pointer moves. */
   drag(kind: 'note' | 'bar', index: number, glyph: string, e: PointerEvent): void;
@@ -72,6 +72,8 @@ export class SymbolPalette {
         .map(({ s, index }) => this.button(host, 'bar', index, s.id, s.glyph, s.label, false));
       // Barlines and the brackets that tie lines together belong together ("Taktstriche"): the group buttons follow.
       if (section.key === 'barline') buttons.push(...GROUP_SIGNS.map((g, index) => this.button(host, 'group', index, g.id, g.glyph, g.label, false)));
+      // The tempo words are followed by the button for a real tempo change (♩ = …).
+      if (section.key === 'tempo') buttons.push(this.button(host, 'tempo', 0, 'change', '♩ = …', 'Tempowechsel ab diesem Takt', false));
       this.section(section.title, buttons);
     }
   }
@@ -121,7 +123,7 @@ export class SymbolPalette {
     b.setAttribute('aria-pressed', 'false');
     b.addEventListener('dblclick', () => host.insert(kind, index));
     b.addEventListener('pointerdown', (e) => {
-      if (e.button === 0 && kind !== 'group') host.drag(kind, index, glyph, e); // a bracket belongs to lines, not to a place: no dragging
+      if (e.button === 0 && kind !== 'group' && kind !== 'tempo') host.drag(kind, index, glyph, e); // a bracket belongs to lines, not to a place: no dragging
     });
     this.buttons.set(`${kind}:${id}`, b);
     return b;

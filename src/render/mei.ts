@@ -10,9 +10,9 @@
  * applies to the same pitch (step + octave) until the end of the measure,
  * a note tied over from the previous measure shows no accidental.
  */
-import { type Score, type Part, type Tone, eventEnd, locateTones, measuresOf, type Measure, systemBreaks, validateScore } from '../core/model';
+import { type Score, type Part, type Tone, eventEnd, locateTones, measuresOf, type Measure, systemBreaks, tempoAt, validateScore } from '../core/model';
 import { MAX_VERSES, lyricOf, syllableId, versesUsed } from '../core/lyrics';
-import { type Fraction, compare, div, gt, le, lt, sub, frac } from '../core/time';
+import { type Fraction, compare, div, eq, gt, isZero, le, lt, sub, frac } from '../core/time';
 import { barSign, noteSymbol, voltaNumber } from '../core/symbols';
 import { getInstrument, type Clef } from '../core/instruments';
 import { keyAlteration, type Pitch } from '../core/pitch';
@@ -492,6 +492,10 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
       if (kind === 'segno') body.push(`        <dir xml:id="segno-${mi}" staff="${slots[0]!.n}" tstamp="${mark.exact ? at : 1}" place="above"><symbol glyph.auth="smufl" glyph.name="segno"/></dir>`);
       else if (kind === 'coda') body.push(`        <dir xml:id="coda-${mi}" staff="${slots[0]!.n}" tstamp="${mark.exact ? at : 1}" place="above"><symbol glyph.auth="smufl" glyph.name="coda"/></dir>`);
       else if (sign?.text) body.push(`        <dir xml:id="dir-${kind}-${mi}" staff="${slots[0]!.n}" tstamp="${mark.exact ? at : beatsInBar}" place="above">${esc(sign.text)}</dir>`);
+    }
+    // Tempo: written at every change; the start tempo only if the piece has a change (ADR 0039).
+    if (score.tempos && score.tempos.length > 0 && (isZero(m.start) || score.tempos.some((c) => eq(c.at, m.start)))) {
+      body.push(`        <tempo xml:id="tempo-m${m.index}" staff="${slots[0]!.n}" tstamp="1" place="above" midi.bpm="${tempoAt(score, m.start)}">♩ = ${tempoAt(score, m.start)}</tempo>`);
     }
     // Chord symbols sit above the top staff, at their beat inside the measure.
     for (const c of score.chords ?? []) {

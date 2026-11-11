@@ -33,9 +33,10 @@ export const FILE_EXTENSION = 'icastico';
  * 14 = optional `layout` (bars per line / line breaks, ADR 0031),
  * 15 = optional `tuning` per guitar / tablature part and `string` per tone (ADR 0032),
  * 16 = optional `verses` per note: the syllables of verses 2 to 4 (ADR 0036),
- * 17 = nine more instruments: violin, viola, cello, contrabass, ebass, flute, recorder, oboe, bassoon (ADR 0038).
+ * 17 = nine more instruments: violin, viola, cello, contrabass, ebass, flute, recorder, oboe, bassoon (ADR 0038),
+ * 18 = optional `tempos` per score: tempo changes at the start of a bar (ADR 0039).
  */
-export const FORMAT_VERSION = 17;
+export const FORMAT_VERSION = 18;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -55,6 +56,7 @@ function scoreToJson(score: Score): unknown {
     keys: score.keys.map((k) => ({ at: fracToString(k.at), fifths: k.fifths })),
     ...(score.pickup ? { pickup: fracToString(score.pickup) } : {}),
     ...(score.tempo !== undefined ? { tempo: score.tempo } : {}),
+    ...(score.tempos && score.tempos.length > 0 ? { tempos: score.tempos.map((t) => ({ at: fracToString(t.at), bpm: t.bpm })) } : {}),
     ...(score.layout && (score.layout.perSystem !== undefined || score.layout.breaks?.length) ? { layout: { ...(score.layout.perSystem !== undefined ? { perSystem: score.layout.perSystem } : {}), ...(score.layout.breaks?.length ? { breaks: [...score.layout.breaks] } : {}) } } : {}),
     ...(score.marks?.length ? { marks: score.marks.map((m) => ({ at: fracToString(m.at), kind: m.kind, ...(m.exact ? { exact: true } : {}) })) } : {}),
     ...(score.groups?.length ? { groups: score.groups.map((g) => ({ symbol: g.symbol, parts: [...g.parts] })) } : {}),
@@ -282,6 +284,14 @@ function readScore(v: unknown): Score {
     }),
     ...(o.pickup !== undefined ? { pickup: time(o.pickup, 'Auftakt') } : {}),
     ...(o.tempo !== undefined ? { tempo: int(o.tempo, 'Tempo') } : {}),
+    ...(o.tempos !== undefined && arr(o.tempos, 'Tempowechsel').length > 0
+      ? {
+          tempos: arr(o.tempos, 'Tempowechsel').map((t, i) => {
+            const e = obj(t, `Tempowechsel ${i + 1}`);
+            return { at: time(e.at, `Tempowechsel ${i + 1}`), bpm: int(e.bpm, `Tempowechsel ${i + 1}`) };
+          }),
+        }
+      : {}),
     ...(o.links !== undefined && arr(o.links, 'Verbindungen').length > 0 ? { links: arr(o.links, 'Verbindungen').map(readLink) } : {}),
     ...(o.marks !== undefined && arr(o.marks, 'Taktzeichen').length > 0
       ? {
@@ -354,6 +364,8 @@ const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
   15: (doc) => ({ ...doc, version: 16 }),
   // 16 → 17: nine more instruments. Version-16 files do not use them.
   16: (doc) => ({ ...doc, version: 17 }),
+  // 17 → 18: the optional "tempos". Version-17 files have only the start tempo.
+  17: (doc) => ({ ...doc, version: 18 }),
 };
 
 /** Applies `fn` to every event object of a (still unvalidated) score; anything unexpected is left for the reader to reject. */

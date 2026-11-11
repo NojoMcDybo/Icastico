@@ -3,6 +3,7 @@ import { scoreToMei } from './mei';
 import { Engraver } from './verovio';
 import { demoScore } from '../core/demo';
 import { frac } from '../core/time';
+import { setTempoChange, tempoAt } from '../core/model';
 import { parseLine } from '../core/line';
 import { createScore, DEFAULT_SETUP, emptyScore } from '../core/templates';
 import type { InstrumentId } from '../core/instruments';
@@ -69,6 +70,19 @@ describe('the new instruments in MEI (ADR 0038)', () => {
   });
 });
 
+describe('tempo changes in MEI (ADR 0039)', () => {
+  const plain = demoScore();
+  const changed = setTempoChange(plain, frac(1), 132);
+
+  it('a piece without a change prints no tempo; with one, the start tempo and each change are written', () => {
+    expect(scoreToMei(plain).mei).not.toContain('<tempo ');
+    const mei = scoreToMei(changed).mei;
+    expect(mei.match(/<tempo /g)).toHaveLength(2);
+    expect(mei).toContain('midi.bpm="132">♩ = 132</tempo>');
+    expect(mei).toContain(`♩ = ${tempoAt(changed, frac(0))}</tempo>`);
+  });
+});
+
 describe('upbeat in MEI', () => {
   it('writes measure 0 as intentionally short', () => {
     const { mei } = scoreToMei({ ...demoScore(), pickup: frac(1, 4) });
@@ -90,6 +104,13 @@ describe('Verovio renders our MEI', () => {
     expect(pages.length).toBeGreaterThan(0);
     expect(pages[0]).toContain('id="v6-m2-1"');
     expect(pages[0]).toContain('Erste Skizze');
+  });
+
+  it('tempo marks are drawn without warnings, one per change plus the start', () => {
+    const { log, pages } = engraver.engrave(scoreToMei(setTempoChange(demoScore(), frac(1), 132)).mei);
+    expect(log).toBe('');
+    expect(pages[0]).toContain('class="tempo"');
+    expect(pages[0]!.match(/class="tempo"/g)).toHaveLength(2);
   });
 
   it('every new instrument is drawn without warnings', () => {
