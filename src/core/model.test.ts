@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { frac, ZERO } from './time';
-import { freshToneId, measuresOf, setTempoChange, tempoAt, validateScore, withTempoAt, type Score } from './model';
+import { clefAt, freshToneId, measuresOf, setTempoChange, tempoAt, validateScore, withTempoAt, type Score } from './model';
+import { parsePitch } from './pitch';
 import { parseLine } from './line';
 import { demoScore } from './demo';
 
@@ -132,5 +133,29 @@ describe('tempo changes (ADR 0039)', () => {
     expect(validateScore(base({ tempos: [{ at: frac(2), bpm: 90 }, { at: frac(1), bpm: 80 }] }))[0]).toMatch(/aufsteigen/);
     expect(validateScore(base({ tempos: [{ at: ZERO, bpm: 90 }] }))[0]).toMatch(/Tempowechsel/);
     expect(validateScore(base({ tempos: [{ at: frac(1), bpm: 5 }] }))[0]).toMatch(/Tempo 5/);
+  });
+});
+
+describe('clef changes (ADR 0040)', () => {
+  const withClefs = (clefs: NonNullable<Score['parts'][number]['clefs']>, instrument: 'piano' | 'tab' = 'piano'): Score =>
+    base({ parts: [{ id: 'p', name: 'P', instrument, voices: instrument === 'piano' ? [{ id: 'p-s1', staff: 0, events: [] }, { id: 'p-s2', staff: 1, events: [] }] : [{ id: 'p-v1', staff: 0, events: [] }], clefs }] });
+
+  it('clefAt: the instrument\'s own clef, an entry at 0 replaces it, a change counts from its bar on', () => {
+    const part = withClefs([{ at: frac(2), staff: 0, clef: 'alto' }]).parts[0]!;
+    expect(clefAt(part, 0, frac(0)).clef).toEqual({ shape: 'G', line: 2, octave: 0 });
+    expect(clefAt(part, 0, frac(1)).clef.shape).toBe('G');
+    expect(clefAt(part, 0, frac(2)).clef).toEqual({ shape: 'C', line: 3, octave: 0 });
+    expect(clefAt(part, 0, frac(5)).center).toEqual(parsePitch('C4'));
+    expect(clefAt(part, 1, frac(5)).clef.shape).toBe('F'); // the other staff is untouched
+    expect(clefAt(withClefs([{ at: ZERO, staff: 1, clef: 'tenor' }]).parts[0]!, 1, ZERO).center).toEqual(parsePitch('A3'));
+  });
+
+  it('validateScore: a change must be on a staff that exists, not on tablature, on a bar start, in order', () => {
+    expect(validateScore(withClefs([{ at: frac(1), staff: 1, clef: 'treble' }]))).toEqual([]);
+    expect(validateScore(withClefs([{ at: frac(1), staff: 2, clef: 'treble' }]))[0]).toMatch(/System/);
+    expect(validateScore(withClefs([{ at: frac(3, 2), staff: 0, clef: 'bass' }]))[0]).toMatch(/Taktanfang/);
+    expect(validateScore(withClefs([{ at: frac(0), staff: 0, clef: 'tab' as never }]))[0]).toMatch(/Schlüssel/);
+    expect(validateScore(withClefs([{ at: frac(0), staff: 0, clef: 'bass' }], 'tab'))[0]).toMatch(/Tabulatur/);
+    expect(validateScore(withClefs([{ at: frac(2), staff: 0, clef: 'bass' }, { at: frac(1), staff: 0, clef: 'alto' }]))[0]).toMatch(/aufsteigen/);
   });
 });

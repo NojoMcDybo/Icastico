@@ -3,7 +3,9 @@ import { frac } from '../time';
 import { BAR_SIGNS, NOTE_SYMBOLS, toggleNoteSymbol } from '../symbols';
 import { validateScore } from '../model';
 import { type CommandId, dropBarSign, dropNoteSign, newScoreState, runCommand, signsAtFocus } from './commands';
-import { getVoice, type EditorState, type VoiceRef } from './state';
+import { getVoice, staffCenter, type EditorState, type VoiceRef } from './state';
+import { CLEF_IDS } from '../instruments';
+import { parsePitch } from '../pitch';
 
 const VOICE: VoiceRef = { partId: 'voice', voiceId: 'voice-v1' };
 const note = (id: string) => NOTE_SYMBOLS.findIndex((s) => s.id === id);
@@ -134,5 +136,58 @@ describe('brackets and braces around parts', () => {
     expect(s.score.marks!.map((m) => m.kind)).toEqual(['finalBar']);
     s = run(s, 'mark.bar', idx('repeatEnd'));
     expect(s.score.marks!.map((m) => m.kind)).toEqual(['repeatEnd']);
+  });
+});
+
+describe('a clef from a bar on (ADR 0040)', () => {
+  const BASS = CLEF_IDS.indexOf('bass');
+  const ALTO = CLEF_IDS.indexOf('alto');
+  const TREBLE = CLEF_IDS.indexOf('treble');
+  const pick = (s: EditorState, i: number): EditorState => ({ ...s, caret: null, selection: { kind: 'event', ...VOICE, eventId: events(s)[i]!.id } });
+  const clefs = (s: EditorState) => s.score.parts.find((p) => p.id === 'voice')!.clefs;
+
+  it('the clef holds from the start of the bar of the selected note; the same clef again takes it off', () => {
+    let s = run(pick(eight(), 5), 'mark.clef', BASS); // the sixth note sits in bar 2
+    expect(clefs(s)).toEqual([{ at: frac(1), staff: 0, clef: 'bass' }]);
+    expect(s.message).toBe('Bassschlüssel ab Takt 2');
+    expect(validateScore(s.score)).toEqual([]);
+    s = run(s, 'mark.clef', BASS);
+    expect(clefs(s)).toBeUndefined();
+    expect(s.message).toBe('Schlüsselwechsel in Takt 2 entfernt');
+  });
+
+  it('in the first bar it replaces the clef of the instrument; the instrument\'s own clef takes it off again', () => {
+    let s = run(pick(eight(), 0), 'mark.clef', ALTO);
+    expect(clefs(s)).toEqual([{ at: frac(0), staff: 0, clef: 'alto' }]);
+    expect(staffCenter(s.score, VOICE, frac(0))).toEqual(parsePitch('C4'));
+    s = run(s, 'mark.clef', TREBLE);
+    expect(clefs(s)).toBeUndefined();
+    expect(staffCenter(s.score, VOICE, frac(0))).toEqual(parsePitch('B4'));
+  });
+
+  it('a change that only repeats the clef in force changes nothing and says so', () => {
+    const s = pick(eight(), 5);
+    const same = run(s, 'mark.clef', TREBLE);
+    expect(same.score).toBe(s.score);
+    expect(same.message).toBe('Hier gilt schon dieser Schlüssel.');
+  });
+
+  it('a later change that becomes redundant disappears with the earlier one', () => {
+    let s = run(pick(eight(), 5), 'mark.clef', BASS); // bar 2: bass
+    s = run(pick(s, 0), 'mark.clef', BASS); // bar 1: bass, so the change in bar 2 repeats it
+    expect(clefs(s)).toEqual([{ at: frac(0), staff: 0, clef: 'bass' }]);
+  });
+
+  it('works per staff: the left hand of the piano', () => {
+    const left = { ...eight(), selection: null, caret: { partId: 'piano', voiceId: 'piano-s2', time: frac(1) } };
+    const placed = run(left, 'mark.clef', TREBLE); // the left hand has the bass clef of the piano: treble from bar 2 is a change
+    expect(placed.score.parts.find((p) => p.id === 'piano')!.clefs).toEqual([{ at: frac(1), staff: 1, clef: 'treble' }]);
+    expect(validateScore(placed.score)).toEqual([]);
+    expect(staffCenter(placed.score, { partId: 'piano', voiceId: 'piano-s2' }, frac(0))).toEqual(parsePitch('D3'));
+    expect(staffCenter(placed.score, { partId: 'piano', voiceId: 'piano-s2' }, frac(1))).toEqual(parsePitch('B4'));
+  });
+
+  it('without a note or caret nothing happens', () => {
+    expect(run({ ...newScoreState(), caret: null, selection: null }, 'mark.clef', BASS).message).toMatch(/Keine Note/);
   });
 });

@@ -3,10 +3,11 @@
  * button. A double click puts the sign on the selected note (or on the bar of the selection); a sign can also be dragged
  * onto any note. Signs that are already there are lit. It never takes the keyboard focus, so typing notes goes on.
  */
+import { CLEFS, CLEF_IDS } from '../core/instruments';
 import { BAR_SIGNS, GROUP_SIGNS, NOTE_SYMBOLS, type BarSignCategory, type NoteSymbolGroup } from '../core/symbols';
 
 /** What a palette button stands for: a sign on a note, on a bar, or a bracket around lines (index into GROUP_SIGNS). */
-export type PaletteKind = 'note' | 'bar' | 'group' | 'tempo';
+export type PaletteKind = 'note' | 'bar' | 'group' | 'tempo' | 'clef';
 
 export interface SymbolPaletteHost {
   /** Double click: put a note sign (index into NOTE_SYMBOLS), a bar sign (BAR_SIGNS) or a bracket (GROUP_SIGNS) on the selection; "tempo" asks for a tempo change. */
@@ -22,6 +23,8 @@ const GROUPS: { readonly key: NoteSymbolGroup; readonly title: string }[] = [
   { key: 'ornament', title: 'Verzierung' },
   { key: 'fermata', title: 'Fermate, Atem, Arpeggio' },
 ];
+
+const CLEF_SHORT: Record<(typeof CLEF_IDS)[number], string> = { treble: 'Violin', treble8vb: 'Violin 8↓', treble8va: 'Violin 8↑', bass: 'Bass', bass8vb: 'Bass 8↓', alto: 'Alt', tenor: 'Tenor' };
 
 /** The sections for bar signs, in the order they appear. */
 const BAR_SECTIONS: { readonly key: BarSignCategory; readonly title: string }[] = [
@@ -76,6 +79,8 @@ export class SymbolPalette {
       if (section.key === 'tempo') buttons.push(this.button(host, 'tempo', 0, 'change', '♩ = …', 'Tempowechsel ab diesem Takt', false));
       this.section(section.title, buttons);
     }
+    // Clefs: from the bar of the selected note on (ADR 0040).
+    this.section('Schlüssel', CLEF_IDS.map((id, index) => this.button(host, 'clef', index, id, CLEF_SHORT[id], CLEFS[id].label, false)));
   }
 
   /** The palette floats over the score: drag it by its head to where it does not cover the music. */
@@ -123,7 +128,7 @@ export class SymbolPalette {
     b.setAttribute('aria-pressed', 'false');
     b.addEventListener('dblclick', () => host.insert(kind, index));
     b.addEventListener('pointerdown', (e) => {
-      if (e.button === 0 && kind !== 'group' && kind !== 'tempo') host.drag(kind, index, glyph, e); // a bracket belongs to lines, not to a place: no dragging
+      if (e.button === 0 && kind !== 'group' && kind !== 'tempo' && kind !== 'clef') host.drag(kind, index, glyph, e); // a bracket belongs to lines, not to a place: no dragging
     });
     this.buttons.set(`${kind}:${id}`, b);
     return b;

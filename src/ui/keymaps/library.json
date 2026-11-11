@@ -839,6 +839,13 @@
           "title": "Klammer oder Akkolade um die Zeilen der Partitur",
           "command": "mark.group",
           "via": "Zeichen-Palette (Strg+J): Rubrik „Taktstriche“"
+        },
+        {
+          "id": "mark.clef",
+          "title": "Schlüssel ab diesem Takt",
+          "command": "mark.clef",
+          "args": { "0": "Violinschlüssel", "1": "Violinschlüssel mit 8 darunter", "2": "Violinschlüssel mit 8 darüber", "3": "Bassschlüssel", "4": "Bassschlüssel mit 8 darunter", "5": "Altschlüssel", "6": "Tenorschlüssel" },
+          "via": "Zeichen-Menü (Strg+J): Rubrik „Schlüssel“"
         }
       ]
     }

@@ -6,6 +6,7 @@ import { frac } from '../core/time';
 import { setTempoChange, tempoAt } from '../core/model';
 import { parseLine } from '../core/line';
 import { createScore, DEFAULT_SETUP, emptyScore } from '../core/templates';
+import type { Score } from '../core/model';
 import type { InstrumentId } from '../core/instruments';
 import { runCommand } from '../core/editor/commands';
 import { createEditorState, getVoice, type EditorState } from '../core/editor/state';
@@ -83,6 +84,26 @@ describe('tempo changes in MEI (ADR 0039)', () => {
   });
 });
 
+describe('clef changes in MEI (ADR 0040)', () => {
+  const piano = (): Score => createScore({ ...DEFAULT_SETUP, instruments: ['piano'] });
+  const changed = (at = frac(2)): Score => ({ ...piano(), parts: [{ ...piano().parts[0]!, clefs: [{ at, staff: 0, clef: 'alto' }] }] });
+
+  it('the first clef comes from the change at the start; a later change is a small clef at the end of the bar before', () => {
+    const first = scoreToMei({ ...piano(), parts: [{ ...piano().parts[0]!, clefs: [{ at: frac(0), staff: 0, clef: 'bass' }] }] }).mei;
+    expect(first).toContain('clef.shape="F" clef.line="4"');
+    const { mei } = scoreToMei(changed(), { coverTime: frac(3) });
+    const bar2 = mei.slice(mei.indexOf('<measure xml:id="m2"'), mei.indexOf('<measure xml:id="m3"'));
+    expect(bar2).toMatch(/<clef xml:id="clef-piano-0-m3" shape="C" line="3"\/>/);
+    expect(mei.match(/<clef /g)).toHaveLength(1);
+  });
+
+  it('also when the bar before is empty or an upbeat', () => {
+    expect(scoreToMei(changed(), { coverTime: frac(3) }).mei).toMatch(/<mRest[^>]*\/>\s*<clef /);
+    const upbeat = { ...changed(frac(1, 4)), pickup: frac(1, 4) };
+    expect(scoreToMei(upbeat, { coverTime: frac(3) }).mei).toMatch(/<measure xml:id="m0"[\s\S]*<clef xml:id="clef-piano-0-m1"/);
+  });
+});
+
 describe('upbeat in MEI', () => {
   it('writes measure 0 as intentionally short', () => {
     const { mei } = scoreToMei({ ...demoScore(), pickup: frac(1, 4) });
@@ -111,6 +132,17 @@ describe('Verovio renders our MEI', () => {
     expect(log).toBe('');
     expect(pages[0]).toContain('class="tempo"');
     expect(pages[0]!.match(/class="tempo"/g)).toHaveLength(2);
+  });
+
+  it('a clef change is drawn: one clef more than without it, no warnings', () => {
+    const plain = createScore({ ...DEFAULT_SETUP, instruments: ['voice'] });
+    const changed: Score = { ...plain, parts: [{ ...plain.parts[0]!, clefs: [{ at: frac(2), staff: 0, clef: 'bass' }] }] };
+    const count = (s: Score): number => {
+      const { pages, log } = engraver.engrave(scoreToMei(s, { coverTime: frac(3) }).mei);
+      expect(log).toBe('');
+      return pages[0]!.match(/class="clef"/g)?.length ?? 0;
+    };
+    expect(count(changed)).toBe(count(plain) + 1);
   });
 
   it('every new instrument is drawn without warnings', () => {

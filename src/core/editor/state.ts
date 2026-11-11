@@ -5,8 +5,7 @@
  * EditorState → EditorState; undo/redo (history.ts) just keeps old states.
  */
 import { type Fraction, ZERO, add, frac } from '../time';
-import { type NoteEvent, type Part, type Score, type Voice, eventEnd } from '../model';
-import { getInstrument } from '../instruments';
+import { type NoteEvent, type Part, type Score, type Voice, clefAt, eventEnd } from '../model';
 import type { Pitch } from '../pitch';
 import type { RangeSel } from './range';
 
@@ -132,8 +131,8 @@ export function voiceEnd(voice: Voice): Fraction {
   return last ? eventEnd(last) : ZERO;
 }
 
-/** The sounding middle-line pitch of the staff a voice is written on. */
-export function staffCenter(score: Score, ref: VoiceRef): Pitch {
+/** The sounding middle-line pitch of the staff a voice is written on, in the clef that is in force at `time` (ADR 0040). */
+export function staffCenter(score: Score, ref: VoiceRef, time: Fraction = ZERO): Pitch {
   const { part, voice } = getVoice(score, ref);
-  return getInstrument(part.instrument).staves[voice.staff]!.center;
+  return clefAt(part, voice.staff, time).center;
 }

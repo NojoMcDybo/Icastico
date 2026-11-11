@@ -7,10 +7,10 @@
  * Left out (reported): glides and loudness lines (MusicXML has no equivalent we write), and everything the
  * notation does not show. Chord symbols and lyrics are written (ADR 0019).
  */
-import { type Fraction, add, eq, frac, le, lt, sub } from '../time';
+import { type Fraction, ZERO, add, eq, frac, le, lt, sub } from '../time';
 import { type Pitch, spellMidi } from '../pitch';
-import { getInstrument } from '../instruments';
-import { type Measure, type Part, type Score, type Voice, DEFAULT_TEMPO, measuresOf, systemBreaks, validateScore } from '../model';
+import { CLEFS, getInstrument } from '../instruments';
+import { type Measure, type Part, type Score, type Voice, DEFAULT_TEMPO, clefAt, measuresOf, systemBreaks, validateScore } from '../model';
 import {
   type NotatedItem,
   type NotatedNote,
@@ -156,8 +156,18 @@ export function exportMusicXml(score: Score, appVersion = ''): ExportResult {
       if (!prev || prev.sig.count !== m.sig.count || prev.sig.unit !== m.sig.unit) attrs.push(`<time><beats>${m.sig.count}</beats><beat-type>${m.sig.unit}</beat-type></time>`);
       if (mi === 0) {
         if (manyStaves) attrs.push(`<staves>${def.staves.length}</staves>`);
-        def.staves.forEach((st, i) => attrs.push(clefXml(i + 1, st.clef.shape, st.clef.line, st.clef.octave, manyStaves)));
-        if (part.tuning && (part.instrument === 'guitar' || part.instrument === 'tab')) attrs.push(staffDetailsXml(part.tuning, -def.staves[0]!.clef.octave));
+        def.staves.forEach((_, i) => {
+          const { clef } = clefAt(part, i, ZERO);
+          attrs.push(clefXml(i + 1, clef.shape, clef.line, clef.octave, manyStaves));
+        });
+        if (part.tuning && (part.instrument === 'guitar' || part.instrument === 'tab')) attrs.push(staffDetailsXml(part.tuning, 1));
+      }
+      // A clef change at the start of this bar (ADR 0040).
+      if (mi > 0) {
+        for (const c of (part.clefs ?? []).filter((x) => eq(x.at, m.start))) {
+          const { clef } = CLEFS[c.clef];
+          attrs.push(clefXml(c.staff + 1, clef.shape, clef.line, clef.octave, manyStaves));
+        }
       }
       const kinds = (score.marks ?? []).filter((b) => le(m.start, b.at) && lt(b.at, m.end)).map((b) => b.kind as string);
       const volta = Math.max(0, ...kinds.map(voltaNumber));
@@ -190,7 +200,7 @@ export function exportMusicXml(score: Score, appVersion = ''): ExportResult {
         const items = notated.get(voice.id)![mi]!;
         const brackets = tupletGroups(items);
         const staffTag = manyStaves ? `<staff>${voice.staff + 1}</staff>` : '';
-        const octaveShift = -def.staves[voice.staff]!.clef.octave; // guitar is written an octave above its sound
+        const octaveShift = part.instrument === 'guitar' || part.instrument === 'tab' ? 1 : 0; // guitar is written an octave above its sound; the clef shows it
         // Chord symbols are written once, in the first voice of the first part, before the item they fall into.
         const harmonies = partIndex === 0 && vi === 0 ? (score.chords ?? []).filter((c) => le(m.start, c.at) && lt(c.at, m.end)) : [];
         const written = new Set<string>();

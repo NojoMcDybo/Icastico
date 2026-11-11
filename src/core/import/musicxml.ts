@@ -12,7 +12,7 @@
 import { type Fraction, ZERO, add, compare, eq, frac, le, lt, sub } from '../time';
 import { type Pitch, STEPS, midiOf, spellMidi } from '../pitch';
 import { GUITAR_STRINGS, validTuning } from '../tab';
-import { type InstrumentId, getInstrument, instrumentHint } from '../instruments';
+import { CLEFS, CLEF_IDS, type ClefId, type InstrumentId, clefIdOf, getInstrument, instrumentHint } from '../instruments';
 import { MAX_VERSES } from '../lyrics';
 import {
   type StaffGroup,
@@ -20,6 +20,7 @@ import {
   type ChordSymbol,
   type KeyChange,
   type Link,
+  type ClefChange,
   type MeterChange,
   type NoteEvent,
   type Part,
@@ -223,6 +224,9 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
     let sig = { count: 4, unit: 4 };
     let transpose = 0;
     let hasTranspose = false;
+    /** Clef changes (ADR 0040) and the clef now in force on each staff. */
+    const clefList: ClefChange[] = [];
+    const clefNow: ClefId[] = def.staves.map((st) => clefIdOf(st.clef));
     let fifths = 0;
     let measureStart: Fraction = ZERO;
     const raws = new Map<string, Raw[]>(); // "staff:voice" → notes
@@ -264,6 +268,25 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
             if (f !== fifths || mi === 0 || keys.length === 0) {
               fifths = f;
               if (partIndex === 0) keys.push({ at: here, fifths: f });
+            }
+          }
+          for (const c of childrenNamed(el, 'clef')) {
+            const sign = childText(c, 'sign') ?? '';
+            if (sign === 'TAB') continue; // the tablature is reported elsewhere
+            const line = Math.round(intOf(childText(c, 'line'), sign === 'G' ? 2 : sign === 'F' ? 4 : 3));
+            const octave = Math.round(intOf(childText(c, 'clef-octave-change'), 0));
+            const id = CLEF_IDS.find((k) => CLEFS[k].clef.shape === sign && CLEFS[k].clef.line === line && CLEFS[k].clef.octave === octave);
+            if (!id) {
+              skip(`Schlüssel ${sign}${line}${octave ? ` (Oktave ${octave})` : ''}`);
+              continue;
+            }
+            const staff = Math.min(def.staves.length, Math.max(1, Math.round(intOf(c.attrs.number ?? '1', 1)))) - 1;
+            // A guitar is written an octave above its sound by convention: a plain treble clef is the usual guitar clef.
+            if (clefNow[staff] === id || (instrument === 'guitar' && sign === 'G')) continue;
+            if (cursor !== 0) skip('Schlüsselwechsel mitten im Takt');
+            else {
+              clefNow[staff] = id;
+              clefList.push({ at: here, staff, clef: id });
             }
           }
           const tr = child(el, 'transpose');
@@ -465,7 +488,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
       if (!voices.some((v) => v.staff === s)) voices.push({ id: `${partId}-s${s + 1}v1`, staff: s, events: [] });
     }
     voices.sort((a, b) => a.staff - b.staff);
-    parts.push({ id: partId, name: info.name || def.name, instrument, ...(tuning ? { tuning } : {}), voices });
+    parts.push({ id: partId, name: info.name || def.name, instrument, ...(tuning ? { tuning } : {}), ...(clefList.length ? { clefs: clefList } : {}), voices });
     partOfSource.set(sourceId, partId);
   });
 

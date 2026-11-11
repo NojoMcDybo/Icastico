@@ -21,6 +21,7 @@ import version14File from './fixtures/version14.icastico?raw';
 import version15File from './fixtures/version15.icastico?raw';
 import version16File from './fixtures/version16.icastico?raw';
 import version17File from './fixtures/version17.icastico?raw';
+import version18File from './fixtures/version18.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -573,5 +574,41 @@ describe('format version 18: tempo changes', () => {
     expect(() => parseScoreFile(withTempos([{ at: '2', bpm: 100 }, { at: '1', bpm: 90 }]))).toThrow(/Tempowechsel/);
     expect(() => parseScoreFile(withTempos([{ at: '2', bpm: 999 }]))).toThrow(/Tempo/);
     expect(() => parseScoreFile(withTempos([{ at: '2' }]))).toThrow();
+  });
+});
+
+describe('format version 19: clef changes', () => {
+  it('opens files saved with format version 18 (tempo change) and saves them as the current version', () => {
+    const score = parseScoreFile(version18File);
+    expect(fileVersion(version18File)).toBe(18);
+    expect(score.tempos).toEqual([{ at: frac(1), bpm: 132 }]);
+    expect(score.parts.every((p) => p.clefs === undefined)).toBe(true);
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  const withClefs = (clefs: unknown, part = 0): string => {
+    const doc = JSON.parse(serializeScore(parseScoreFile(version18File), '0')) as { score: { parts: { clefs?: unknown }[] } };
+    doc.score.parts[part]!.clefs = clefs;
+    return JSON.stringify(doc);
+  };
+
+  it('keeps clef changes per part and staff', () => {
+    const back = parseScoreFile(withClefs([{ at: '0', staff: 0, clef: 'bass' }, { at: '1', staff: 0, clef: 'alto' }]));
+    expect(back.parts[0]!.clefs).toEqual([{ at: frac(0), staff: 0, clef: 'bass' }, { at: frac(1), staff: 0, clef: 'alto' }]);
+    expect(parseScoreFile(serializeScore(back, '0'))).toEqual(back);
+  });
+
+  it('refuses nonsense: an unknown clef, a staff that is not there, the middle of a bar, a tablature line, wrong order', () => {
+    expect(() => parseScoreFile(withClefs([{ at: '0', staff: 0, clef: 'soprano' }]))).toThrow(/Schlüssel/);
+    expect(() => parseScoreFile(withClefs([{ at: '0', staff: 5, clef: 'alto' }]))).toThrow(/System/);
+    expect(() => parseScoreFile(withClefs([{ at: '1/2', staff: 0, clef: 'alto' }]))).toThrow(/Taktanfang/);
+    expect(() => parseScoreFile(withClefs([{ at: '1', staff: 0, clef: 'alto' }, { at: '0', staff: 0, clef: 'bass' }]))).toThrow(/aufsteigen/);
+    expect(() => parseScoreFile(withClefs([{ at: '0' }]))).toThrow();
+    const tab = JSON.parse(serializeScore(parseScoreFile(version18File), '0')) as { score: { parts: { instrument: string; clefs?: unknown }[] } };
+    tab.score.parts[0]!.instrument = 'tab';
+    tab.score.parts[0]!.clefs = [{ at: '0', staff: 0, clef: 'alto' }];
+    expect(() => parseScoreFile(JSON.stringify(tab))).toThrow(/Tabulatur/);
   });
 });

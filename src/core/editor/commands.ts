@@ -10,7 +10,8 @@
  * - The note just entered stays selected; ↑/↓, +/-, Alt+number, T act on it.
  * - Overwrite by default (insert mode shifts the following music instead).
  */
-import { type Fraction, ZERO, add, compare, eq, frac, gt, isDyadic, le, lt, sub } from '../time';
+import { type Fraction, ZERO, add, compare, eq, frac, gt, isDyadic, isZero, le, lt, sub } from '../time';
+import { CLEFS, CLEF_IDS, type ClefId, clefIdOf, getInstrument } from '../instruments';
 import { STEPS, keyAlteration, midiOf, pitchToString, type Pitch } from '../pitch';
 import { type BarSign, BAR_SIGNS, GROUP_SIGNS, NOTE_SYMBOLS, barSign, canSitOnNote, toggleNoteSymbol } from '../symbols';
 import { type BarMark, type StaffGroup, type ChordSymbol, type Link, type LinkKind, type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, measuresOf } from '../model';
@@ -112,7 +113,7 @@ const samePitch = (a: Pitch, b: Pitch): boolean => a.step === b.step && a.alter 
 function referencePitch(s: EditorState, caret: Caret): Pitch {
   const before = getVoice(s.score, caret).voice.events.filter((e) => le(eventEnd(e), caret.time));
   const last = before[before.length - 1];
-  return last ? last.tones[0]!.pitch : staffCenter(s.score, caret);
+  return last ? last.tones[0]!.pitch : staffCenter(s.score, caret, caret.time);
 }
 
 /** Staff position: 7 steps per octave. */
@@ -330,6 +331,61 @@ function toggleGroup(s: EditorState, index: number): EditorState {
   const { groups: _old, ...rest } = s.score;
   const on = next.some((g) => g.parts.includes(ref.partId) && g.parts.includes(below) && g.symbol === sign.id);
   return { ...s, score: next.length ? { ...rest, groups: next } : rest, message: `${sign.id === 'bracket' ? 'Klammer' : 'Akkolade'}: ${on ? 'gesetzt' : 'gelöst'}` };
+}
+
+/** The staff and time a clef change is meant for: the selected note / gap, else the caret. */
+function clefPlace(s: EditorState): { ref: VoiceRef; time: Fraction } | null {
+  const sel = s.selection;
+  if (sel?.kind === 'event') {
+    const event = findEvent(s.score, sel, sel.eventId);
+    if (event) return { ref: sel, time: event.onset };
+  }
+  if (sel?.kind === 'gap') return { ref: sel, time: sel.time };
+  return s.caret ? { ref: s.caret, time: s.caret.time } : null;
+}
+
+/**
+ * The clef of the selected staff from the start of its bar on (ADR 0040): the index is into CLEF_IDS. In the first bar it
+ * replaces the clef of the instrument. The same clef again takes the change off; a change that would only repeat the clef
+ * already in force is left out.
+ */
+function setClef(s: EditorState, index: number): EditorState {
+  const id = CLEF_IDS[index];
+  const place = clefPlace(s);
+  if (!id) return s;
+  if (!place) return say(s, NO_NOTE);
+  const { part, voice } = getVoice(s.score, place.ref);
+  const instrument = getInstrument(part.instrument);
+  if (instrument.tab) return say(s, 'Die Tabulatur hat keinen Schlüssel.');
+  const staff = voice.staff;
+  const measures = measuresOf(s.score, 1, place.time);
+  const bar = measures.find((m) => le(m.start, place.time) && lt(place.time, m.end)) ?? measures[0]!;
+  const at = bar.start;
+  const mine = (part.clefs ?? []).filter((c) => c.staff === staff);
+  const here = mine.find((c) => eq(c.at, at));
+  const list = mine.filter((c) => !eq(c.at, at));
+  if (here?.clef !== id) list.push({ at, staff, clef: id }); // the same clef again = off
+  list.sort((a, b) => compare(a.at, b.at));
+  // A change that only repeats the clef before it is no change.
+  let before: ClefId = clefIdOf(instrument.staves[staff]!.clef);
+  const kept = list.filter((c) => {
+    if (c.clef === before) return false;
+    before = c.clef;
+    return true;
+  });
+  const others = (part.clefs ?? []).filter((c) => c.staff !== staff);
+  const clefs = [...others, ...kept].sort((a, b) => compare(a.at, b.at) || a.staff - b.staff);
+  const old = part.clefs ?? [];
+  if (clefs.length === old.length && clefs.every((c, i) => c.staff === old[i]!.staff && c.clef === old[i]!.clef && eq(c.at, old[i]!.at))) return say(s, 'Hier gilt schon dieser Schlüssel.');
+  const parts = s.score.parts.map((p) => {
+    if (p.id !== part.id) return p;
+    const { clefs: _old, ...rest } = p;
+    return clefs.length > 0 ? { ...rest, clefs } : rest;
+  });
+  const set = kept.some((c) => eq(c.at, at) && c.clef === id);
+  const where = isZero(at) ? '' : ` ab Takt ${bar.number}`;
+  const message = set ? `${CLEFS[id].label}${where}` : isZero(at) ? 'Anfangsschlüssel wieder wie beim Instrument' : `Schlüsselwechsel in Takt ${bar.number} entfernt`;
+  return { ...s, score: { ...s.score, parts }, message };
 }
 
 /** Tablature staff on/off for the guitar part of the selected note / caret (ADR 0022). */
@@ -551,7 +607,7 @@ function ghostOf(s: EditorState, caret: Caret): readonly Pitch[] {
   if (s.input.ghost) return s.input.ghost;
   const before = getVoice(s.score, caret).voice.events.filter((e) => le(eventEnd(e), caret.time));
   const last = before[before.length - 1];
-  return last ? last.tones.map((t) => t.pitch) : [staffCenter(s.score, caret)];
+  return last ? last.tones.map((t) => t.pitch) : [staffCenter(s.score, caret, caret.time)];
 }
 
 /** The ghost note for the display; null outside input mode. */
@@ -1092,6 +1148,7 @@ export const COMMANDS = {
   'mark.toggle': { title: 'Zeichen an der Note (Dynamik, Artikulation, Verzierung)', run: toggleMark },
   'edit.tabTranslate': { title: 'Auswahl in Gitarren-Tabulatur übersetzen', run: translateToTab },
   'mark.group': { title: 'Klammer / Akkolade um Zeilen', run: toggleGroup },
+  'mark.clef': { title: 'Schlüssel ab diesem Takt', run: setClef },
   'mark.bar': { title: 'Zeichen am Takt (Wiederholung, Klammer, Segno, Coda, Sprung)', run: toggleBarSign },
   'edit.tab': { title: 'Tabulatur an/aus', run: toggleTab },
   'input.tuplet': { title: 'Triolen / Quintolen / Septolen', run: toggleTuplet },

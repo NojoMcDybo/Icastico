@@ -1408,6 +1408,7 @@ export class Workstation {
     if (this.empty) return;
     if (kind === 'group') return this.run('mark.group', index); // the same button again takes the bracket off
     if (kind === 'tempo') return this.run('tempo.change'); // a tempo change is a question (which tempo?), not a sign
+    if (kind === 'clef') return this.run('mark.clef', index); // the same clef again takes the change off
     const id = kind === 'note' ? NOTE_SYMBOLS[index]!.id : BAR_SIGNS[index]!.id;
     const at = signsAtFocus(this.state);
     if ((kind === 'note' ? at.note : at.bar).includes(id)) {
@@ -2625,7 +2626,7 @@ export class Workstation {
     const bottom = lines[4]!.getBoundingClientRect();
     const gap = (bottom.top - top.top) / 4;
     const middle = (top.top + top.bottom) / 2 + 2 * gap;
-    const centre = staffCenter(this.state.score, { partId: ref.partId, voiceId: ref.voiceId });
+    const centre = staffCenter(this.state.score, { partId: ref.partId, voiceId: ref.voiceId }, this.state.caret?.time ?? ZERO);
     const pos = (p: Pitch) => p.octave * 7 + STEPS.indexOf(p.step);
     const put = (cls: string, left: number, topPx: number, w: number, h: number, text = '') => {
       const el = document.createElement('div');

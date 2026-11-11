@@ -67,3 +67,4 @@ Was wird dadurch leichter, was schwerer?
 | 0037 | [Akkord nach Namen eingeben](0037-akkord-nach-namen.md) | angenommen |
 | 0038 | [Neun weitere Instrumente](0038-weitere-instrumente.md) | angenommen |
 | 0039 | [Tempowechsel ab einem Takt](0039-tempowechsel.md) | angenommen |
+| 0040 | [Schlüsselwechsel ab einem Takt](0040-schluesselwechsel.md) | angenommen |

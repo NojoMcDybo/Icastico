@@ -12,7 +12,7 @@
  */
 import { type Fraction, compare, fracToString, parseFrac } from '../time';
 import { parsePitch, pitchToString } from '../pitch';
-import { type InstrumentId, INSTRUMENTS } from '../instruments';
+import { CLEF_IDS, type ClefId, type InstrumentId, INSTRUMENTS } from '../instruments';
 import { type Curve, type CurveKind, DEFAULT_VOLUME, curveProblem } from '../curve';
 import { type BarMark, type ScoreLayout, type Link, type NoteEvent, type Part, type Score, type Tone, type Voice, validateScore } from '../model';
 import { MAX_VERSES } from '../lyrics';
@@ -34,9 +34,10 @@ export const FILE_EXTENSION = 'icastico';
  * 15 = optional `tuning` per guitar / tablature part and `string` per tone (ADR 0032),
  * 16 = optional `verses` per note: the syllables of verses 2 to 4 (ADR 0036),
  * 17 = nine more instruments: violin, viola, cello, contrabass, ebass, flute, recorder, oboe, bassoon (ADR 0038),
- * 18 = optional `tempos` per score: tempo changes at the start of a bar (ADR 0039).
+ * 18 = optional `tempos` per score: tempo changes at the start of a bar (ADR 0039),
+ * 19 = optional `clefs` per part: clef changes at the start of a bar (ADR 0040).
  */
-export const FORMAT_VERSION = 18;
+export const FORMAT_VERSION = 19;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -68,6 +69,7 @@ function scoreToJson(score: Score): unknown {
       instrument: p.instrument,
       ...(p.tab ? { tab: true } : {}),
       ...(p.tuning ? { tuning: [...p.tuning] } : {}),
+      ...(p.clefs?.length ? { clefs: p.clefs.map((c) => ({ at: fracToString(c.at), staff: c.staff, clef: c.clef })) } : {}),
       voices: p.voices.map((v) => ({
         id: v.id,
         staff: v.staff,
@@ -261,6 +263,16 @@ function readPart(v: unknown, where: string): Part {
     instrument: instrument as InstrumentId,
     ...(o.tab !== undefined ? { tab: o.tab === true } : {}),
     ...(o.tuning !== undefined ? { tuning: arr(o.tuning, `${where}.tuning`).map((m, i) => int(m, `${where}.tuning[${i}]`)) } : {}),
+    ...(o.clefs !== undefined && arr(o.clefs, `${where}.clefs`).length > 0
+      ? {
+          clefs: arr(o.clefs, `${where}.clefs`).map((c, i) => {
+            const e = obj(c, `${where}, Schlüsselwechsel ${i + 1}`);
+            const clef = str(e.clef, `${where}, Schlüsselwechsel ${i + 1}`);
+            if (!CLEF_IDS.includes(clef as ClefId)) fail(`${where}: Den Schlüssel „${clef}“ gibt es nicht.`);
+            return { at: time(e.at, `${where}, Schlüsselwechsel ${i + 1}`), staff: int(e.staff, `${where}, Schlüsselwechsel ${i + 1}`), clef: clef as ClefId };
+          }),
+        }
+      : {}),
     voices: arr(o.voices, `${where}.voices`).map((voice, i) => readVoice(voice, `${where}, Stimme ${i + 1}`)),
   };
 }
@@ -366,6 +378,8 @@ const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
   16: (doc) => ({ ...doc, version: 17 }),
   // 17 → 18: the optional "tempos". Version-17 files have only the start tempo.
   17: (doc) => ({ ...doc, version: 18 }),
+  // 18 → 19: the optional "clefs" of parts. Version-18 files have only the clefs of the instruments.
+  18: (doc) => ({ ...doc, version: 19 }),
 };
 
 /** Applies `fn` to every event object of a (still unvalidated) score; anything unexpected is left for the reader to reject. */

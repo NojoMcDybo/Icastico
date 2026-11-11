@@ -43,12 +43,25 @@ export interface InstrumentDef {
 
 export type InstrumentId = 'voice' | 'guitar' | 'tab' | 'piano' | 'violin' | 'viola' | 'cello' | 'contrabass' | 'ebass' | 'flute' | 'recorder' | 'oboe' | 'bassoon';
 
-const TREBLE: Clef = { shape: 'G', line: 2, octave: 0 };
-const TREBLE_8VB: Clef = { shape: 'G', line: 2, octave: -1 };
-const BASS: Clef = { shape: 'F', line: 4, octave: 0 };
-const ALTO: Clef = { shape: 'C', line: 3, octave: 0 };
-const TREBLE_8VA: Clef = { shape: 'G', line: 2, octave: 1 };
-const BASS_8VB: Clef = { shape: 'F', line: 4, octave: -1 };
+/** The clefs a staff can be written in (ADR 0040) – the one source for the instruments below and for clef changes. */
+export type ClefId = 'treble' | 'treble8vb' | 'treble8va' | 'bass' | 'bass8vb' | 'alto' | 'tenor';
+export const CLEF_IDS: readonly ClefId[] = ['treble', 'treble8vb', 'treble8va', 'bass', 'bass8vb', 'alto', 'tenor'];
+export const CLEFS: Readonly<Record<ClefId, { readonly label: string; readonly clef: Clef; readonly center: Pitch }>> = {
+  treble: { label: 'Violinschlüssel', clef: { shape: 'G', line: 2, octave: 0 }, center: parsePitch('B4') },
+  treble8vb: { label: 'Violinschlüssel mit 8 darunter', clef: { shape: 'G', line: 2, octave: -1 }, center: parsePitch('B3') },
+  treble8va: { label: 'Violinschlüssel mit 8 darüber', clef: { shape: 'G', line: 2, octave: 1 }, center: parsePitch('B5') },
+  bass: { label: 'Bassschlüssel', clef: { shape: 'F', line: 4, octave: 0 }, center: parsePitch('D3') },
+  bass8vb: { label: 'Bassschlüssel mit 8 darunter', clef: { shape: 'F', line: 4, octave: -1 }, center: parsePitch('D2') },
+  alto: { label: 'Altschlüssel', clef: { shape: 'C', line: 3, octave: 0 }, center: parsePitch('C4') },
+  tenor: { label: 'Tenorschlüssel', clef: { shape: 'C', line: 4, octave: 0 }, center: parsePitch('A3') },
+};
+
+const TREBLE: Clef = CLEFS.treble.clef;
+const TREBLE_8VB: Clef = CLEFS.treble8vb.clef;
+const BASS: Clef = CLEFS.bass.clef;
+const ALTO: Clef = CLEFS.alto.clef;
+const TREBLE_8VA: Clef = CLEFS.treble8va.clef;
+const BASS_8VB: Clef = CLEFS.bass8vb.clef;
 
 export const INSTRUMENTS: Readonly<Record<InstrumentId, InstrumentDef>> = {
   voice: {
@@ -124,4 +137,9 @@ export function instrumentHint(name: string, program: number | undefined): Instr
   if (/oboe/i.test(name) || program === 68) return 'oboe';
   if (/fagott|bassoon/i.test(name) || program === 70) return 'bassoon';
   return undefined;
+}
+
+/** The id of a clef from the table (every clef of an instrument is one of them). */
+export function clefIdOf(clef: Clef): ClefId {
+  return CLEF_IDS.find((id) => CLEFS[id].clef.shape === clef.shape && CLEFS[id].clef.line === clef.line && CLEFS[id].clef.octave === clef.octave) ?? 'treble';
 }

@@ -156,6 +156,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Sprachtest: Wörter einsprechen und Erkenner prüfen (noch ohne Befehle per Sprache) | `Strg+Umschalt+V` *(Icastico)* | `Strg+Umschalt+V` *(Icastico)* | (wie Finale) | ✓ |
 | Zeichen-Palette zeigen / verbergen | `Strg+J` *(Icastico)* | `Strg+J` *(Icastico)* | (wie Finale) | ✓ |
 | Klammer oder Akkolade um die Zeilen der Partitur | *Zeichen-Palette (Strg+J): Rubrik „Taktstriche“* | *Zeichen-Palette (Strg+J): Rubrik „Taktstriche“* | (wie Finale) | ✓ |
+| Schlüssel ab diesem Takt | *Zeichen-Menü (Strg+J): Rubrik „Schlüssel“* | *Zeichen-Menü (Strg+J): Rubrik „Schlüssel“* | (wie Finale) | ✓ |
 
 ## Quellen
 

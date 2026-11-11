@@ -14,7 +14,7 @@
 import { type Fraction, ZERO, add, compare, div, eq, frac, gt, isZero, le, lt, sub } from './time';
 import { type Pitch, midiOf } from './pitch';
 import { type Curve, MAX_VOLUME, MIN_VOLUME, curveProblem } from './curve';
-import { getInstrument, type InstrumentId } from './instruments';
+import { CLEFS, CLEF_IDS, type Clef, type ClefId, getInstrument, type InstrumentId } from './instruments';
 import { validTuning } from './tab';
 import { MAX_VERSES } from './lyrics';
 import { BAR_SIGN_IDS, NOTE_SYMBOL_IDS, type BarSignKind, canSitOnNote } from './symbols';
@@ -102,6 +102,14 @@ export interface Voice {
   readonly events: readonly NoteEvent[];
 }
 
+/** A staff written in another clef from a bar on (ADR 0040). */
+export interface ClefChange {
+  readonly at: Fraction;
+  /** Index of the staff within the part's instrument (piano: 0 = right hand, 1 = left hand). */
+  readonly staff: number;
+  readonly clef: ClefId;
+}
+
 export interface Part {
   readonly id: string;
   readonly name: string;
@@ -111,6 +119,8 @@ export interface Part {
   readonly tab?: boolean;
   /** Open strings of a guitar or tablature line, string 1 (highest) first; absent = standard E A d g h e (ADR 0032). */
   readonly tuning?: readonly number[];
+  /** Clefs that differ from the instrument's own: from `at` on (a bar start), per staff; an entry at 0 replaces the first clef. Absent = none. */
+  readonly clefs?: readonly ClefChange[];
 }
 
 export interface Score {
@@ -225,6 +235,13 @@ export function setTempoChange(score: Score, at: Fraction, bpm: number | null): 
 export function withTempoAt(score: Score, time: Fraction, bpm: number): Score {
   const change = [...(score.tempos ?? [])].reverse().find((c) => le(c.at, time));
   return change ? setTempoChange(score, change.at, bpm) : withTempo(score, bpm);
+}
+
+/** The clef and middle-line pitch of a staff of a part at a time: the last change at or before it, else the instrument's own. */
+export function clefAt(part: Part, staff: number, time: Fraction): { readonly clef: Clef; readonly center: Pitch } {
+  let best: ClefChange | undefined;
+  for (const c of part.clefs ?? []) if (c.staff === staff && le(c.at, time) && (!best || le(best.at, c.at))) best = c;
+  return best ? CLEFS[best.clef] : getInstrument(part.instrument).staves[staff]!;
 }
 
 export interface Measure {
@@ -407,13 +424,29 @@ export function validateScore(score: Score): string[] {
     problems.push(`Tempo ${score.tempo} ist ungültig (erlaubt: ${MIN_TEMPO}–${MAX_TEMPO}).`);
   }
   const tempos = score.tempos ?? [];
-  const barStarts = new Set(tempos.length > 0 ? measuresOf(score, 1, tempos.reduce((m, c) => (gt(c.at, m) ? c.at : m), ZERO)).map((m) => `${m.start.n}/${m.start.d}`) : []);
+  // Tempo and clef changes must start a bar: look the bars up once, as far as the last change.
+  const changeTimes = [...tempos.map((c) => c.at), ...score.parts.flatMap((p) => (p.clefs ?? []).map((c) => c.at))];
+  const barStarts = new Set(changeTimes.length > 0 ? measuresOf(score, 1, changeTimes.reduce((m, t) => (gt(t, m) ? t : m), ZERO)).map((m) => `${m.start.n}/${m.start.d}`) : []);
   let lastTempo: Fraction | null = null;
   for (const change of tempos) {
     if (!(Number.isInteger(change.bpm) && change.bpm >= MIN_TEMPO && change.bpm <= MAX_TEMPO)) problems.push(`Tempo ${change.bpm} ist ungültig (erlaubt: ${MIN_TEMPO}–${MAX_TEMPO}).`);
     if (!gt(change.at, ZERO) || (lastTempo && !gt(change.at, lastTempo))) problems.push(`Tempowechsel bei ${change.at.n}/${change.at.d}: Die Wechsel müssen hinter dem Anfang stehen und aufsteigen.`);
     else if (!barStarts.has(`${change.at.n}/${change.at.d}`)) problems.push(`Tempowechsel bei ${change.at.n}/${change.at.d} liegt nicht auf einem Taktanfang.`);
     lastTempo = change.at;
+  }
+  for (const part of score.parts) {
+    const instrument = getInstrument(part.instrument);
+    const last = new Map<number, Fraction>();
+    for (const change of part.clefs ?? []) {
+      const where = `${part.name}: Schlüsselwechsel bei ${change.at.n}/${change.at.d}`;
+      if (!Number.isInteger(change.staff) || change.staff < 0 || change.staff >= instrument.staves.length) problems.push(`${where}: Dieses System gibt es nicht.`);
+      else if (instrument.tab) problems.push(`${where}: Die Tabulatur hat keinen Schlüssel.`);
+      if (!CLEF_IDS.includes(change.clef)) problems.push(`${where}: Den Schlüssel „${change.clef}“ gibt es nicht.`);
+      const before = last.get(change.staff);
+      if (lt(change.at, ZERO) || (before && !gt(change.at, before))) problems.push(`${where}: Die Wechsel müssen aufsteigen.`);
+      else if (!barStarts.has(`${change.at.n}/${change.at.d}`)) problems.push(`${where} liegt nicht auf einem Taktanfang.`);
+      last.set(change.staff, change.at);
+    }
   }
   const pickup = score.pickup;
   if (pickup && (lt(pickup, ZERO) || !lt(pickup, measureLength(score.meter[0]!.sig)))) {

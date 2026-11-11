@@ -10,11 +10,11 @@
  * applies to the same pitch (step + octave) until the end of the measure,
  * a note tied over from the previous measure shows no accidental.
  */
-import { type Score, type Part, type Tone, eventEnd, locateTones, measuresOf, type Measure, systemBreaks, tempoAt, validateScore } from '../core/model';
+import { type Score, type Part, type Tone, clefAt, eventEnd, locateTones, measuresOf, type Measure, systemBreaks, tempoAt, validateScore } from '../core/model';
 import { MAX_VERSES, lyricOf, syllableId, versesUsed } from '../core/lyrics';
-import { type Fraction, compare, div, eq, gt, isZero, le, lt, sub, frac } from '../core/time';
+import { type Fraction, ZERO, compare, div, eq, gt, isZero, le, lt, sub, frac } from '../core/time';
 import { barSign, noteSymbol, voltaNumber } from '../core/symbols';
-import { getInstrument, type Clef } from '../core/instruments';
+import { CLEFS, getInstrument, type Clef, type ClefId } from '../core/instruments';
 import { keyAlteration, type Pitch } from '../core/pitch';
 import { GUITAR_STRINGS, assignFrets, tuningLabel, tuningOf, type Fingering } from '../core/tab';
 import {
@@ -80,6 +80,12 @@ const esc = (s: string): string =>
 function keysigAttr(fifths: number): string {
   if (fifths === 0) return '0';
   return fifths > 0 ? `${fifths}s` : `${-fifths}f`;
+}
+
+/** A clef inside a layer (a change of clef): the same shape, line and octave mark as in a staffDef. */
+function clefElement(id: string, clefId: ClefId): string {
+  const { clef } = CLEFS[clefId];
+  return `<clef xml:id="${id}" shape="${clef.shape}" line="${clef.line}"${clef.octave !== 0 ? ` dis="8" dis.place="${clef.octave < 0 ? 'below' : 'above'}"` : ''}/>`;
 }
 
 function clefAttrs(clef: Clef): string {
@@ -191,7 +197,7 @@ function staffGrpXml(score: Score, slots: StaffSlot[]): string {
         ? `${ind}<staffDef n="${s.n}" lines="${GUITAR_STRINGS.length}" clef.shape="TAB" clef.line="3" keysig.visible="false" meter.visible="false"><label>${esc(part.name)}</label><labelAbbr>${esc(def.shortName)}</labelAbbr></staffDef>`
         : s.tab
         ? `${ind}<staffDef n="${s.n}" lines="${GUITAR_STRINGS.length}" clef.shape="TAB" clef.line="3" keysig.visible="false" meter.visible="false"><label>Tab</label><labelAbbr>Tab</labelAbbr></staffDef>`
-        : `${ind}<staffDef n="${s.n}" lines="5" ${clefAttrs(def.staves[s.staffIndex]!.clef)}>` +
+        : `${ind}<staffDef n="${s.n}" lines="5" ${clefAttrs(clefAt(part, s.staffIndex, ZERO).clef)}>` +
           (withLabel ? `<label>${esc(part.name)}</label><labelAbbr>${esc(def.shortName)}</labelAbbr>` : '') +
           `</staffDef>`;
     if (own.length > 1) {
@@ -448,8 +454,12 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
       // Voices without notes (e.g. after their only tone was deleted) draw nothing, unless the staff would be empty.
       const voices = onStaff.some((v) => v.events.length > 0) ? onStaff.filter((v) => v.events.length > 0) : onStaff.slice(0, 1);
       const accidentals = new AccidentalState(m.fifths);
+      // A clef change at the start of the next bar is the last thing of the first layer: a small clef before the barline (ADR 0040).
+      const next = measures[mi + 1];
+      const comingClef = !slot.tab && !slot.tabPart && next ? (slot.part.clefs ?? []).find((c) => c.staff === slot.staffIndex && eq(c.at, next.start)) : undefined;
+      const clefXml = comingClef ? clefElement(`clef-${slot.part.id}-${slot.staffIndex}-m${next!.number}`, comingClef.clef) : '';
       if (voices.length === 0) {
-        body.push(`          <layer n="1"><mRest/></layer>`);
+        body.push(`          <layer n="1">${clefXml ? `<mRest/>${clefXml}` : '<mRest/>'}</layer>`);
       }
       voices.forEach((voice, li) => {
         body.push(`          <layer n="${li + 1}">`);
@@ -476,6 +486,7 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
           if (beam && i === beam[1]) body.push('            </beam>');
           if (brackets.some((g) => g.end === i)) body.push('            </tuplet>');
         });
+        if (li === 0 && clefXml) body.push(`            ${clefXml}`);
         body.push('          </layer>');
       });
       body.push('        </staff>');

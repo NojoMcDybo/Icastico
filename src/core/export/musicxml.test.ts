@@ -299,3 +299,41 @@ describe('tempo changes (ADR 0039)', () => {
     expect(result.notes.join(' ')).toMatch(/Tempowechsel mitten im Takt/);
   });
 });
+
+describe('clef changes and octave clefs (ADR 0040)', () => {
+  const voice = (): Score => {
+    const base = emptyScore();
+    const v = base.parts[0]!.voices[0]!;
+    return { ...base, parts: [{ ...base.parts[0]!, voices: [{ ...v, events: parseLine('C4:1 D4:1 E4:1 F4:1', 'e') }] }] };
+  };
+  const withClefs = (s: Score, clefs: NonNullable<Score['parts'][number]['clefs']>): Score => ({ ...s, parts: [{ ...s.parts[0]!, clefs }, ...s.parts.slice(1)] });
+
+  it('a clef at the start and a change later are written and come back', () => {
+    const score = withClefs(voice(), [{ at: ZERO, staff: 0, clef: 'bass' }, { at: frac(2), staff: 0, clef: 'alto' }]);
+    const { xml } = exportMusicXml(score);
+    expect(xml).toContain('<sign>F</sign><line>4</line>');
+    expect(xml.match(/<sign>C<\/sign><line>3<\/line>/g)).toHaveLength(1);
+    const back = importMusicXml(xml).score;
+    expect(back.parts[0]!.clefs).toEqual(score.parts[0]!.clefs);
+    expect(validateScore(back)).toEqual([]);
+  });
+
+  it('a clef change in the middle of a bar is not taken over, and says so', () => {
+    const { xml } = exportMusicXml(voice());
+    const mid = xml.replace(/(<measure number="1"[^>]*>[\s\S]*?<\/note>)/, '$1<attributes><clef><sign>F</sign><line>4</line></clef></attributes>');
+    const result = importMusicXml(mid);
+    expect(result.notes.join(' ')).toMatch(/Schlüsselwechsel mitten im Takt/);
+    expect(result.score.parts[0]!.clefs).toBeUndefined();
+  });
+
+  it('an instrument written with an octave clef keeps its sounding pitches through export and import', () => {
+    for (const id of ['contrabass', 'ebass', 'recorder'] as const) {
+      const base = createScore({ ...DEFAULT_SETUP, instruments: [id] });
+      const v = base.parts[0]!.voices[0]!;
+      const score: Score = { ...base, parts: [{ ...base.parts[0]!, voices: [{ ...v, events: parseLine('E2:1 A2:1', 'e') }] }] };
+      const back = importMusicXml(exportMusicXml(score).xml).score;
+      expect(flatten(back)).toEqual(flatten(score));
+      expect(back.parts[0]!.instrument).toBe(id);
+    }
+  });
+});
