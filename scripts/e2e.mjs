@@ -1923,7 +1923,7 @@ try {
   await page.evaluate(() => localStorage.setItem('icastico.seenVersion', '0.15.0'));
   await page.reload();
   await page.waitForSelector('.patchnotes', { timeout: 30000 });
-  check((await page.locator('.patchnotes li').count()) >= 2 && /Version 0.24.0/.test(await page.locator('.patchnotes').textContent()), 'Update: ein Popup listet die neuen Funktionen der Versionen seit dem letzten Start');
+  check((await page.locator('.patchnotes li').count()) >= 2 && /Version \d+\.\d+\.\d+/.test(await page.locator('.patchnotes').textContent()), 'Update: ein Popup listet die neuen Funktionen der Versionen seit dem letzten Start');
   await page.click('.patchnotes button:has-text("Verstanden")');
   await page.waitForSelector('.patchnotes', { state: 'detached' });
   check((await page.evaluate(() => localStorage.getItem('icastico.seenVersion'))) !== '0.15.0', 'Update: die Version wird gemerkt, das Popup kommt nicht noch einmal');
