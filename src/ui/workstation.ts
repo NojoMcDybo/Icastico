@@ -32,18 +32,19 @@ import { exportMusicXml, type ExportResult } from '../core/export/musicxml';
 import { exportMidi } from '../core/export/midi';
 import type { ExportChoice } from './libraryHome';
 import { getInstrument } from '../core/instruments';
-import { type Score, MAX_TEMPO, MIN_TEMPO, keyAt, measuresOf, meterAt, setTempoChange, tempoAt, withTempoAt } from '../core/model';
+import { type Score, MAX_PER_SYSTEM, MAX_TEMPO, MIN_TEMPO, systemBreaks, keyAt, measuresOf, meterAt, setTempoChange, tempoAt, withTempoAt } from '../core/model';
 import { secondsOf, timeAt } from '../core/playback';
 import { durationName } from '../core/notation/notate';
 import { type Pitch, STEPS, midiOf, pitchToString } from '../core/pitch';
 import { type Fraction, ZERO, eq, frac, isZero, le, lt, toNumber } from '../core/time';
 import { tuningOf } from '../core/tab';
 import { tabTarget } from '../core/editor/tabEdit';
-import { applyScoreChanges, createScore, emptyScore, keyName as germanKeyName } from '../core/templates';
+import { applyScoreChanges, createScore, emptyScore, keyName as germanKeyName, withBarsPerLine } from '../core/templates';
 import { openKeyPicker } from './keyPicker';
 import { dirOf, fileNameOf, preferredFileName } from '../library/library';
 import type { LibraryStore } from '../library/store';
-import { type ElementRef, type MeiResult, scoreToMei, staffElementId } from '../render/mei';
+import { type ElementRef, type MeiResult, staffElementId } from '../render/mei';
+import { engraveScore } from '../render/engraveScore';
 import type { Engraver } from '../render/verovio';
 import type { Platform } from '../platform/files';
 import { APP_VERSION } from '../version';
@@ -628,6 +629,9 @@ export class Workstation {
       case 'tempo.change':
         void this.changeTempo();
         return;
+      case 'layout.range':
+        void this.barsPerLineMarked();
+        return;
       case 'file.new':
         void this.fileNew();
         return;
@@ -1103,6 +1107,38 @@ export class Workstation {
     this.update();
   }
 
+  /** Bars per Akkolade for the marked bars only (ADR 0042): the lines before and after keep their breaks. */
+  private async barsPerLineMarked(): Promise<void> {
+    if (this.empty) return;
+    const score = this.state.score;
+    const measures = measuresOf(score, 1);
+    const span = rangeSpan(this.state);
+    const time = this.focusTime();
+    // The bar of the first marked note, and the bar that holds the end of the last one (a single note: its own bar).
+    const a = Math.max(0, measures.findIndex((m) => le(m.start, span?.from ?? time) && lt(span?.from ?? time, m.end)));
+    const lastBar = span ? measures.findIndex((m) => lt(m.start, span.to) && le(span.to, m.end)) : a;
+    const b = Math.max(a, lastBar);
+    const text = await promptText({
+      title: a === b ? `Takte pro Akkolade – Takt ${measures[a]!.number}` : `Takte pro Akkolade – Takt ${measures[a]!.number} bis ${measures[b]!.number}`,
+      label: `Wie viele Takte stehen in einer Akkolade? (1–${MAX_PER_SYSTEM}) Vor den markierten Takten und danach beginnt eine neue Akkolade.`,
+      value: '4',
+      confirm: 'Übernehmen',
+      check: (v) => {
+        const n = Number(v);
+        return Number.isInteger(n) && n >= 1 && n <= MAX_PER_SYSTEM ? null : `Bitte eine ganze Zahl von 1 bis ${MAX_PER_SYSTEM} eingeben.`;
+      },
+    });
+    if (text !== null) {
+      // Where the lines break now: as the score says, else as drawn at the moment.
+      const written = systemBreaks(score, measures.length);
+      const ids = this.result?.measureIds ?? [];
+      const drawn = [...this.el.pages.querySelectorAll('g.system')].map((g) => ids.indexOf(g.querySelector('g.measure')?.id ?? '')).filter((i) => i > 0);
+      const next = withBarsPerLine(score, written.length > 0 ? written : drawn, a, b, Number(text));
+      this.history.apply({ ...this.state, score: next, message: `${Number(text)} Takte pro Akkolade in Takt ${measures[a]!.number}${a === b ? '' : ` bis ${measures[b]!.number}`}` });
+    }
+    this.update();
+  }
+
   /** Title, key, meter, upbeat of the open score – an undoable change. */
   async scoreSettings(): Promise<void> {
     if (this.empty) return;
@@ -1125,6 +1161,7 @@ export class Workstation {
         meter: meterAt(score, at),
         perSystem: score.layout?.perSystem ?? 0,
         importedBreaks: (score.layout?.breaks?.length ?? 0) > 0,
+        systemsPerPage: score.layout?.systemsPerPage ?? 0,
         parts: score.parts.map((p) => ({ id: p.id, name: p.name, instrument: p.instrument, tab: p.tab === true, tuning: tuningOf(p), label: p.hideLabel !== true })),
       },
       check: (c) => {
@@ -2491,13 +2528,11 @@ export class Workstation {
 
     const started = performance.now();
     const scale = Math.max(10, Math.round((SCALE * this.zoom) / 100));
-    const result = scoreToMei(s.score, { ...(coverTime ? { coverTime } : {}), hiddenStaves: hidden });
-    const { pages, log } = this.engraver.engrave(result.mei, {
+    const { mei: result, engraved } = engraveScore(this.engraver, s.score, { ...(coverTime ? { coverTime } : {}), hiddenStaves: hidden }, {
       pageWidth: Math.round((width * 100) / scale),
       scale,
-      tab: result.tab,
-      tabStaffs: result.tabStaffs,
     });
+    const { pages, log } = engraved;
     if (log) console.warn('[Verovio]', log);
     this.el.pages.replaceChildren(
       ...pages.map((svg) => {

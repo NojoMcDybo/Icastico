@@ -116,12 +116,29 @@ export interface ScoreChanges {
   readonly renameParts?: Readonly<Record<string, string>>;
   /** Bars per line: a number (1–16), 0 = automatic; absent = as it is (kept line breaks of an imported file stay). */
   readonly perSystem?: number;
+  /** Akkoladen (systems) per page: a number (1–12), 0 = as many as fit; absent = as it is. */
+  readonly systemsPerPage?: number;
   /** Tablature on / off per existing guitar line (part id → on). */
   readonly tab?: Readonly<Record<string, boolean>>;
   /** Tuning per guitar or tablature line (part id → six open strings, highest first); the standard tuning is stored as none. */
   readonly tuning?: Readonly<Record<string, readonly number[]>>;
   /** Description at the left of a line shown / hidden (part id → shown), ADR 0041. */
   readonly labels?: Readonly<Record<string, boolean>>;
+}
+
+/**
+ * Bars per Akkolade for the bars `from` … `to` (0-based indexes) only (ADR 0042): a line starts at `from`, holds `n` bars, and a new line
+ * starts after `to`. `starts` are the line starts as they are now (0-based, not the first bar); outside the marked bars they stay.
+ */
+export function withBarsPerLine(score: Score, starts: readonly number[], from: number, to: number, n: number): Score {
+  const count = measuresOf(score).length;
+  const breaks = new Set(starts.filter((i) => i < from || i > to + 1));
+  if (from > 0) breaks.add(from);
+  for (let i = from + n; i <= to; i += n) breaks.add(i);
+  if (to + 1 < count) breaks.add(to + 1);
+  const sorted = [...breaks].filter((i) => i > 0 && i < count).sort((a, b) => a - b);
+  const { layout: old, ...rest } = score;
+  return { ...rest, layout: { breaks: sorted, ...(old?.systemsPerPage !== undefined ? { systemsPerPage: old.systemsPerPage } : {}) } };
 }
 
 /** Drops entries that repeat the value of the entry before them. */
@@ -195,9 +212,15 @@ export function applyScoreChanges(score: Score, changes: ScoreChanges): { score:
   }
   for (const add of changes.addInstruments ?? []) next = addInstrument(next, add.instrument, add.tab ?? false).score;
   if (next.parts.length === 0) return { error: 'Mindestens ein Instrument muss bleiben.' };
-  if (changes.perSystem !== undefined) {
+  if (changes.perSystem !== undefined || changes.systemsPerPage !== undefined) {
+    const old = next.layout;
+    const perSystem = changes.perSystem !== undefined ? (changes.perSystem >= 1 ? changes.perSystem : undefined) : old?.perSystem;
+    const breaks = changes.perSystem !== undefined ? undefined : old?.breaks;
+    const systemsPerPage = changes.systemsPerPage !== undefined ? (changes.systemsPerPage >= 1 ? changes.systemsPerPage : undefined) : old?.systemsPerPage;
     const { layout: _old, ...rest } = next;
-    next = changes.perSystem >= 1 ? { ...rest, layout: { perSystem: changes.perSystem } } : rest;
+    next = perSystem !== undefined || breaks?.length || systemsPerPage !== undefined
+      ? { ...rest, layout: { ...(perSystem !== undefined ? { perSystem } : {}), ...(breaks?.length ? { breaks } : {}), ...(systemsPerPage !== undefined ? { systemsPerPage } : {}) } }
+      : rest;
   }
 
   const from = changes.fromMeasure ?? 1;

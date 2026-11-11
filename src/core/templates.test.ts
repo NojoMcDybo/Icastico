@@ -230,6 +230,22 @@ describe('removing and renaming instruments of an existing score', () => {
   });
 });
 
+describe('Akkoladen per page in the score settings (ADR 0042)', () => {
+  it('sets and clears them without touching the bars per line, and the bars per line keep them', () => {
+    const base = createScore(DEFAULT_SETUP);
+    const set = ok(applyScoreChanges({ ...base, layout: { perSystem: 4 } }, { systemsPerPage: 3 }));
+    expect(set.layout).toEqual({ perSystem: 4, systemsPerPage: 3 });
+    expect(ok(applyScoreChanges(set, { perSystem: 2 })).layout).toEqual({ perSystem: 2, systemsPerPage: 3 });
+    expect(ok(applyScoreChanges(set, { systemsPerPage: 0 })).layout).toEqual({ perSystem: 4 });
+    expect(ok(applyScoreChanges(ok(applyScoreChanges(base, { systemsPerPage: 2 })), { systemsPerPage: 0 })).layout).toBeUndefined();
+  });
+
+  it('refuses a number of Akkoladen the file could not hold', () => {
+    const r = applyScoreChanges(createScore(DEFAULT_SETUP), { systemsPerPage: 13 });
+    expect('error' in r && r.error).toMatch(/Akkoladen pro Seite/);
+  });
+});
+
 describe('bars per line in the score settings', () => {
   it('sets, changes and clears the bars per line (0 = automatic), also over imported breaks', () => {
     const base = createScore(DEFAULT_SETUP);

@@ -23,6 +23,7 @@ import version16File from './fixtures/version16.icastico?raw';
 import version17File from './fixtures/version17.icastico?raw';
 import version18File from './fixtures/version18.icastico?raw';
 import version19File from './fixtures/version19.icastico?raw';
+import version20File from './fixtures/version20.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -631,5 +632,32 @@ describe('format version 20: line descriptions', () => {
     const back = parseScoreFile(serializeScore(off, '0'));
     expect(back.parts.map((p) => p.hideLabel)).toEqual([true, undefined]);
     expect(serializeScore(base, '0')).not.toContain('hideLabel');
+  });
+});
+
+describe('format version 21: Akkoladen per page', () => {
+  it('opens files saved with format version 20 (hidden description) and saves them as the current version', () => {
+    const score = parseScoreFile(version20File);
+    expect(fileVersion(version20File)).toBe(20);
+    expect(score.parts.map((p) => p.hideLabel)).toEqual([undefined, true]);
+    expect(score.layout).toBeUndefined();
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  it('keeps the Akkoladen per page next to the bars per line, and refuses nonsense', () => {
+    const base = parseScoreFile(version20File);
+    const withLayout = (layout: unknown): string => {
+      const doc = JSON.parse(serializeScore(base, '0')) as { score: { layout?: unknown } };
+      doc.score.layout = layout;
+      return JSON.stringify(doc);
+    };
+    const back = parseScoreFile(withLayout({ perSystem: 4, systemsPerPage: 3 }));
+    expect(back.layout).toEqual({ perSystem: 4, systemsPerPage: 3 });
+    expect(parseScoreFile(serializeScore(back, '0'))).toEqual(back);
+    expect(parseScoreFile(withLayout({ systemsPerPage: 2 })).layout).toEqual({ systemsPerPage: 2 });
+    expect(() => parseScoreFile(withLayout({ systemsPerPage: 0 }))).toThrow(/Akkoladen pro Seite/);
+    expect(() => parseScoreFile(withLayout({ systemsPerPage: 'viele' }))).toThrow();
   });
 });

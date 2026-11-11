@@ -36,9 +36,10 @@ export const FILE_EXTENSION = 'icastico';
  * 17 = nine more instruments: violin, viola, cello, contrabass, ebass, flute, recorder, oboe, bassoon (ADR 0038),
  * 18 = optional `tempos` per score: tempo changes at the start of a bar (ADR 0039),
  * 19 = optional `clefs` per part: clef changes at the start of a bar (ADR 0040),
- * 20 = optional `hideLabel` per part: no description at the left of the line (ADR 0041).
+ * 20 = optional `hideLabel` per part: no description at the left of the line (ADR 0041),
+ * 21 = optional `layout.systemsPerPage`: how many Akkoladen stand on a page (ADR 0042).
  */
-export const FORMAT_VERSION = 20;
+export const FORMAT_VERSION = 21;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -59,7 +60,7 @@ function scoreToJson(score: Score): unknown {
     ...(score.pickup ? { pickup: fracToString(score.pickup) } : {}),
     ...(score.tempo !== undefined ? { tempo: score.tempo } : {}),
     ...(score.tempos && score.tempos.length > 0 ? { tempos: score.tempos.map((t) => ({ at: fracToString(t.at), bpm: t.bpm })) } : {}),
-    ...(score.layout && (score.layout.perSystem !== undefined || score.layout.breaks?.length) ? { layout: { ...(score.layout.perSystem !== undefined ? { perSystem: score.layout.perSystem } : {}), ...(score.layout.breaks?.length ? { breaks: [...score.layout.breaks] } : {}) } } : {}),
+    ...(score.layout && (score.layout.perSystem !== undefined || score.layout.breaks?.length || score.layout.systemsPerPage !== undefined) ? { layout: { ...(score.layout.perSystem !== undefined ? { perSystem: score.layout.perSystem } : {}), ...(score.layout.breaks?.length ? { breaks: [...score.layout.breaks] } : {}), ...(score.layout.systemsPerPage !== undefined ? { systemsPerPage: score.layout.systemsPerPage } : {}) } } : {}),
     ...(score.marks?.length ? { marks: score.marks.map((m) => ({ at: fracToString(m.at), kind: m.kind, ...(m.exact ? { exact: true } : {}) })) } : {}),
     ...(score.groups?.length ? { groups: score.groups.map((g) => ({ symbol: g.symbol, parts: [...g.parts] })) } : {}),
     ...(score.chords?.length ? { chords: score.chords.map((c) => ({ at: fracToString(c.at), text: c.text })) } : {}),
@@ -154,7 +155,8 @@ function readLayout(v: unknown): { layout?: ScoreLayout } {
   const o = obj(v, 'Zeilenumbruch');
   const perSystem = o.perSystem !== undefined ? int(o.perSystem, 'Takte pro Zeile') : undefined;
   const breaks = o.breaks !== undefined ? arr(o.breaks, 'Zeilenumbrüche').map((b, i) => int(b, `Zeilenumbruch ${i + 1}`)) : undefined;
-  return perSystem === undefined && !breaks?.length ? {} : { layout: { ...(perSystem !== undefined ? { perSystem } : {}), ...(breaks?.length ? { breaks } : {}) } };
+  const systemsPerPage = o.systemsPerPage !== undefined ? int(o.systemsPerPage, 'Akkoladen pro Seite') : undefined;
+  return perSystem === undefined && !breaks?.length && systemsPerPage === undefined ? {} : { layout: { ...(perSystem !== undefined ? { perSystem } : {}), ...(breaks?.length ? { breaks } : {}), ...(systemsPerPage !== undefined ? { systemsPerPage } : {}) } };
 }
 
 function int(v: unknown, where: string): number {
@@ -385,6 +387,8 @@ const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
   18: (doc) => ({ ...doc, version: 19 }),
   // 19 → 20: the optional "hideLabel" of parts. Version-19 files print every line's description.
   19: (doc) => ({ ...doc, version: 20 }),
+  // 20 → 21: the optional "systemsPerPage" of the layout. Version-20 files let the engraver fill the pages.
+  20: (doc) => ({ ...doc, version: 21 }),
 };
 
 /** Applies `fn` to every event object of a (still unvalidated) score; anything unexpected is left for the reader to reject. */

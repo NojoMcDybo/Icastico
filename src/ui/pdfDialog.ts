@@ -55,6 +55,11 @@ export function pdfDialog(options: PrintDialogOptions): Promise<PrintChoice | nu
     for (let n = 1; n <= MAX_PER_SYSTEM; n++) perLine.append(el('option', { value: String(n), textContent: n === 1 ? '1 Takt' : `${n} Takte` }));
     perLine.value = options.initial.perSystem === undefined ? '' : String(options.initial.perSystem);
 
+    const perPage = el('select', { id: 'pdf-perpage' });
+    perPage.append(el('option', { value: '', textContent: 'wie in der Partitur' }), el('option', { value: '0', textContent: 'so viele wie passen' }));
+    for (let n = 1; n <= 8; n++) perPage.append(el('option', { value: String(n), textContent: n === 1 ? '1 Akkolade' : `${n} Akkoladen` }));
+    perPage.value = options.initial.systemsPerPage === undefined ? '' : String(options.initial.systemsPerPage);
+
     const pack = el('input', { id: 'pdf-pack', type: 'checkbox', checked: options.initial.pack });
 
     const setupNow = (): PdfSetup => ({
@@ -62,9 +67,10 @@ export function pdfDialog(options: PrintDialogOptions): Promise<PrintChoice | nu
       scale: Number(size.value),
       pack: options.scoreCount > 1 && pack.checked,
       ...(perLine.value === '' ? {} : { perSystem: Number(perLine.value) }),
+      ...(perPage.value === '' ? {} : { systemsPerPage: Number(perPage.value) }),
     });
 
-    const controls = el('div', { className: 'print__controls' }, el('h2', { textContent: options.title }), row('Seite', format, 'pdf-format'), row('Notengröße', size, 'pdf-size'), row('Takte pro Zeile', perLine, 'pdf-perline'));
+    const controls = el('div', { className: 'print__controls' }, el('h2', { textContent: options.title }), row('Seite', format, 'pdf-format'), row('Notengröße', size, 'pdf-size'), row('Takte pro Akkolade', perLine, 'pdf-perline'), row('Akkoladen pro Seite', perPage, 'pdf-perpage'));
     if (options.scoreCount > 1) {
       controls.append(row('Mehrere pro Seite', el('div', {}, pack, el('span', { textContent: ` ${options.scoreCount} Partituren untereinander auf gemeinsamen Seiten (Notenbeispiele)` })), 'pdf-pack'));
     }
@@ -108,7 +114,7 @@ export function pdfDialog(options: PrintDialogOptions): Promise<PrintChoice | nu
       window.clearTimeout(timer);
       timer = window.setTimeout(draw, 120);
     };
-    for (const control of [format, size, perLine, pack]) control.addEventListener('change', soon);
+    for (const control of [format, size, perLine, perPage, pack]) control.addEventListener('change', soon);
 
     const close = (result: PrintChoice | null) => {
       window.clearTimeout(timer);

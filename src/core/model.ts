@@ -158,9 +158,12 @@ export interface Score {
 export interface ScoreLayout {
   readonly perSystem?: number;
   readonly breaks?: readonly number[];
+  /** How many systems (Akkoladen) stand on a page, then a new page starts (ADR 0042); absent = as many as fit. */
+  readonly systemsPerPage?: number;
 }
 
 export const MAX_PER_SYSTEM = 16;
+export const MAX_SYSTEMS_PER_PAGE = 12;
 
 /** The bars (0-based index, not the first) that start a new line, for `count` bars; empty = let the engraver decide. */
 export function systemBreaks(score: Score, count: number): number[] {
@@ -517,6 +520,7 @@ export function validateScore(score: Score): string[] {
   problems.push(...linkProblems(score));
   const layout = score.layout;
   if (layout?.perSystem !== undefined && !(Number.isInteger(layout.perSystem) && layout.perSystem >= 1 && layout.perSystem <= MAX_PER_SYSTEM)) problems.push(`Takte pro Zeile: erlaubt sind 1 bis ${MAX_PER_SYSTEM}.`);
+  if (layout?.systemsPerPage !== undefined && !(Number.isInteger(layout.systemsPerPage) && layout.systemsPerPage >= 1 && layout.systemsPerPage <= MAX_SYSTEMS_PER_PAGE)) problems.push(`Akkoladen pro Seite: erlaubt sind 1 bis ${MAX_SYSTEMS_PER_PAGE}.`);
   if (layout?.breaks?.some((b, i) => !Number.isInteger(b) || b < 1 || (i > 0 && b <= layout.breaks![i - 1]!))) problems.push('Die Zeilenumbrüche müssen aufsteigende Taktnummern sein.');
   const seenMarks = new Set<string>();
   for (const m of score.marks ?? []) {

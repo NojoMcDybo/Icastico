@@ -4,7 +4,7 @@
  */
 import { type Score } from '../core/model';
 import { A4_POINTS, type PdfPage, buildPdf } from '../core/export/pdf';
-import { scoreToMei } from '../render/mei';
+import { engraveScore } from '../render/engraveScore';
 import type { Engraver } from '../render/verovio';
 
 export interface PdfSetup {
@@ -15,13 +15,20 @@ export interface PdfSetup {
   readonly pack: boolean;
   /** Bars per line for this print only: absent = as the score says, 0 = automatic. */
   readonly perSystem?: number;
+  /** Akkoladen per page for this print only: absent = as the score says, 0 = as many as fit. */
+  readonly systemsPerPage?: number;
 }
 
 /** The score as it is printed: with the bars per line of the setup, if it has one (the score itself is not changed). */
 function shaped(score: Score, setup: PdfSetup): Score {
-  if (setup.perSystem === undefined) return score;
+  if (setup.perSystem === undefined && setup.systemsPerPage === undefined) return score;
+  const own = score.layout;
+  const perSystem = setup.perSystem === undefined ? own?.perSystem : setup.perSystem > 0 ? setup.perSystem : undefined;
+  const breaks = setup.perSystem === undefined ? own?.breaks : undefined; // a number set for the print replaces the written line breaks
+  const systemsPerPage = setup.systemsPerPage === undefined ? own?.systemsPerPage : setup.systemsPerPage > 0 ? setup.systemsPerPage : undefined;
   const { layout: _own, ...rest } = score;
-  return setup.perSystem > 0 ? { ...rest, layout: { perSystem: setup.perSystem } } : rest;
+  if (perSystem === undefined && !breaks?.length && systemsPerPage === undefined) return rest;
+  return { ...rest, layout: { ...(perSystem !== undefined ? { perSystem } : {}), ...(breaks?.length ? { breaks } : {}), ...(systemsPerPage !== undefined ? { systemsPerPage } : {}) } };
 }
 
 export const SIZES: readonly { readonly label: string; readonly scale: number }[] = [
@@ -76,10 +83,9 @@ const jpegOf = (canvas: HTMLCanvasElement): Promise<Uint8Array> =>
 
 /** The pages of one score as SVG at A4 size, for printing (the system's print dialog can also save a PDF). */
 export function printPages(engraver: Engraver, score: Score, setup: PdfSetup): string[] {
-  const mei = scoreToMei(shaped(score, setup));
   const unitsW = (setup.landscape ? 2970 : 2100) * (100 / setup.scale);
   const unitsH = (setup.landscape ? 2100 : 2970) * (100 / setup.scale);
-  return [...engraver.engrave(mei.mei, { pageWidth: unitsW, pageHeight: unitsH, scale: setup.scale, tab: mei.tab, tabStaffs: mei.tabStaffs }).pages];
+  return [...engraveScore(engraver, shaped(score, setup), {}, { pageWidth: unitsW, pageHeight: unitsH, scale: setup.scale }).engraved.pages];
 }
 
 /** The PDF of one or several scores. Each score is engraved on its own; with `pack`, pages are filled one score after the other. */
@@ -117,10 +123,9 @@ export async function scoresToPdf(engraver: Engraver, scores: readonly Score[], 
   };
 
   for (const score of scores) {
-    const mei = scoreToMei(shaped(score, setup));
-    const engraved = engraver.engrave(mei.mei, setup.pack
-      ? { pageWidth: unitsW, scale: setup.scale, tab: mei.tab, tabStaffs: mei.tabStaffs }
-      : { pageWidth: unitsW, pageHeight: unitsH, scale: setup.scale, tab: mei.tab, tabStaffs: mei.tabStaffs });
+    const { engraved } = engraveScore(engraver, shaped(score, setup), {}, setup.pack
+      ? { pageWidth: unitsW, scale: setup.scale }
+      : { pageWidth: unitsW, pageHeight: unitsH, scale: setup.scale });
     const blocks: Block[] = engraved.pages.map((svg) => ({ svg, ...sizeOf(svg) }));
     for (const block of blocks) {
       if (setup.pack) {

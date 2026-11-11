@@ -794,7 +794,7 @@ try {
   await type('Escape');
   await saved();
   const shaped = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Verlauf-Test.icastico'))[1].contents;
-  check(/"version": 20/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 20)');
+  check(/"version": 21/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 21)');
   await type('Control+Enter');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true', null, { timeout: 30000 });
   await page.waitForTimeout(1500);
@@ -1342,7 +1342,7 @@ try {
   await page.screenshot({ path: join(outDir, 'tabulatur-instrument.png') });
   await saved();
   const tabFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Tab-Instrument.icastico'))[1].contents;
-  check(/"instrument": "tab"/.test(tabFile) && /"version": 20/.test(tabFile), 'Tabulatur: die Zeile steht als Instrument „tab“ in der Datei (Format 20)');
+  check(/"instrument": "tab"/.test(tabFile) && /"version": 21/.test(tabFile), 'Tabulatur: die Zeile steht als Instrument „tab“ in der Datei (Format 21)');
   await page.locator('.page g.note').first().click({ force: true });
   await type('Control+Delete');
   check((await page.locator('.page g.note').count()) >= 1, 'Tabulatur-Zeile: die Noten der anderen Zeile bleiben beim Bearbeiten erhalten');
@@ -1475,6 +1475,30 @@ try {
   await page.click('.modal button[type="submit"]');
   await page.waitForFunction(() => document.querySelectorAll('.page g.system').length !== 4);
   check((await page.locator('.page g.system').count()) < 4, 'Zeilen: „automatisch“ nimmt die Vorgabe wieder weg');
+
+  // ── Akkoladen pro Seite und Takte pro Akkolade für markierte Takte (ADR 0042) ──
+  await page.click('#doc-title');
+  await page.waitForSelector('.modal h2:text("Partitur-Einstellungen")');
+  await page.selectOption('#f-perline', '2');
+  await page.selectOption('#f-perpage', '2');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction(() => document.querySelectorAll('.page').length === 2);
+  check((await page.locator('.page').count()) === 2 && (await page.locator('.page g.system').count()) === 4, 'Seiten: „2 Akkoladen pro Seite“ macht aus vier Akkoladen zwei Seiten');
+  await page.screenshot({ path: join(outDir, 'akkoladen-pro-seite.png') });
+  await page.locator('.page g.note').nth(2).click({ force: true });
+  await type('Control+k');
+  await page.waitForSelector('.palette__input');
+  await page.keyboard.type('Takte pro Akkolade für markierte');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#prompt-input');
+  await page.fill('#prompt-input', '1');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction(() => document.querySelectorAll('.page g.system').length === 5);
+  check((await page.locator('.page g.system').count()) === 5 && /1 Takte pro Akkolade in Takt/.test(await status()), 'Seiten: „Takte pro Akkolade“ für den Takt der gewählten Note macht aus einer zweitaktigen Akkolade zwei einzelne');
+  await type('Control+z');
+  await type('Control+z');
+  await page.waitForFunction(() => document.querySelectorAll('.page').length === 1);
+  check((await page.locator('.page').count()) === 1, 'Seiten: Strg+Z nimmt beide Änderungen zurück');
 
   // ── Tabulatur: Stimmung, Ziehen in die Tabulatur, Bundzahl tippen, Saite wechseln ──
   await newScore('Tab-Edit');
@@ -1726,7 +1750,7 @@ try {
   await page.screenshot({ path: join(outDir, 'zeichen.png') });
   await saved();
   const signsFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Zeichen-Test.icastico'))[1].contents;
-  check(/"version": 20/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 20)');
+  check(/"version": 21/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 21)');
   await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
   await page.click('.transport__play');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');

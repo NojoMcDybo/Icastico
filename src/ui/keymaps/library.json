@@ -768,6 +768,12 @@
           "via": "Zeichen-Menü (Strg+J): Tempo-Anweisungen → ♩ = …"
         },
         {
+          "id": "layout.range",
+          "title": "Takte pro Akkolade für die markierten Takte (sonst den Takt der gewählten Note)",
+          "command": "layout.range",
+          "via": "Befehlspalette (Strg+K): „Takte pro Akkolade für markierte Takte“; für das ganze Stück: Partitur-Einstellungen"
+        },
+        {
           "id": "play.cycle",
           "title": "Cycle: die markierte Passage (sonst das ganze Stück) immer wieder abspielen – an / aus",
           "command": "play.cycle",

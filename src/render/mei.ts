@@ -48,6 +48,8 @@ export interface MeiOptions {
   readonly coverTime?: Fraction;
   /** Staves left out of the engraving (shown as piano roll instead), as `<partId>:<staffIndex>`. */
   readonly hiddenStaves?: ReadonlySet<string>;
+  /** Bars (0-based index) that start a new page instead of just a new line (Akkoladen per page, ADR 0042). */
+  readonly pageBreaks?: ReadonlySet<number>;
 }
 
 /** A staff of the engraving: its MEI number and where it belongs in the score. */
@@ -62,6 +64,8 @@ export const staffElementId = (measureNumber: number, staffN: number): string =>
 
 export interface MeiResult {
   readonly mei: string;
+  /** The xml:id of every bar in order, as drawn (`m<number>`): lets a drawing be read back as bar indexes. */
+  readonly measureIds: readonly string[];
   /** xml:id of a tablature note → the fret number to draw in its place (ADR 0022). */
   readonly tab: ReadonlyMap<string, string>;
   /** xml:id → model reference. */
@@ -449,7 +453,8 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
     const joinedRight = hasKind(mi, 'repeatEnd') && hasKind(mi + 1, 'repeatStart');
     const left = hasKind(mi, 'repeatStart') && !joinedLeft ? ' left="rptstart"' : '';
     const right = joinedRight ? ' right="rptboth"' : hasKind(mi, 'repeatEnd') ? ' right="rptend"' : hasKind(mi, 'finalBar') ? ' right="end"' : hasKind(mi, 'doubleBar') ? ' right="dbl"' : '';
-    if (lineBreaks.has(mi)) body.push(`      <sb xml:id="sb-${mi}"/>`);
+    if (options.pageBreaks?.has(mi)) body.push(`      <pb xml:id="pb-${mi}"/>`);
+    else if (lineBreaks.has(mi)) body.push(`      <sb xml:id="sb-${mi}"/>`);
     body.push(`      <measure xml:id="m${m.number}" n="${m.number}"${metcon}${left}${right}>`);
     for (const slot of slots) {
       body.push(`        <staff xml:id="${staffElementId(m.number, slot.n)}" n="${slot.n}">`);
@@ -540,6 +545,7 @@ ${body.join('\n')}
 `;
   return {
     mei,
+    measureIds: measures.map((m) => `m${m.number}`),
     elements,
     syllables: syllableRefs,
     tab: tabNotes,

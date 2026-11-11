@@ -25,6 +25,8 @@ export interface EditInitial {
   /** Bars per line now (0 = automatic) and whether the line breaks come from an imported file. */
   readonly perSystem: number;
   readonly importedBreaks: boolean;
+  /** Akkoladen per page now (0 = as many as fit). */
+  readonly systemsPerPage: number;
   /** The lines the score has now (for adding more instruments and switching the guitar tablature). */
   readonly parts: readonly { readonly id: string; readonly name: string; readonly instrument: InstrumentId; readonly tab: boolean; readonly tuning: readonly number[]; readonly label: boolean }[];
 }
@@ -227,12 +229,18 @@ export function scoreDialog(options: Options): Promise<ScoreSetup | ScoreChanges
     }
 
     // Bars per line (an existing score): automatic, or a fixed number
-    const init0 = options.mode === 'edit' ? options.initial : { perSystem: 0, importedBreaks: false };
+    const init0 = options.mode === 'edit' ? options.initial : { perSystem: 0, importedBreaks: false, systemsPerPage: 0 };
     const perLine = el('select', { id: 'f-perline' });
     perLine.append(el('option', { value: 'keep', textContent: init0.importedBreaks ? 'wie in der importierten Datei' : init0.perSystem > 0 ? `${init0.perSystem} (wie bisher)` : 'automatisch (so viele wie passen) – wie bisher' }));
     if (init0.importedBreaks || init0.perSystem > 0) perLine.append(el('option', { value: '0', textContent: 'automatisch (so viele wie passen)' }));
     for (let n = 1; n <= 8; n++) if (!(init0.perSystem === n && !init0.importedBreaks)) perLine.append(el('option', { value: String(n), textContent: n === 1 ? '1 Takt' : `${n} Takte` }));
-    if (!isNew) form.append(row('Takte pro Zeile', perLine, 'f-perline'));
+    if (!isNew) form.append(row('Takte pro Akkolade', perLine, 'f-perline'));
+    // Akkoladen (systems) per page: as many as fit, or a fixed number
+    const perPage = el('select', { id: 'f-perpage' });
+    perPage.append(el('option', { value: 'keep', textContent: init0.systemsPerPage > 0 ? `${init0.systemsPerPage} (wie bisher)` : 'so viele wie passen – wie bisher' }));
+    if (init0.systemsPerPage > 0) perPage.append(el('option', { value: '0', textContent: 'so viele wie passen' }));
+    for (let n = 1; n <= 8; n++) if (init0.systemsPerPage !== n) perPage.append(el('option', { value: String(n), textContent: n === 1 ? '1 Akkolade' : `${n} Akkoladen` }));
+    if (!isNew) form.append(row('Akkoladen pro Seite', perPage, 'f-perpage'));
 
     // Key
     const key = el('select', { id: 'f-key' });
@@ -372,6 +380,7 @@ export function scoreDialog(options: Options): Promise<ScoreSetup | ScoreChanges
         ...(meter.count !== i.meter.count || meter.unit !== i.meter.unit ? { meter } : {}),
         ...(!eq(pickupValue, i.pickup) ? { pickup: pickupValue } : {}),
         ...(perLine.value !== 'keep' ? { perSystem: Number(perLine.value) } : {}),
+        ...(perPage.value !== 'keep' ? { systemsPerPage: Number(perPage.value) } : {}),
         ...(addedInstruments.length > 0 ? { addInstruments: addedInstruments.map((a) => ({ instrument: a.instrument, tab: a.tab })) } : {}),
       };
       const renames = Object.fromEntries(i.parts.flatMap((p) => { const name = nameFields.get(p.id)?.value.trim() ?? ''; return name && name !== p.name && !removed.has(p.id) ? [[p.id, name] as const] : []; }));

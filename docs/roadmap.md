@@ -118,6 +118,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Liederrunde, Paket 4: Tempowechsel ab einem Takt – „♩ = …“ im Zeichen-Menü oder in der Befehlspalette, gedruckt über der Zeile, Wiedergabe, Tempo-Zelle, MIDI- und MusicXML-Export folgen, Dateiformat 18 (ADR 0039)
 - [x] Liederrunde, Paket 5: Schlüsselwechsel ab einem Takt – sieben Schlüssel im Zeichen-Menü (Violin, Violin 8↓/8↑, Bass, Bass 8↓, Alt, Tenor), im ersten Takt als Anfangsschlüssel, kleiner Schlüssel vor dem Taktstrich, MusicXML hin und zurück, Dateiformat 19 (ADR 0040)
 - [x] Rückmeldungen nach 0.26.0, Paket A: Tabulatur nimmt jede Bundzahl; Zeilenbeschriftung („Gitarre“, „Tab“) pro Zeile ausblendbar (Format 20); Akkordsymbole, Tempo-/Schlüsselwechsel, Haltebögen und Bindebögen anklicken und mit Rücktaste löschen; nach einem Akkord schlägt die nächste Note nur den tiefsten Ton vor; MusicXML-Tabulatur wird gelesen (ADR 0041)
+- [x] Rückmeldungen nach 0.26.0, Paket C: „Akkolade“ als Wort in der Oberfläche; Takte pro Akkolade auch für markierte Takte (Befehlspalette); Akkoladen pro Seite in Partitur-Einstellungen und PDF-Dialog, auch in der App-Anzeige (Seiten getrennt gezeichnet), Dateiformat 21 (ADR 0042)
 - [ ] Finale-Dateien (`.musx`) direkt lesen – verschlüsseltes Binärformat, bewusst zurückgestellt (ADR 0021)
 - [ ] Seitenlayout von Hand (Umbrüche, Systemabstand, Kopf-/Fußzeile), Tabulatur-Spieltechniken
 
