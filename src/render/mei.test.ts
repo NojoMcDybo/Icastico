@@ -21,6 +21,14 @@ describe('scoreToMei', () => {
     expect(mei).toMatch(/<staffGrp symbol="brace" bar.thru="true">/);
   });
 
+  it('leaves out the description of a line that has it switched off', () => {
+    const demo = demoScore();
+    const off = { ...demo, parts: demo.parts.map((p) => ({ ...p, hideLabel: true })) };
+    const mei = scoreToMei(off).mei;
+    expect(mei).not.toContain("<label>Gitarre</label>");
+    expect(mei).not.toMatch(/<labelAbbr>/);
+  });
+
   it('ties the note that crosses bar 2 → 3', () => {
     expect(mei).toMatch(/<note xml:id="v6-m2-1" dur="2" pname="d" oct="5" tie="i"\/>/);
     expect(mei).toMatch(/<note xml:id="v6-m3-1" dur="4" pname="d" oct="5" tie="t"\/>/);

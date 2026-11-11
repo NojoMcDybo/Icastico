@@ -14,7 +14,7 @@ import { type Fraction, ZERO, add, compare, eq, frac, gt, isDyadic, isZero, le, 
 import { CLEFS, CLEF_IDS, type ClefId, clefIdOf, getInstrument } from '../instruments';
 import { STEPS, keyAlteration, midiOf, pitchToString, type Pitch } from '../pitch';
 import { type BarSign, BAR_SIGNS, GROUP_SIGNS, NOTE_SYMBOLS, barSign, canSitOnNote, toggleNoteSymbol } from '../symbols';
-import { type BarMark, type StaffGroup, type ChordSymbol, type Link, type LinkKind, type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, measuresOf } from '../model';
+import { type BarMark, type StaffGroup, type ChordSymbol, type Link, type LinkKind, type NoteEvent, type Score, type Tone, eventEnd, freshToneId, keyAt, measuresOf, setTempoChange } from '../model';
 import { decomposeNote, writtenValue } from '../notation/notate';
 import { lyricOf, withLyric } from '../lyrics';
 import { chordPitches, parseChordName } from '../chordNames';
@@ -289,6 +289,38 @@ export function eraseBarSign(s: EditorState, kind: string, at: Fraction): Editor
   const sign = barSign(kind);
   if (!sign || !(s.score.marks ?? []).some((m) => m.kind === kind && eq(m.at, at))) return s;
   return { ...s, score: withBarSign(s.score, sign, at, false), message: `${sign.label}: entfernt` };
+}
+
+/** Takes the chord symbol at `at` away (a symbol selected in the score + Backspace, ADR 0041). */
+export function eraseChordSymbol(s: EditorState, at: Fraction): EditorState {
+  if (!(s.score.chords ?? []).some((c) => eq(c.at, at))) return s;
+  return { ...s, score: withChordSymbol(s.score, at, ''), message: 'Akkordsymbol: entfernt' };
+}
+
+/** Takes the tempo change at the bar starting at `at` away; the tempo at the very start stays (it is the score's tempo). */
+export function eraseTempoChange(s: EditorState, at: Fraction): EditorState {
+  if (!(s.score.tempos ?? []).some((c) => eq(c.at, at))) return say(s, 'Das Anfangstempo bleibt; es lässt sich nur ändern (Tempo-Taste).');
+  return { ...s, score: setTempoChange(s.score, at, null), message: 'Tempowechsel: entfernt' };
+}
+
+/** Takes the clef change of a staff at the bar starting at `at` away (the clef before it applies again). */
+export function eraseClefChange(s: EditorState, partId: string, staff: number, at: Fraction): EditorState {
+  const part = s.score.parts.find((p) => p.id === partId);
+  if (!part?.clefs?.some((c) => c.staff === staff && eq(c.at, at))) return s;
+  const left = part.clefs.filter((c) => !(c.staff === staff && eq(c.at, at)));
+  const parts = s.score.parts.map((p) => {
+    if (p.id !== partId) return p;
+    const { clefs: _old, ...rest } = p;
+    return left.length > 0 ? { ...rest, clefs: left } : rest;
+  });
+  return { ...s, score: { ...s.score, parts }, message: 'Schlüsselwechsel: entfernt' };
+}
+
+/** Takes a tie or glide away (the two notes stay). */
+export function eraseLink(s: EditorState, id: string): EditorState {
+  const link = (s.score.links ?? []).find((l) => l.id === id);
+  if (!link) return s;
+  return { ...s, score: withLinks(s.score, (s.score.links ?? []).filter((l) => l.id !== id)), message: link.kind === 'tie' ? 'Haltebogen: entfernt' : 'Gleiten: entfernt' };
 }
 
 /** Drag and drop of a bar sign onto the bar starting at `to`; `from` is the bar it is moved away from. */
@@ -602,12 +634,13 @@ function enterPitch(s0: EditorState, step: Pitch['step'], alterOverride: number 
   };
 }
 
-/** The pitches Enter would put at the caret: the ghost, else the notes before the caret, else the staff's middle line. */
+/** The pitches Enter would put at the caret: the ghost, else the lowest tone before the caret, else the staff's middle line. */
 function ghostOf(s: EditorState, caret: Caret): readonly Pitch[] {
   if (s.input.ghost) return s.input.ghost;
   const before = getVoice(s.score, caret).voice.events.filter((e) => le(eventEnd(e), caret.time));
   const last = before[before.length - 1];
-  return last ? last.tones.map((t) => t.pitch) : [staffCenter(s.score, caret, caret.time)];
+  // Behind a chord only its lowest tone is proposed, so there is always a single tone to move (tones are sorted by pitch).
+  return last ? [last.tones[0]!.pitch] : [staffCenter(s.score, caret, caret.time)];
 }
 
 /** The ghost note for the display; null outside input mode. */
@@ -641,7 +674,7 @@ function commitGhost(s: EditorState): EditorState {
     nextId,
     selection: selectEvent(caret, ev),
     caret: { ...caret, time: add(caret.time, length) },
-    input: { ...s.input, pendingTie: false, ghost: pitches },
+    input: { ...s.input, pendingTie: false, ghost: sortPitches(pitches).slice(0, 1) }, // a placed chord leaves only its lowest tone as the next proposal
     message: null,
   };
 }

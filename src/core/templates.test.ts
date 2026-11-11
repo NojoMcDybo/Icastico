@@ -221,6 +221,13 @@ describe('removing and renaming instruments of an existing score', () => {
     const s = ok(applyScoreChanges(three(), { renameParts: { voice: '  Sopran ', piano: '   ' } }));
     expect(s.parts.map((p) => p.name)).toEqual(['Sopran', 'Gitarre', 'Klavier']);
   });
+
+  it('hides and shows the description at the left of a line (ADR 0041)', () => {
+    const hidden = ok(applyScoreChanges(three(), { labels: { voice: false, piano: false } }));
+    expect(hidden.parts.map((p) => p.hideLabel)).toEqual([true, undefined, true]);
+    const back = ok(applyScoreChanges(hidden, { labels: { voice: true } }));
+    expect(back.parts.map((p) => p.hideLabel)).toEqual([undefined, undefined, true]);
+  });
 });
 
 describe('bars per line in the score settings', () => {

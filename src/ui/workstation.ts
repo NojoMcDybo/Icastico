@@ -8,7 +8,7 @@ import { LyricsPanel } from './lyricsPanel';
 import { lyricOf, syllableId, verseOfSyllableId } from '../core/lyrics';
 import { type SyllableClip, chosenNotes, clearSyllables, copySyllables, moveSyllable, pasteSyllables } from '../core/editor/lyricOps';
 import { chordDialog } from './chordDialog';
-import { type CommandId, chordSymbolText, dropBarSign, enterChordByName, dropNoteSign, eraseBarSign, eraseNoteSign, ghostPitches, signsAtFocus, lyricsText, newScoreState, runCommand, setChordSymbol, setLyricOf, setLyrics } from '../core/editor/commands';
+import { type CommandId, chordSymbolText, dropBarSign, enterChordByName, dropNoteSign, eraseBarSign, eraseChordSymbol, eraseClefChange, eraseLink, eraseNoteSign, eraseTempoChange, ghostPitches, signsAtFocus, lyricsText, newScoreState, runCommand, setChordSymbol, setLyricOf, setLyrics } from '../core/editor/commands';
 import { demoScore } from '../core/demo';
 import { History } from '../core/editor/history';
 import { type EditorState, type VoiceRef, allVoiceRefs, createEditorState, getVoice, inputLength, staffCenter } from '../core/editor/state';
@@ -36,10 +36,9 @@ import { type Score, MAX_TEMPO, MIN_TEMPO, keyAt, measuresOf, meterAt, setTempoC
 import { secondsOf, timeAt } from '../core/playback';
 import { durationName } from '../core/notation/notate';
 import { type Pitch, STEPS, midiOf, pitchToString } from '../core/pitch';
-import { type Fraction, ZERO, eq, isZero, le, lt, toNumber } from '../core/time';
+import { type Fraction, ZERO, eq, frac, isZero, le, lt, toNumber } from '../core/time';
 import { tuningOf } from '../core/tab';
 import { tabTarget } from '../core/editor/tabEdit';
-import { MAX_FRET } from '../core/tab';
 import { applyScoreChanges, createScore, emptyScore, keyName as germanKeyName } from '../core/templates';
 import { openKeyPicker } from './keyPicker';
 import { dirOf, fileNameOf, preferredFileName } from '../library/library';
@@ -150,6 +149,8 @@ const SIGN_TOLERANCE = 6;
 /** A sign of the library being dragged: from the palette (no `from`) or picked up from where it sits in the score. */
 type SignDrag =
   | { kind: 'note'; id: string; glyph: string; from?: { ref: VoiceRef; eventId: string }; where?: undefined }
+  /** A chord symbol, tempo or clef change, tie or glide: chosen by a click, taken away with Backspace (ADR 0041); never dragged. */
+  | { kind: 'object'; id: string; what: 'chord' | 'tempo' | 'clef' | 'link'; glyph: string; at?: Fraction; partId?: string; staff?: number; from?: undefined; where?: undefined }
   | { kind: 'bar'; id: string; glyph: string; from?: Fraction; /** The measure (and side of its barline) the sign was seen at. */ where?: { measure: number; side?: 'left' | 'right' } };
 const HINT = 'Enter: Eingabe · Strg+N: neu · Strg+O: Bibliothek · F1: alle Tasten';
 const EMPTY_HINT = 'Strg+N: neue Partitur · Strg+O: Bibliothek · F1: alle Tasten';
@@ -515,7 +516,7 @@ export class Workstation {
     e.preventDefault();
     const now = performance.now();
     const joined = now - this.fretTyped.at < 800 ? this.fretTyped.text + combo : combo;
-    const text = Number(joined) <= MAX_FRET ? joined : combo;
+    const text = joined.length <= 2 ? joined : combo; // up to two digits; values beyond the neck are allowed
     this.fretTyped = { text, at: now };
     this.history.apply(runCommand(this.state, 'tab.fret', Number(text)));
     this.update();
@@ -1124,7 +1125,7 @@ export class Workstation {
         meter: meterAt(score, at),
         perSystem: score.layout?.perSystem ?? 0,
         importedBreaks: (score.layout?.breaks?.length ?? 0) > 0,
-        parts: score.parts.map((p) => ({ id: p.id, name: p.name, instrument: p.instrument, tab: p.tab === true, tuning: tuningOf(p) })),
+        parts: score.parts.map((p) => ({ id: p.id, name: p.name, instrument: p.instrument, tab: p.tab === true, tuning: tuningOf(p), label: p.hideLabel !== true })),
       },
       check: (c) => {
         const r = applyScoreChanges(this.state.score, c);
@@ -1185,6 +1186,13 @@ export class Workstation {
     if (syllable) return this.beginSyllableDrag(syllable, e);
     const sign = this.signUnder(e);
     if (sign) return this.beginSignDrag(sign, e); // a placed sign is picked up, not the note next to it
+    const object = this.objectUnder(e);
+    if (object) {
+      this.selectedSign = object;
+      this.swallowClick = true;
+      window.setTimeout(() => (this.swallowClick = false), 80);
+      return this.update();
+    }
     const ref = this.hitTest(e);
     if (!ref) return this.beginFrame(e); // empty paper: dragging draws a frame that marks the notes inside
     if (!ref.eventId) return;
@@ -1427,7 +1435,7 @@ export class Workstation {
     for (let n = e.target as Element | null; n && n !== this.el.pages; n = n.parentElement) if (elements?.has(n.id)) return null;
     let best: Element | null = null;
     let bestDistance = SIGN_TOLERANCE;
-    for (const candidate of this.el.pages.querySelectorAll('g.dynam, g.hairpin, g.fermata, g.trill, g.mordent, g.turn, g.dir, g.breath, g.caesura, g.arpeg, g.barLine, g.voltaBracket')) {
+    for (const candidate of this.el.pages.querySelectorAll('g.dynam, g.hairpin, g.fermata, g.trill, g.mordent, g.turn, g.dir, g.breath, g.caesura, g.arpeg, g.slur, g.barLine, g.voltaBracket')) {
       const r = candidate.getBoundingClientRect();
       const d = Math.hypot(Math.max(r.left - e.clientX, 0, e.clientX - r.right), Math.max(r.top - e.clientY, 0, e.clientY - r.bottom));
       if (d <= bestDistance) {
@@ -1436,6 +1444,56 @@ export class Workstation {
       }
     }
     return this.signOf(best, e.clientX);
+  }
+
+  /**
+   * Chord symbols, tempo and clef changes, ties and glides under the pointer (directly, or just beside them unless it is on
+   * a note): the object is chosen and Backspace takes it away (ADR 0041).
+   */
+  private objectUnder(e: PointerEvent): SignDrag | null {
+    const elements = this.result?.elements;
+    const read = (node: Element | null): SignDrag | null => {
+      for (let n = node; n && n !== this.el.pages; n = n.parentElement) {
+        const found = this.objectOf(n.id);
+        if (found) return found;
+      }
+      return null;
+    };
+    const direct = read(e.target as Element | null);
+    if (direct) return direct;
+    for (let n = e.target as Element | null; n && n !== this.el.pages; n = n.parentElement) if (elements?.has(n.id)) return null;
+    let best: SignDrag | null = null;
+    let bestDistance = SIGN_TOLERANCE;
+    for (const candidate of this.el.pages.querySelectorAll('g.harm, g.tempo, g.tie, g.gliss, g.clef')) {
+      const found = read(candidate);
+      if (!found) continue;
+      const r = candidate.getBoundingClientRect();
+      const d = Math.hypot(Math.max(r.left - e.clientX, 0, e.clientX - r.right), Math.max(r.top - e.clientY, 0, e.clientY - r.bottom));
+      if (d <= bestDistance) {
+        best = found;
+        bestDistance = d;
+      }
+    }
+    return best;
+  }
+
+  /** What the drawn element with this id stands for, if it is one of those objects. */
+  private objectOf(id: string): SignDrag | null {
+    const score = this.state.score;
+    const chord = /^harm-\d+-(\d+)-(\d+)$/.exec(id);
+    if (chord) return { kind: 'object', what: 'chord', id, glyph: id, at: frac(Number(chord[1]), Number(chord[2])) };
+    const tempo = /^tempo-m(\d+)$/.exec(id);
+    if (tempo) {
+      const bar = measuresOf(score, 1)[Number(tempo[1])];
+      return bar ? { kind: 'object', what: 'tempo', id, glyph: id, at: bar.start } : null;
+    }
+    const clef = /^clef-(.+)-(\d+)-m(\d+)$/.exec(id);
+    if (clef) {
+      const bar = measuresOf(score, 1).find((m) => m.number === Number(clef[3]));
+      return bar ? { kind: 'object', what: 'clef', id, glyph: id, partId: clef[1]!, staff: Number(clef[2]), at: bar.start } : null;
+    }
+    const link = /^(?:tie|gliss)-(.+)$/.exec(id);
+    return link ? { kind: 'object', what: 'link', id: link[1]!, glyph: id } : null;
   }
 
   /** The bar sign a barline or a volta bracket stands for (only barlines that carry a sign count). */
@@ -1468,7 +1526,7 @@ export class Workstation {
     const page = this.el.pages;
     if (sign.kind === 'note') {
       const eventId = sign.from?.eventId;
-      const prefix = { dynamic: 'dyn', hairpin: 'hp', fermata: 'fer', trill: 'trl', mord: 'mor', prall: 'pra', turn: 'trn', breath: 'brt', caesura: 'cae', arpeggio: 'arp' } as Record<string, string>;
+      const prefix = { dynamic: 'dyn', hairpin: 'hp', fermata: 'fer', trill: 'trl', mord: 'mor', prall: 'pra', turn: 'trn', breath: 'brt', caesura: 'cae', arpeggio: 'arp', slur: 'slr' } as Record<string, string>;
       const symbol = noteSymbol(sign.id);
       const key = symbol && (symbol.group === 'dynamic' || symbol.group === 'hairpin' ? symbol.group : sign.id);
       if (eventId && key && prefix[key]) return document.getElementById(`${prefix[key]}-${eventId}`);
@@ -1481,6 +1539,7 @@ export class Workstation {
       }
       return null;
     }
+    if (sign.kind === 'object') return document.getElementById(sign.glyph); // glyph holds the id of the drawn element
     const measures = measuresOf(this.state.score, 1);
     const mi = measures.findIndex((m) => sign.from !== undefined && le(m.start, sign.from as Fraction) && lt(sign.from as Fraction, m.end));
     if (sign.id === 'segno' || sign.id === 'coda') return document.getElementById(`${sign.id}-${mi}`);
@@ -1502,6 +1561,13 @@ export class Workstation {
     this.selectedSign = null;
     if (sign.kind === 'note' && sign.from) this.history.apply(eraseNoteSign(this.state, sign.id, sign.from));
     else if (sign.kind === 'bar' && sign.from) this.history.apply(eraseBarSign(this.state, sign.id, sign.from as Fraction));
+    else if (sign.kind === 'object') {
+      const s = this.state;
+      if (sign.what === 'chord' && sign.at) this.history.apply(eraseChordSymbol(s, sign.at));
+      else if (sign.what === 'tempo' && sign.at) this.history.apply(eraseTempoChange(s, sign.at));
+      else if (sign.what === 'clef' && sign.at && sign.partId !== undefined && sign.staff !== undefined) this.history.apply(eraseClefChange(s, sign.partId, sign.staff, sign.at));
+      else if (sign.what === 'link') this.history.apply(eraseLink(s, sign.id));
+    }
     this.update();
   }
 
@@ -1521,9 +1587,9 @@ export class Workstation {
         const found = this.barlineSign(n, clientX);
         if (found) return found;
       }
-      const hit = /^(dyn|fer|trl|mor|pra|trn|hp|brt|cae|arp)-(.+)$/.exec(n.id);
+      const hit = /^(dyn|fer|trl|mor|pra|trn|hp|brt|cae|arp|slr)-(.+)$/.exec(n.id);
       if (hit) {
-        const wanted = { dyn: 'dynamic', hp: 'hairpin', fer: 'fermata', trl: 'trill', mor: 'mord', pra: 'prall', trn: 'turn', brt: 'breath', cae: 'caesura', arp: 'arpeggio' }[hit[1] as 'dyn'];
+        const wanted = { dyn: 'dynamic', hp: 'hairpin', fer: 'fermata', trl: 'trill', mor: 'mord', pra: 'prall', trn: 'turn', brt: 'breath', cae: 'caesura', arp: 'arpeggio', slr: 'slur' }[hit[1] as 'dyn'];
         return noteSign(hit[2]!, (marks) => marks.find((m) => noteSymbol(m)?.group === wanted || m === wanted));
       }
       const bar = /^(?:(segno|coda)|dir-(\w+))-(\d+)$/.exec(n.id);

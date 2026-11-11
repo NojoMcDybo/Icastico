@@ -120,6 +120,8 @@ export interface ScoreChanges {
   readonly tab?: Readonly<Record<string, boolean>>;
   /** Tuning per guitar or tablature line (part id → six open strings, highest first); the standard tuning is stored as none. */
   readonly tuning?: Readonly<Record<string, readonly number[]>>;
+  /** Description at the left of a line shown / hidden (part id → shown), ADR 0041. */
+  readonly labels?: Readonly<Record<string, boolean>>;
 }
 
 /** Drops entries that repeat the value of the entry before them. */
@@ -170,6 +172,16 @@ export function applyScoreChanges(score: Score, changes: ScoreChanges): { score:
   }
   for (const [partId, name] of Object.entries(changes.renameParts ?? {})) {
     if (name.trim()) next = { ...next, parts: next.parts.map((p) => (p.id === partId ? { ...p, name: name.trim() } : p)) };
+  }
+  for (const [partId, shown] of Object.entries(changes.labels ?? {})) {
+    next = {
+      ...next,
+      parts: next.parts.map((p) => {
+        if (p.id !== partId) return p;
+        const { hideLabel: _old, ...rest } = p;
+        return shown ? rest : { ...rest, hideLabel: true };
+      }),
+    };
   }
   const gone = new Set(changes.removeParts ?? []);
   if (gone.size > 0) {

@@ -22,6 +22,7 @@ import version15File from './fixtures/version15.icastico?raw';
 import version16File from './fixtures/version16.icastico?raw';
 import version17File from './fixtures/version17.icastico?raw';
 import version18File from './fixtures/version18.icastico?raw';
+import version19File from './fixtures/version19.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -610,5 +611,25 @@ describe('format version 19: clef changes', () => {
     tab.score.parts[0]!.instrument = 'tab';
     tab.score.parts[0]!.clefs = [{ at: '0', staff: 0, clef: 'alto' }];
     expect(() => parseScoreFile(JSON.stringify(tab))).toThrow(/Tabulatur/);
+  });
+});
+
+describe('format version 20: line descriptions', () => {
+  it('opens files saved with format version 19 (clef change) and saves them as the current version', () => {
+    const score = parseScoreFile(version19File);
+    expect(fileVersion(version19File)).toBe(19);
+    expect(score.parts[0]!.clefs).toEqual([{ at: frac(1), staff: 0, clef: 'alto' }]);
+    expect(score.parts.every((p) => p.hideLabel === undefined)).toBe(true);
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  it('keeps a switched-off description per part', () => {
+    const base = parseScoreFile(version19File);
+    const off = { ...base, parts: base.parts.map((p, i) => (i === 0 ? { ...p, hideLabel: true } : p)) };
+    const back = parseScoreFile(serializeScore(off, '0'));
+    expect(back.parts.map((p) => p.hideLabel)).toEqual([true, undefined]);
+    expect(serializeScore(base, '0')).not.toContain('hideLabel');
   });
 });

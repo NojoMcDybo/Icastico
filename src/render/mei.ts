@@ -192,17 +192,20 @@ function staffGrpXml(score: Score, slots: StaffSlot[]): string {
       lines.push(`        <staffGrp symbol="${group.symbol}" bar.thru="true">`);
       open = part.id;
     }
+    // The description at the left of a line can be switched off per part (ADR 0041).
+    const named = part.hideLabel === true ? '' : `<label>${esc(part.name)}</label><labelAbbr>${esc(def.shortName)}</labelAbbr>`;
+    const tabLabel = part.hideLabel === true ? '' : '<label>Tab</label><labelAbbr>Tab</labelAbbr>';
     const staffDef = (s: StaffSlot, withLabel: boolean, ind: string) =>
       s.tabPart
-        ? `${ind}<staffDef n="${s.n}" lines="${GUITAR_STRINGS.length}" clef.shape="TAB" clef.line="3" keysig.visible="false" meter.visible="false"><label>${esc(part.name)}</label><labelAbbr>${esc(def.shortName)}</labelAbbr></staffDef>`
+        ? `${ind}<staffDef n="${s.n}" lines="${GUITAR_STRINGS.length}" clef.shape="TAB" clef.line="3" keysig.visible="false" meter.visible="false">${named}</staffDef>`
         : s.tab
-        ? `${ind}<staffDef n="${s.n}" lines="${GUITAR_STRINGS.length}" clef.shape="TAB" clef.line="3" keysig.visible="false" meter.visible="false"><label>Tab</label><labelAbbr>Tab</labelAbbr></staffDef>`
+        ? `${ind}<staffDef n="${s.n}" lines="${GUITAR_STRINGS.length}" clef.shape="TAB" clef.line="3" keysig.visible="false" meter.visible="false">${tabLabel}</staffDef>`
         : `${ind}<staffDef n="${s.n}" lines="5" ${clefAttrs(clefAt(part, s.staffIndex, ZERO).clef)}>` +
-          (withLabel ? `<label>${esc(part.name)}</label><labelAbbr>${esc(def.shortName)}</labelAbbr>` : '') +
+          (withLabel ? named : '') +
           `</staffDef>`;
     if (own.length > 1) {
       lines.push(`        <staffGrp symbol="${def.brace ? 'brace' : 'bracket'}" bar.thru="true">`);
-      lines.push(`          <label>${esc(part.name)}</label><labelAbbr>${esc(def.shortName)}</labelAbbr>`);
+      if (named) lines.push(`          ${named}`);
       for (const s of own) lines.push(staffDef(s, false, '          '));
       lines.push('        </staffGrp>');
     } else {

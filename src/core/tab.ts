@@ -80,12 +80,15 @@ function candidates(midi: number, tuning: Tuning): Fingering[] {
   return out;
 }
 
-/** The fret of a pitch on a string of the tuning, or null if the string cannot play it. */
-export function fretOn(midi: number, string: number, tuning: Tuning): number | null {
+/**
+ * The fret of a pitch on a string of the tuning, or null if the string cannot play it.
+ * `limit` is the highest fret that counts (typed numbers may go beyond the neck, see `setFret`).
+ */
+export function fretOn(midi: number, string: number, tuning: Tuning, limit = MAX_FRET): number | null {
   const open = tuning[string - 1];
   if (open === undefined) return null;
   const fret = midi - open;
-  return fret >= 0 && fret <= MAX_FRET ? fret : null;
+  return fret >= 0 && fret <= limit ? fret : null;
 }
 
 /** Cost of playing `chosen` with the hand at `hand`: distance, hand span, high positions; open strings are cheap. */
@@ -111,7 +114,9 @@ export function assignFrets(events: readonly NoteEvent[], tuning: Tuning = GUITA
     const tones = ev.tones
       .map((t) => {
         const all = candidates(midiOf(t.pitch), tuning);
-        const own = t.string !== undefined ? all.filter((c) => c.string === t.string) : [];
+        // A tone that carries its string keeps its number even beyond the neck (typed values may be "wrong").
+        const ownFret = t.string !== undefined ? fretOn(midiOf(t.pitch), t.string, tuning, Infinity) : null;
+        const own = t.string !== undefined && ownFret !== null ? [{ string: t.string, fret: ownFret }] : [];
         return { id: t.id, options: own.length > 0 ? own : all };
       })
       .filter((t) => t.options.length > 0);

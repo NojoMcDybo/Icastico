@@ -37,12 +37,13 @@ describe('Finale numpad typing: a ghost note at the caret (ADR 0018)', () => {
     expect(notes(s)[0]).toMatch(/:1\/2$/);
   });
 
-  it('number row: interval above and below add tones to the ghost; Enter places the chord and copies it', () => {
+  it('number row: interval above and below add tones to the ghost; Enter places the chord; the next proposal is only its lowest tone', () => {
     let s = run(newScoreState(), ['input.interval', 3], ['input.interval', -5]);
     expect(ghostPitches(s)).toHaveLength(3);
     s = run(s, ['input.repeat'], ['input.repeat']);
     const events = getVoice(s.score, VOICE).voice.events;
-    expect(events.map((e) => e.tones.length)).toEqual([3, 3]);
+    expect(events.map((e) => e.tones.length)).toEqual([3, 1]);
+    expect(pitchToString(events[1]!.tones[0]!.pitch)).toBe(pitchToString(events[0]!.tones[0]!.pitch));
     const pos = (p: { step: string; octave: number }) => p.octave * 7 + 'CDEFGAB'.indexOf(p.step);
     const [low, mid, high] = events[0]!.tones.map((t) => t.pitch);
     expect(pos(high!) - pos(mid!)).toBe(2); // a third above
@@ -135,6 +136,11 @@ describe('a chord entered by name (ADR 0037)', () => {
     const s = enterChordByName(quarter(), 'C', { inversion: 1, symbol: true });
     expect(getVoice(s.score, VOICE).voice.events[0]!.tones.map((t) => pitchToString(t.pitch).replace(/\d/, ''))).toEqual(['E', 'G', 'C']);
     expect(s.score.chords).toEqual([{ at: frac(0), text: 'C' }]);
+  });
+
+  it('after a chord the next proposal is only its lowest tone', () => {
+    const s = enterChordByName(quarter(), 'Cm7');
+    expect(ghostPitches(s)!.map(pitchToString)).toEqual([pitchToString(getVoice(s.score, VOICE).voice.events[0]!.tones[0]!.pitch)]);
   });
 
   it('an unknown name changes nothing and says so', () => {

@@ -121,6 +121,8 @@ export interface Part {
   readonly tuning?: readonly number[];
   /** Clefs that differ from the instrument's own: from `at` on (a bar start), per staff; an entry at 0 replaces the first clef. Absent = none. */
   readonly clefs?: readonly ClefChange[];
+  /** Do not print the line's description (name, "Tab") at the left of the staff (ADR 0041); absent = print it. */
+  readonly hideLabel?: boolean;
 }
 
 export interface Score {

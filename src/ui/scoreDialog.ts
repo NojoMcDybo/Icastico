@@ -26,7 +26,7 @@ export interface EditInitial {
   readonly perSystem: number;
   readonly importedBreaks: boolean;
   /** The lines the score has now (for adding more instruments and switching the guitar tablature). */
-  readonly parts: readonly { readonly id: string; readonly name: string; readonly instrument: InstrumentId; readonly tab: boolean; readonly tuning: readonly number[] }[];
+  readonly parts: readonly { readonly id: string; readonly name: string; readonly instrument: InstrumentId; readonly tab: boolean; readonly tuning: readonly number[]; readonly label: boolean }[];
 }
 
 type Options =
@@ -125,6 +125,7 @@ export function scoreDialog(options: Options): Promise<ScoreSetup | ScoreChanges
     const addedInstruments: { instrument: InstrumentId; tab: boolean }[] = [];
     const tabBoxes = new Map<string, HTMLInputElement>();
     const nameFields = new Map<string, HTMLInputElement>();
+    const labelBoxes = new Map<string, HTMLInputElement>();
     const removed = new Set<string>();
     if (!isNew) {
       const have = el('ol', { className: 'instruments instruments--have' });
@@ -133,6 +134,11 @@ export function scoreDialog(options: Options): Promise<ScoreSetup | ScoreChanges
         name.setAttribute('aria-label', `Name der Zeile ${p.name}`);
         nameFields.set(p.id, name);
         const li = el('li', {}, name);
+        // The description at the left of the line (name, "Tab") can be left out; an emptied name field does the same.
+        const shown = el('input', { type: 'checkbox', checked: p.label, id: `f-label-${p.id}` });
+        shown.setAttribute('aria-label', `${p.name}: Beschriftung am Zeilenanfang`);
+        labelBoxes.set(p.id, shown);
+        li.append(el('label', { className: 'instruments__tab', title: 'Name der Zeile vor dem Notensystem drucken' }, shown, ' Beschriftung'));
         if (p.instrument === 'guitar') {
           const box = el('input', { type: 'checkbox', checked: p.tab, id: `f-tab-${p.id}` });
           box.setAttribute('aria-label', `${p.name}: Tabulatur`);
@@ -371,6 +377,8 @@ export function scoreDialog(options: Options): Promise<ScoreSetup | ScoreChanges
       const renames = Object.fromEntries(i.parts.flatMap((p) => { const name = nameFields.get(p.id)?.value.trim() ?? ''; return name && name !== p.name && !removed.has(p.id) ? [[p.id, name] as const] : []; }));
       if (Object.keys(renames).length > 0) (changes as { renameParts?: Record<string, string> }).renameParts = renames;
       if (removed.size > 0) (changes as { removeParts?: string[] }).removeParts = [...removed];
+      const labelChanges = Object.fromEntries(i.parts.flatMap((p) => { const on = (labelBoxes.get(p.id)?.checked ?? true) && (nameFields.get(p.id)?.value.trim() ?? p.name) !== ''; return on !== p.label && !removed.has(p.id) ? [[p.id, on] as const] : []; }));
+      if (Object.keys(labelChanges).length > 0) (changes as { labels?: Record<string, boolean> }).labels = labelChanges;
       const tabChanges = Object.fromEntries(i.parts.filter((p) => tabBoxes.get(p.id) && tabBoxes.get(p.id)!.checked !== p.tab).map((p) => [p.id, tabBoxes.get(p.id)!.checked]));
       if (Object.keys(tabChanges).length > 0) (changes as { tab?: Record<string, boolean> }).tab = tabChanges;
       const tuningChanges = Object.fromEntries(

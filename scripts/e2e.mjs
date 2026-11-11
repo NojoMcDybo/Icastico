@@ -794,7 +794,7 @@ try {
   await type('Escape');
   await saved();
   const shaped = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Verlauf-Test.icastico'))[1].contents;
-  check(/"version": 19/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 19)');
+  check(/"version": 20/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 20)');
   await type('Control+Enter');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true', null, { timeout: 30000 });
   await page.waitForTimeout(1500);
@@ -1176,6 +1176,14 @@ try {
   const leadFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Leadsheet-Test.icastico'))[1].contents;
   check(/"lyric": "Hal-"/.test(leadFile) && /"text": "Am7"/.test(leadFile), 'Liedtext und Akkordsymbol stehen in der gespeicherten Datei');
   await page.click('.lyrics__close');
+  // Ein Akkordsymbol anklicken und mit der Rücktaste löschen (ADR 0041)
+  const harmBox = await page.locator('.page g.harm').first().boundingBox();
+  await page.mouse.click(harmBox.x + harmBox.width / 2, harmBox.y + harmBox.height / 2);
+  check((await page.locator('.page .is-sign-selected').count()) >= 1, 'Akkordsymbol: ein Klick wählt es aus (blau)');
+  await type('Backspace');
+  check((await page.locator('.page g.harm').count()) === 0 && /Akkordsymbol: entfernt/.test(await status()), 'Akkordsymbol: die Rücktaste löscht es');
+  await type('Control+z');
+  check((await page.locator('.page g.harm').count()) === 1, 'Akkordsymbol: Strg+Z holt es zurück');
   await type('Control+z');
   check((await page.locator('.page g.verse').count()) === 2, 'Rückgängig nimmt die zuletzt gesetzte Silbe zurück');
   await type('Control+z', 'Control+z');
@@ -1334,7 +1342,7 @@ try {
   await page.screenshot({ path: join(outDir, 'tabulatur-instrument.png') });
   await saved();
   const tabFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Tab-Instrument.icastico'))[1].contents;
-  check(/"instrument": "tab"/.test(tabFile) && /"version": 19/.test(tabFile), 'Tabulatur: die Zeile steht als Instrument „tab“ in der Datei (Format 19)');
+  check(/"instrument": "tab"/.test(tabFile) && /"version": 20/.test(tabFile), 'Tabulatur: die Zeile steht als Instrument „tab“ in der Datei (Format 20)');
   await page.locator('.page g.note').first().click({ force: true });
   await type('Control+Delete');
   check((await page.locator('.page g.note').count()) >= 1, 'Tabulatur-Zeile: die Noten der anderen Zeile bleiben beim Bearbeiten erhalten');
@@ -1718,7 +1726,7 @@ try {
   await page.screenshot({ path: join(outDir, 'zeichen.png') });
   await saved();
   const signsFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Zeichen-Test.icastico'))[1].contents;
-  check(/"version": 19/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 19)');
+  check(/"version": 20/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 20)');
   await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
   await page.click('.transport__play');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');

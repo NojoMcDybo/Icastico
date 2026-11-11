@@ -68,3 +68,4 @@ Was wird dadurch leichter, was schwerer?
 | 0038 | [Neun weitere Instrumente](0038-weitere-instrumente.md) | angenommen |
 | 0039 | [Tempowechsel ab einem Takt](0039-tempowechsel.md) | angenommen |
 | 0040 | [Schlüsselwechsel ab einem Takt](0040-schluesselwechsel.md) | angenommen |
+| 0041 | [Rückmeldungen Paket A: Tabulatur frei, Zeilenbeschriftung, Anklicken/Löschen, Tabulatur-Import](0041-rueckmeldungen-paket-a.md) | angenommen |

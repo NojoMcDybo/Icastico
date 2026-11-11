@@ -144,6 +144,48 @@ describe('MusicXML import: piano, voices, guitar, tuplets, leftovers', () => {
     expect(clarinet.notes.join(' ')).toMatch(/Klarinette/);
   });
 
+  it('a guitar with a tablature staff beside the standard staff stays one guitar with tablature on, and keeps the strings', () => {
+    const technical = (string: number, fret: number) => `<notations><technical><string>${string}</string><fret>${fret}</fret></technical></notations>`;
+    const staffed = (n: number, more = '') => `<staff>${n}</staff>${more}`;
+    const xml = doc([
+      {
+        id: 'P1',
+        name: 'Gitarre',
+        xml: `<measure number="1">${attrs('<staves>2</staves><clef number="1"><sign>G</sign><line>2</line><clef-octave-change>-1</clef-octave-change></clef><clef number="2"><sign>TAB</sign><line>5</line></clef>')}
+          ${note('E', 4, 4, staffed(1))}${note('G', 4, 4, staffed(1))}
+          <backup><duration>8</duration></backup>
+          ${note('E', 4, 4, staffed(2, technical(5, 7)))}${note('G', 4, 4, staffed(2, technical(1, 3)))}</measure>`,
+      },
+    ]);
+    const { score } = importMusicXml(xml);
+    expect(score.parts).toHaveLength(1);
+    const guitar = score.parts[0]!;
+    expect(guitar.instrument).toBe('guitar');
+    expect(guitar.tab).toBe(true);
+    expect(guitar.voices).toHaveLength(1);
+    const [first, second] = guitar.voices[0]!.events;
+    expect(first!.tones[0]!.string).toBe(5); // E3 on the A string, fret 7
+    expect(second!.tones[0]!.string).toBeUndefined(); // G3 on string 1 would lie below the open string: not kept
+    expect(validateScore(score)).toEqual([]);
+  });
+
+  it('a part that is only tablature becomes a tablature line with the written strings', () => {
+    const xml = doc([
+      {
+        id: 'P1',
+        name: 'Tabulatur',
+        xml: `<measure number="1">${attrs('<clef><sign>TAB</sign><line>5</line></clef>')}
+          ${note('G', 4, 4, '<notations><technical><string>3</string><fret>0</fret></technical></notations>')}${note('B', 4, 4, '<notations><technical><string>2</string><fret>0</fret></technical></notations>')}</measure>`,
+      },
+    ]);
+    const { score } = importMusicXml(xml);
+    const line = score.parts[0]!;
+    expect(line.instrument).toBe('tab');
+    expect(line.voices[0]!.events.map((e) => [pitchToString(e.tones[0]!.pitch), e.tones[0]!.string])).toEqual([['G3', 3], ['B3', 2]]);
+    expect(validateScore(score)).toEqual([]);
+    expect(scoreToMei(score).mei).toContain('clef.shape="TAB"');
+  });
+
   it('keeps triplets exactly (ADR 0020), keeps the bar whole and says what it left out', () => {
     const third = `<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>`;
     const xml = doc([

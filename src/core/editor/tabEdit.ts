@@ -71,15 +71,16 @@ export function moveToString(s: EditorState, direction: number): EditorState | n
 export function setFret(s: EditorState, fret: number): EditorState {
   const t = tabTarget(s);
   if (!t) return say(s, 'Erst eine Note in der Tabulatur anklicken, dann die Zahl tippen.');
-  if (!Number.isInteger(fret) || fret < 0 || fret > MAX_FRET) return say(s, `Der Bund muss zwischen 0 und ${MAX_FRET} liegen.`);
+  if (!Number.isInteger(fret) || fret < 0) return say(s, 'Der Bund muss eine ganze Zahl ab 0 sein.');
   const tone = t.sel.toneId ? t.event.tones.find((x) => x.id === t.sel.toneId) : t.event.tones.length === 1 ? t.event.tones[0] : undefined;
   if (!tone) return say(s, 'Bei einem Akkord erst den Ton anklicken (oder mit Alt+↑ / ↓ wählen), dessen Zahl sich ändern soll.');
   const tuning = tuningOf(t.part);
   const string = stringsOf(t.part).get(tone.id) ?? tone.string;
   if (string === undefined) return say(s, 'Dieser Ton hat auf der Gitarre keinen Platz; erst eine spielbare Tonhöhe wählen.');
   const midi = tuning[string - 1]! + fret;
+  if (midi > 127) return say(s, 'Dieser Bund ergäbe einen Ton über dem höchsten darstellbaren (MIDI 127).');
   if (t.event.tones.some((x) => x.id !== tone.id && midiOf(x.pitch) === midi)) return say(s, 'Dieser Ton liegt im Akkord schon.');
   const pitch = spellMidi(midi, keyAt(s.score, t.event.onset));
   const tones = t.event.tones.map((x) => (x.id === tone.id ? { ...x, pitch, string } : x));
-  return { ...s, score: withTones(s, t, tones), message: `Saite ${string}, Bund ${fret}` };
+  return { ...s, score: withTones(s, t, tones), message: `Saite ${string}, Bund ${fret}${fret > MAX_FRET ? ` (die Gitarre hat nur ${MAX_FRET} Bünde)` : ''}` };
 }

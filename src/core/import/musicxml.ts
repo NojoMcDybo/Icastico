@@ -139,6 +139,16 @@ function notationMarks(note: XmlElement, unknown: () => void): string[] {
   return out;
 }
 
+/** The string of a note from <notations><technical><string> (1 = highest), if it has one. */
+function stringOf(note: XmlElement): number | undefined {
+  for (const n of childrenNamed(note, 'notations')) {
+    const text = child(child(n, 'technical') ?? n, 'string')?.text.trim();
+    const value = text === undefined ? NaN : Number(text);
+    if (Number.isInteger(value) && value >= 1) return value;
+  }
+  return undefined;
+}
+
 const STEP_SET = new Set<string>(STEPS);
 
 const intOf = (s: string | undefined, fallback: number): number => {
@@ -213,12 +223,28 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
     const info = infos.get(sourceId) ?? { name: '', program: undefined };
     const measures = childrenNamed(partEl, 'measure');
     const staves = Math.max(1, ...measures.flatMap((m) => childrenNamed(m, 'attributes').map((a) => intOf(childText(a, 'staves'), 1))));
-    const instrument = instrumentFor(info.name, info.program, staves);
+    // Staves written as tablature (clef sign TAB): next to a standard staff they only say which string a note is on;
+    // alone they are a tablature line of their own.
+    const tabStaves = new Set<number>(measures.flatMap((m) => childrenNamed(m, 'attributes').flatMap((a) => childrenNamed(a, 'clef').filter((c) => childText(c, 'sign') === 'TAB').map((c) => Math.round(intOf(c.attrs.number ?? '1', 1))))));
+    const written = Array.from({ length: staves }, (_, i) => i + 1).filter((n) => !tabStaves.has(n));
+    const tabOnly = tabStaves.size > 0 && written.length === 0;
+    let instrument = tabOnly ? 'tab' : instrumentFor(info.name, info.program, Math.max(1, written.length));
+    if (tabStaves.size > 0 && instrument === 'voice') instrument = 'guitar'; // a tablature staff means a fretted instrument
     const def = getInstrument(instrument);
+    const fretted = instrument === 'guitar' || instrument === 'tab';
+    /** The staff (0-based) of one of our staves a MusicXML staff number lands on; -1 = a tablature staff beside a standard one. */
+    const staffIndexOf = (n: number): number => {
+      if (tabStaves.size === 0) return Math.min(def.staves.length, Math.max(1, n)) - 1;
+      if (tabOnly) return 0;
+      const i = written.indexOf(n);
+      return i < 0 ? -1 : Math.min(def.staves.length, i + 1) - 1;
+    };
+    /** String of a note ("onset|sounding pitch" → 1 = highest) from <technical>, taken from the tablature or the standard staff. */
+    const fingering = new Map<string, number>();
     if (instrument === 'voice' && /./.test(info.name) && !/gesang|voice|vocal|sopran|alt|tenor|bass|chor|melod/i.test(info.name)) {
       notes.push(`„${info.name}“ wurde als ${def.name} übernommen (weitere Instrumente folgen).`);
     }
-    if (staves > def.staves.length) notes.push(`„${info.name || sourceId}“ hat ${staves} Notensysteme; überzählige wurden auf das letzte gelegt.`);
+    if (written.length > def.staves.length) notes.push(`„${info.name || sourceId}“ hat ${written.length} Notensysteme; überzählige wurden auf das letzte gelegt.`);
 
     let divisions = 1;
     let sig = { count: 4, unit: 4 };
@@ -280,9 +306,10 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
               skip(`Schlüssel ${sign}${line}${octave ? ` (Oktave ${octave})` : ''}`);
               continue;
             }
-            const staff = Math.min(def.staves.length, Math.max(1, Math.round(intOf(c.attrs.number ?? '1', 1)))) - 1;
+            const staff = staffIndexOf(Math.round(intOf(c.attrs.number ?? '1', 1)));
+            if (staff < 0) continue;
             // A guitar is written an octave above its sound by convention: a plain treble clef is the usual guitar clef.
-            if (clefNow[staff] === id || (instrument === 'guitar' && sign === 'G')) continue;
+            if (clefNow[staff] === id || (fretted && sign === 'G')) continue;
             if (cursor !== 0) skip('Schlüsselwechsel mitten im Takt');
             else {
               clefNow[staff] = id;
@@ -296,7 +323,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
           }
           // The tuning of the strings: line 1 is the lowest string; the pitches are written like the notes.
           const tunings = childrenNamed(child(el, 'staff-details') ?? el, 'staff-tuning');
-          if (instrument === 'guitar' && tunings.length === GUITAR_STRINGS.length) {
+          if (fretted && tunings.length === GUITAR_STRINGS.length) {
             const shift = hasTranspose ? transpose : -12;
             const midis = [...tunings]
               .sort((a, b) => intOf(b.attrs.line, 0) - intOf(a.attrs.line, 0))
@@ -369,12 +396,12 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
             alter: Math.round(intOf(childText(pitchEl, 'alter'), 0)),
             octave: Math.round(intOf(childText(pitchEl, 'octave'), 4)),
           };
-          const shift = hasTranspose ? transpose : instrument === 'guitar' ? -12 : 0;
+          const shift = hasTranspose ? transpose : fretted ? -12 : 0;
           if (shift !== 0) {
             const hasChromatic = hasTranspose && transpose % 12 !== 0;
             pitch = hasChromatic ? spellMidi(midiOf(pitch) + shift, fifths) : { ...pitch, octave: pitch.octave + shift / 12 };
           }
-          const staff = Math.min(def.staves.length, Math.max(1, Math.round(intOf(childText(el, 'staff'), 1)))) - 1;
+          const staff = staffIndexOf(Math.round(intOf(childText(el, 'staff'), 1)));
           const key = `${staff}:${childText(el, 'voice') ?? '1'}`;
           const tieStart = childrenNamed(el, 'tie').some((t) => t.attrs.type === 'start');
           const tieStop = childrenNamed(el, 'tie').some((t) => t.attrs.type === 'stop');
@@ -386,6 +413,9 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
             finish = snap(finish);
             roundedNotes++;
           }
+          const string = fretted ? stringOf(el) : undefined;
+          if (string !== undefined) fingering.set(`${start.n}/${start.d}|${midiOf(pitch)}`, string);
+          if (staff < 0) continue; // the tablature beside a standard staff: only its strings count
           if (isChord && last && eq(last.onset, start)) {
             if (!last.pitches.some((p) => midiOf(p) === midiOf(pitch))) {
               last.pitches.push(pitch);
@@ -471,7 +501,13 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
         // Tones are sorted by sounding pitch; the tie flags travel with their tone.
         const order = raw.pitches.map((_, ti) => ti).sort((a, b) => midiOf(raw.pitches[a]!) - midiOf(raw.pitches[b]!));
         const tones = order.map((src, ti) => ({ id: `${id}-t${ti + 1}`, pitch: raw.pitches[src]!, src }));
-        lane.events.push({ id, onset: raw.onset, duration: raw.duration, tones: tones.map(({ id: toneId, pitch }) => ({ id: toneId, pitch })), ...(raw.lyrics.get(1) ? { lyric: raw.lyrics.get(1)! } : {}), ...(versesOfRaw(raw.lyrics) ? { verses: versesOfRaw(raw.lyrics)! } : {}), ...(raw.marks.length ? { marks: raw.marks } : {}) });
+        const open = tuning ?? GUITAR_STRINGS;
+        // A written string is kept when the note can be played on it at all (never below the open string).
+        const stringOfTone = (pitch: Pitch): number | undefined => {
+          const s = fingering.get(`${raw.onset.n}/${raw.onset.d}|${midiOf(pitch)}`);
+          return s !== undefined && s >= 1 && s <= open.length && midiOf(pitch) >= open[s - 1]! ? s : undefined;
+        };
+        lane.events.push({ id, onset: raw.onset, duration: raw.duration, tones: tones.map(({ id: toneId, pitch }) => ({ id: toneId, pitch, ...(fretted && stringOfTone(pitch) !== undefined ? { string: stringOfTone(pitch)! } : {}) })), ...(raw.lyrics.get(1) ? { lyric: raw.lyrics.get(1)! } : {}), ...(versesOfRaw(raw.lyrics) ? { verses: versesOfRaw(raw.lyrics)! } : {}), ...(raw.marks.length ? { marks: raw.marks } : {}) });
         lane.end = add(raw.onset, raw.duration);
         tones.forEach((t) => {
           toneAt.set(`${key}|${raw.onset.n}/${raw.onset.d}|${midiOf(t.pitch)}`, t.id);
@@ -488,7 +524,7 @@ export function importMusicXml(xml: string, fileName = ''): ImportResult {
       if (!voices.some((v) => v.staff === s)) voices.push({ id: `${partId}-s${s + 1}v1`, staff: s, events: [] });
     }
     voices.sort((a, b) => a.staff - b.staff);
-    parts.push({ id: partId, name: info.name || def.name, instrument, ...(tuning ? { tuning } : {}), ...(clefList.length ? { clefs: clefList } : {}), voices });
+    parts.push({ id: partId, name: info.name || def.name, instrument, ...(tabStaves.size > 0 && instrument === 'guitar' ? { tab: true } : {}), ...(tuning ? { tuning } : {}), ...(clefList.length ? { clefs: clefList } : {}), voices });
     partOfSource.set(sourceId, partId);
   });
 

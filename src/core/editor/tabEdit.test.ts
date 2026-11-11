@@ -75,11 +75,17 @@ describe('typing a number on a note of a tablature line', () => {
     expect(validateScore(made.score)).toEqual([]);
   });
 
-  it('works for the high frets, and says no beyond the neck', () => {
+  it('works for the high frets, and takes values beyond the neck too (with a remark)', () => {
     const { s, ref } = withTab();
     const high = runCommand(select(s, ref, 3), 'tab.fret', 12);
     expect(midiOf(events(high, ref)[3]!.tones[0]!.pitch)).toBe(76); // 12th fret of the high e string
-    expect(runCommand(select(s, ref, 3), 'tab.fret', 23).message).toMatch(/zwischen 0 und 22/);
+    const beyond = runCommand(select(s, ref, 3), 'tab.fret', 25);
+    const event = events(beyond, ref)[3]!;
+    expect(midiOf(event.tones[0]!.pitch)).toBe(89);
+    expect(beyond.message).toMatch(/Bund 25 \(die Gitarre hat nur 22/);
+    expect(validateScore(beyond.score)).toEqual([]);
+    expect(assignFrets([event]).get(event.tones[0]!.id)).toEqual({ string: 1, fret: 25 }); // stays what was typed
+    expect(runCommand(select(s, ref, 3), 'tab.fret', 99).message).toMatch(/MIDI 127/);
   });
 
   it('wants a clicked tone in a chord, and a note on a tab line at all', () => {
