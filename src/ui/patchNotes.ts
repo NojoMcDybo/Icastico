@@ -12,6 +12,14 @@ export interface PatchNote {
 /** Newest first. Keep each line to one short sentence. */
 export const PATCH_NOTES: readonly PatchNote[] = [
   {
+    version: '0.28.1',
+    items: [
+      'Die A4-Ansicht ist jetzt beim Schreiben standardmäßig an (Strg+Umschalt+Y schaltet sie aus).',
+      'Titel mittig über der Partitur, der Komponist rechtsbündig eine Zeile darunter und kleiner – auch im PDF und in den Vorschaubildern.',
+      'Die Instrumentennamen stehen nur noch links neben der ersten Akkolade.',
+    ],
+  },
+  {
     version: '0.28.0',
     items: [
       'Zwei Ebenen im selben Notensystem: Strg+Umschalt+1 / 2 wählt die Ebene; Hälse oben (Ebene 1) und unten (Ebene 2); gleiche Töne teilen sich einen Notenkopf.',

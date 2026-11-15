@@ -32,6 +32,8 @@ try {
   await context.addInitScript(() => {
     try {
       if (!localStorage.getItem('icastico.keymap')) localStorage.setItem('icastico.keymap', 'finale');
+      // The A4 view is on by default (ADR 0045); the checks below were written for the plain view – the A4 section switches it on.
+      if (!localStorage.getItem('icastico.a4')) localStorage.setItem('icastico.a4', '0');
     } catch {
       // no storage
     }

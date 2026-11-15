@@ -257,9 +257,9 @@ function staffGrpXml(score: Score, slots: StaffSlot[]): string {
       lines.push(`        <staffGrp symbol="${group.symbol}" bar.thru="true">`);
       open = part.id;
     }
-    // The description at the left of a line can be switched off per part (ADR 0041).
-    const named = part.hideLabel === true ? '' : `<label>${esc(part.name)}</label><labelAbbr>${esc(def.shortName)}</labelAbbr>`;
-    const tabLabel = part.hideLabel === true ? '' : '<label>Tab</label><labelAbbr>Tab</labelAbbr>';
+    // The description at the left of a line can be switched off per part (ADR 0041); without an abbreviation it stands at the first system only (ADR 0045).
+    const named = part.hideLabel === true ? '' : `<label>${esc(part.name)}</label>`;
+    const tabLabel = part.hideLabel === true ? '' : '<label>Tab</label>';
     const staffDef = (s: StaffSlot, withLabel: boolean, ind: string) =>
       s.tabPart
         ? `${ind}<staffDef n="${s.n}" lines="${GUITAR_STRINGS.length}" clef.shape="TAB" clef.line="3" keysig.visible="false" meter.visible="false">${named}</staffDef>`
@@ -601,12 +601,20 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
   const composer = score.composer
     ? `<respStmt><persName role="composer">${esc(score.composer)}</persName></respStmt>`
     : '';
+  // Title in the middle, the composer one line below at the right and smaller (ADR 0045); Verovio draws it on the first page only.
+  const pgHead =
+    score.title || score.composer
+      ? `      <pgHead func="first">${score.title ? `<rend halign="center" valign="top" fontsize="x-large">${esc(score.title)}</rend>` : ''}${
+          score.composer ? `<rend halign="right" fontsize="small">${esc(score.composer)}</rend>` : ''
+        }</pgHead>
+`
+      : '';
   const mei = `<?xml version="1.0" encoding="UTF-8"?>
 <mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.1">
   <meiHead><fileDesc><titleStmt><title>${esc(score.title)}</title>${composer}</titleStmt><pubStmt/></fileDesc></meiHead>
   <music><body><mdiv><score>
     <scoreDef meter.count="${first.sig.count}" meter.unit="${first.sig.unit}" keysig="${keysigAttr(first.fifths)}">
-${staffGrpXml(score, slots)}
+${pgHead}${staffGrpXml(score, slots)}
     </scoreDef>
     <section>
 ${body.join('\n')}

@@ -170,7 +170,7 @@ export function saveRollSynth(on: boolean): void {
   try {
     localStorage.setItem(ROLL_SYNTH_KEY, on ? '1' : '0');
   } catch {
-    // Storage unavailable – it starts off next time.
+    // Storage unavailable – it starts on next time.
   }
 }
 
@@ -217,12 +217,12 @@ export function saveMetronome(on: boolean): void {
 
 const A4_KEY = 'icastico.a4';
 
-/** Whether the score is shown on A4 pages while writing (remembered). */
+/** Whether the score is shown on A4 pages while writing (remembered; on unless switched off, ADR 0045). */
 export function loadA4(): boolean {
   try {
-    return localStorage.getItem(A4_KEY) === '1';
+    return localStorage.getItem(A4_KEY) !== '0';
   } catch {
-    return false;
+    return true;
   }
 }
 

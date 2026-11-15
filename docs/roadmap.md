@@ -14,7 +14,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Verovio-Rendering, Klick auf Note → Modell-Event (mit Toleranz)
 - [x] Demo-Partitur „Erste Skizze“
 
-## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.28.0)
+## Schritt 1 – Schnelle Eingabe (in Arbeit, v0.28.1)
 
 - [x] Command-System (reine Funktionen) mit Undo/Redo
 - [x] Eingabe-Cursor (blinkend; gestrichelt im Einfügemodus), springt hinter Schlüssel/Taktart
@@ -121,6 +121,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Rückmeldungen nach 0.26.0, Paket C: „Akkolade“ als Wort in der Oberfläche; Takte pro Akkolade auch für markierte Takte (Befehlspalette); Akkoladen pro Seite in Partitur-Einstellungen und PDF-Dialog, auch in der App-Anzeige (Seiten getrennt gezeichnet), Dateiformat 21 (ADR 0042)
 - [x] Rückmeldungen nach 0.26.0, Paket B: Pausen anklicken, mit V unsichtbar machen und mit ↑/↓ verschieben; Strg+Umschalt+H dreht die Halsrichtung; freier Text mit wählbarer Größe, per Maus überall hinziehbar (Befehlspalette), Dateiformat 22 (ADR 0043)
 - [x] Rückmeldungen nach 0.27.0: zwei Ebenen im Notensystem (Strg+Umschalt+1/2, gemeinsamer Notenkopf bei gleichen Tönen, Hälse oben/unten); Seitenaufbau-Fenster (Strg+Umschalt+A: Bereich, Takte pro Akkolade, Akkoladen pro Seite, Seitenränder; Ränder auch im Drucken-Fenster), Dateiformat 23; A4-Ansicht beim Schreiben (Strg+Umschalt+Y) (ADR 0044)
+- [x] Rückmeldungen nach 0.28.0: A4-Ansicht beim Schreiben als Standard; Titel mittig und Komponist rechtsbündig darunter (kleiner) über der Partitur, in Anzeige, PDF und Vorschaubild; Instrumentennamen nur vor der ersten Akkolade (ADR 0045)
 - [ ] Finale-Dateien (`.musx`) direkt lesen – verschlüsseltes Binärformat, bewusst zurückgestellt (ADR 0021)
 - [ ] Seitenlayout von Hand (Umbrüche, Systemabstand, Kopf-/Fußzeile), Tabulatur-Spieltechniken
 

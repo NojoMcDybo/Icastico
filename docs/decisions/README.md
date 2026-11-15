@@ -72,3 +72,4 @@ Was wird dadurch leichter, was schwerer?
 | 0042 | [Seitenaufbau: Takte pro Akkolade für markierte Takte, Akkoladen pro Seite](0042-seitenaufbau-akkoladen.md) | angenommen |
 | 0043 | [Pausen verstecken und verschieben, Halsrichtung, freie Texte](0043-pausen-halsrichtung-freie-texte.md) | angenommen |
 | 0044 | [Zwei Ebenen im Notensystem, Seitenaufbau-Fenster mit Seitenrändern, A4-Ansicht](0044-ebenen-seitenaufbau-a4-ansicht.md) | angenommen |
+| 0045 | [Titel und Komponist über der Partitur, Instrumentennamen nur am Anfang, A4-Ansicht als Standard](0045-kopfzeile-instrumentennamen-a4-standard.md) | angenommen |

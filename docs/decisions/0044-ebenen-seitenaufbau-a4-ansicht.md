@@ -19,7 +19,7 @@ Druckvorschau; (4) bei der Noteneingabe eine A4-Ansicht; (5) Gitarren-Tabulatur 
   (die kürzere Note zeigt ihre Länge nur über den Hals, Fähnchen oder Balken); sonst gefüllt. Beide Hälse bleiben (oben für Ebene 1, unten für Ebene 2).
   Andere Töne auf demselben Schlag stehen übereinander wie bisher.
 - **A4-Ansicht** (Strg+Umschalt+Y, bleibt gespeichert): die Seiten stehen im Verhältnis eines A4-Blatts, mit Seitenrändern und Akkoladen pro Seite wie beim Drucken.
-  Standardmäßig aus (die bisherige fortlaufende Seite).
+  Anfangs standardmäßig aus – seit ADR 0045 standardmäßig an.
 
 ## Umsetzung
 

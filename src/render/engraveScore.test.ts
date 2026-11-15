@@ -4,6 +4,7 @@ import { measuresOf, type Score } from '../core/model';
 import { parsePitch } from '../core/pitch';
 import { createScore, DEFAULT_SETUP, withBarsPerLine } from '../core/templates';
 import { engraveScore, systemStartsOf } from './engraveScore';
+import { getInstrument } from '../core/instruments';
 import { Engraver } from './verovio';
 
 /** A score of `bars` bars of one whole note each. */
@@ -74,5 +75,39 @@ describe('page margins (ADR 0044)', () => {
     const none = engraveScore(engraver, { ...score, layout: { margins: { top: 0, bottom: 0, left: 0, right: 0 } } }, {}, { pageWidth: 2100, scale: 40 }).engraved.pages[0]!;
     expect(staffLeft(wide)).toBeGreaterThan(staffLeft(plain));
     expect(staffLeft(none)).toBeLessThan(staffLeft(plain));
+  });
+});
+
+describe('title, composer and instrument names (ADR 0045)', () => {
+  let engraver: Engraver;
+  beforeAll(async () => {
+    engraver = await Engraver.create();
+  });
+  /** Position and size of the text line that holds `text`. */
+  const line = (svg: string, text: string) => {
+    const at = svg.indexOf(`>${text}<`);
+    expect(at).toBeGreaterThan(-1);
+    const head = svg.slice(0, at);
+    const size = Number(/font-size="(\d+)px"[^>]*$/.exec(head)![1]);
+    const pos = [...head.matchAll(/x="(\d+)" y="(\d+)"/g)].pop()!;
+    return { x: Number(pos[1]), y: Number(pos[2]), size };
+  };
+
+  it('the composer stands at the right, one line below the title and smaller', () => {
+    const score = { ...longScore(4), title: 'Mein Titel', composer: 'Max Muster' };
+    const svg = engraveScore(engraver, score, {}, { pageWidth: 2100, scale: 40, pageHeight: 2970 }).engraved.pages[0]!;
+    const title = line(svg, 'Mein Titel');
+    const composer = line(svg, 'Max Muster');
+    expect(composer.y).toBeGreaterThan(title.y);
+    expect(composer.x).toBeGreaterThan(title.x);
+    expect(composer.size).toBeLessThan(title.size);
+  });
+
+  it('the instrument name stands at the first Akkolade only', () => {
+    const score = { ...longScore(12), layout: { perSystem: 2 } };
+    const svg = engraveScore(engraver, score).engraved.pages[0]!;
+    expect(svg.match(/class="system"/g)!.length).toBeGreaterThan(2);
+    expect(svg.match(new RegExp(`>${score.parts[0]!.name}<`, 'g'))).toHaveLength(1);
+    expect(svg).not.toContain(`>${getInstrument(score.parts[0]!.instrument).shortName}<`);
   });
 });
