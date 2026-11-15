@@ -9,8 +9,10 @@ import type { Engraver } from '../render/verovio';
 
 export interface PdfSetup {
   readonly landscape: boolean;
-  /** Staff size in percent of Verovio's default. */
+  /** Staff size in percent of Verovio's default; 0 = as in the score on the screen (needs `like`; without it 60). */
   readonly scale: number;
+  /** The page of the score as the screen draws it (width in Verovio units and zoom): with `scale` 0 the print has exactly these lines and pages. */
+  readonly like?: { readonly pageWidth: number; readonly scale: number };
   /** Put short scores one below the other on shared pages instead of starting a page for each. */
   readonly pack: boolean;
   /** Bars per line for this print only: absent = as the score says, 0 = automatic. */
@@ -32,6 +34,18 @@ function shaped(score: Score, setup: PdfSetup): Score {
   const { layout: _own, ...rest } = score;
   const layout = normalizeLayout({ ...(perSystem !== undefined ? { perSystem } : {}), ...(breaks?.length ? { breaks } : {}), ...(systemsPerPage !== undefined ? { systemsPerPage } : {}), ...(margins ? { margins } : {}) });
   return layout ? { ...rest, layout } : rest;
+}
+
+/** The page in Verovio units and the zoom of the drawing: of the screen (ADR 0046) or of a fixed staff size. */
+function geometry(setup: PdfSetup): { unitsW: number; unitsH: number; scale: number } {
+  if (setup.scale === 0 && setup.like) {
+    const w = setup.like.pageWidth;
+    const long = Math.round((w * 297) / 210);
+    return { unitsW: setup.landscape ? long : w, unitsH: setup.landscape ? w : long, scale: setup.like.scale };
+  }
+  const scale = setup.scale || 60;
+  // The page in 1/10 mm at 100 %; at a smaller staff size the engraver gets a page that is that much larger.
+  return { unitsW: (setup.landscape ? 2970 : 2100) * (100 / scale), unitsH: (setup.landscape ? 2100 : 2970) * (100 / scale), scale };
 }
 
 export const SIZES: readonly { readonly label: string; readonly scale: number }[] = [
@@ -86,18 +100,15 @@ const jpegOf = (canvas: HTMLCanvasElement): Promise<Uint8Array> =>
 
 /** The pages of one score as SVG at A4 size, for printing (the system's print dialog can also save a PDF). */
 export function printPages(engraver: Engraver, score: Score, setup: PdfSetup): string[] {
-  const unitsW = (setup.landscape ? 2970 : 2100) * (100 / setup.scale);
-  const unitsH = (setup.landscape ? 2100 : 2970) * (100 / setup.scale);
-  return [...engraveScore(engraver, shaped(score, setup), {}, { pageWidth: unitsW, pageHeight: unitsH, scale: setup.scale }).engraved.pages];
+  const { unitsW, unitsH, scale } = geometry(setup);
+  return [...engraveScore(engraver, shaped(score, setup), {}, { pageWidth: unitsW, pageHeight: unitsH, scale }).engraved.pages];
 }
 
 /** The PDF of one or several scores. Each score is engraved on its own; with `pack`, pages are filled one score after the other. */
 export async function scoresToPdf(engraver: Engraver, scores: readonly Score[], setup: PdfSetup, title: string): Promise<Uint8Array> {
   const pageW = setup.landscape ? Math.round((SHORT_SIDE_PX * A4_POINTS.height) / A4_POINTS.width) : SHORT_SIDE_PX;
   const pageH = setup.landscape ? SHORT_SIDE_PX : Math.round((SHORT_SIDE_PX * A4_POINTS.height) / A4_POINTS.width);
-  // The page in 1/10 mm at 100 %; at a smaller staff size the engraver gets a page that is that much larger.
-  const unitsW = (setup.landscape ? 2970 : 2100) * (100 / setup.scale);
-  const unitsH = (setup.landscape ? 2100 : 2970) * (100 / setup.scale);
+  const { unitsW, unitsH, scale } = geometry(setup);
 
   const pages: PdfPage[] = [];
   let canvas: HTMLCanvasElement | null = null;
@@ -127,8 +138,8 @@ export async function scoresToPdf(engraver: Engraver, scores: readonly Score[], 
 
   for (const score of scores) {
     const { engraved } = engraveScore(engraver, shaped(score, setup), {}, setup.pack
-      ? { pageWidth: unitsW, scale: setup.scale }
-      : { pageWidth: unitsW, pageHeight: unitsH, scale: setup.scale });
+      ? { pageWidth: unitsW, scale }
+      : { pageWidth: unitsW, pageHeight: unitsH, scale });
     const blocks: Block[] = engraved.pages.map((svg) => ({ svg, ...sizeOf(svg) }));
     for (const block of blocks) {
       if (setup.pack) {

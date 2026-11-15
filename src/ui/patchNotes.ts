@@ -12,6 +12,15 @@ export interface PatchNote {
 /** Newest first. Keep each line to one short sentence. */
 export const PATCH_NOTES: readonly PatchNote[] = [
   {
+    version: '0.28.2',
+    items: [
+      'Gleich breite Takte: Akkoladen mit gleicher Taktzahl haben ihre Taktstriche genau übereinander.',
+      'Drucken/PDF: „Notengröße: wie in der Partitur“ (voreingestellt) übernimmt Zeilen, Seiten und Ränder der Ansicht.',
+      'Tabulatur: zwei Wiederholungspunkte und ein Punkt hinter punktierten Zahlen.',
+      'Eine Zeile mehr Platz zwischen Komponist und erster Akkolade.',
+    ],
+  },
+  {
     version: '0.28.1',
     items: [
       'Die A4-Ansicht ist jetzt beim Schreiben standardmäßig an (Strg+Umschalt+Y schaltet sie aus).',

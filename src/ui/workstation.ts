@@ -246,6 +246,8 @@ export class Workstation {
   /** The score is shown on A4 pages (ADR 0044). */
   private a4 = loadA4();
   private renderedA4 = false;
+  /** The page of the score as drawn on the screen (Verovio units and zoom): the print takes it over (ADR 0046). */
+  private viewUnits = { pageWidth: Math.round((1100 * 100) / SCALE), scale: SCALE };
   private renderedZoom = 0;
   /** Where playback starts and where it is: follows the selection while stopped, the clock while playing. */
   private playPos: Fraction = ZERO;
@@ -942,10 +944,10 @@ export class Workstation {
       scoreCount: scores.length,
       initial: loadPdfSetup(),
       canPrint: scores.length === 1,
-      preview: (setup) => printPages(this.engraver, first, { ...setup, pack: false }),
+      preview: (setup) => printPages(this.engraver, first, { ...setup, like: this.viewUnits, pack: false }),
     });
     if (!choice) return this.update();
-    const { setup } = choice;
+    const setup: PdfSetup = { ...choice.setup, like: this.viewUnits };
     savePdfSetup({ landscape: setup.landscape, scale: setup.scale, pack: setup.pack });
     if (choice.action === 'print') {
       this.printPagesOf(first, setup);
@@ -2682,6 +2684,7 @@ export class Workstation {
 
     const started = performance.now();
     const scale = Math.max(10, Math.round((SCALE * this.zoom) / 100));
+    this.viewUnits = { pageWidth: Math.round((width * 100) / scale), scale };
     const { mei: result, engraved } = engraveScore(this.engraver, s.score, { ...(coverTime ? { coverTime } : {}), hiddenStaves: hidden, showHiddenRests: true }, {
       pageWidth: Math.round((width * 100) / scale),
       // A4 view: pages of the proportions of a sheet, so margins and Akkoladen per page look as they will print.

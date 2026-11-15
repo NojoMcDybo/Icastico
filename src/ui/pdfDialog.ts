@@ -47,6 +47,7 @@ export function pdfDialog(options: PrintDialogOptions): Promise<PrintChoice | nu
     format.value = options.initial.landscape ? 'landscape' : 'portrait';
 
     const size = el('select', { id: 'pdf-size' });
+    size.append(el('option', { value: '0', textContent: 'wie in der Partitur' }));
     for (const s of SIZES) size.append(el('option', { value: String(s.scale), textContent: s.label }));
     size.value = String(options.initial.scale);
 

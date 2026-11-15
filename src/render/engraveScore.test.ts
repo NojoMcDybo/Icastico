@@ -111,3 +111,48 @@ describe('title, composer and instrument names (ADR 0045)', () => {
     expect(svg).not.toContain(`>${getInstrument(score.parts[0]!.instrument).shortName}<`);
   });
 });
+
+describe('equally wide bars (ADR 0046)', () => {
+  let engraver: Engraver;
+  beforeAll(async () => {
+    engraver = await Engraver.create();
+  });
+  /** Right end of every bar (as the staff lines end) of every Akkolade. */
+  const barEnds = (svg: string): number[][] =>
+    svg
+      .split('class="system"')
+      .slice(1)
+      .map((system) => system.split('class="measure"').slice(1).map((measure) => Number(/class="staff"[^>]*>\s*<path d="M\d+ \d+ L(\d+) \d+"/.exec(measure)![1])));
+
+  /** Bars with whole notes and bars with eight eighth notes, so Verovio gives them very different widths. */
+  function uneven(bars: number): Score {
+    const base = createScore(DEFAULT_SETUP);
+    const part = base.parts[0]!;
+    const events = Array.from({ length: bars }, (_, i) =>
+      i % 2 === 0
+        ? [{ id: `w${i}`, onset: frac(i, 1), duration: frac(1, 1), tones: [{ id: `w${i}-t`, pitch: parsePitch('C4') }] }]
+        : Array.from({ length: 8 }, (_, k) => ({ id: `e${i}-${k}`, onset: frac(i * 8 + k, 8), duration: frac(1, 8), tones: [{ id: `e${i}-${k}-t`, pitch: parsePitch(k % 2 ? 'D4' : 'E4') }] })),
+    ).flat();
+    return { ...base, parts: [{ ...part, voices: [{ ...part.voices[0]!, events }, ...part.voices.slice(1)] }, ...base.parts.slice(1)], layout: { perSystem: 3 } };
+  }
+
+  it('Akkoladen with the same number of bars have their barlines at the same places', () => {
+    const svg = engraveScore(engraver, uneven(9), {}, { pageWidth: 2100, scale: 40, pageHeight: 2970 }).engraved.pages[0]!;
+    const ends = barEnds(svg);
+    expect(ends).toHaveLength(3);
+    for (const e of ends) expect(e).toHaveLength(3);
+    for (let n = 0; n < 3; n++) {
+      expect(Math.abs(ends[1]![n]! - ends[0]![n]!)).toBeLessThan(2);
+      expect(Math.abs(ends[2]![n]! - ends[0]![n]!)).toBeLessThan(2);
+    }
+    // all bars after the first one are equally wide
+    expect(Math.abs(ends[0]![2]! - ends[0]![1]! - (ends[0]![1]! - ends[0]![0]!))).toBeLessThan(2);
+  });
+
+  it('a last Akkolade with fewer bars is left alone, and the staff still ends at the same right edge', () => {
+    const svg = engraveScore(engraver, uneven(8), {}, { pageWidth: 2100, scale: 40, pageHeight: 2970 }).engraved.pages[0]!;
+    const ends = barEnds(svg);
+    expect(ends.map((e) => e.length)).toEqual([3, 3, 2]);
+    expect(ends[2]![1]).toBe(ends[0]![2]);
+  });
+});

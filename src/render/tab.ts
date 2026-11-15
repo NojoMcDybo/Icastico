@@ -28,8 +28,42 @@ export function applyTabNumbers(svg: string, numbers: ReadonlyMap<string, string
     const patch = `<rect x="${cx - width / 2}" y="${y - 110}" width="${width}" height="220" fill="#fff" />`;
     const label = `<text x="${cx}" y="${y + 75}" font-size="215" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" class="tabnumber">${text}</text>`;
     out = out.slice(0, use) + patch + label + out.slice(end + 2);
+    out = moveDots(out, start, cx + width / 2, y);
   }
   return out;
+}
+
+/**
+ * A dotted note: Verovio puts the dot in the space above the string line, small and far from the number. Here it is
+ * taken out and drawn again right behind the number, level with it (on a patch, so the string line does not cut it).
+ */
+function moveDots(svg: string, from: number, right: number, y: number): string {
+  const own = svg.indexOf('class="note"', from) + 'class="note"'.length; // the note's own tag does not count
+  const next = svg.slice(own).search(/class="(?:note|rest|chord|beam|barLine|mRest)"/);
+  const limit = next < 0 ? svg.length : own + next;
+  const group = /<g id="[^"]*" class="dots">\s*((?:<ellipse [^>]*\/>\s*)+)<\/g>/g;
+  group.lastIndex = from;
+  const found = group.exec(svg);
+  if (!found || found.index >= limit) return svg;
+  const count = (found[1]!.match(/<ellipse /g) ?? []).length;
+  let drawn = '';
+  for (let k = 0; k < count; k++) {
+    const cx = right + 75 + k * 110;
+    drawn += `<circle cx="${cx}" cy="${y}" r="75" fill="#fff" /><circle cx="${cx}" cy="${y}" r="38" class="tabdot" />`;
+  }
+  return svg.slice(0, found.index) + drawn + svg.slice(found.index + found[0].length);
+}
+
+/**
+ * Repeat signs on a six-line tablature staff: Verovio puts three dots in (spaces 2–3, 3–4, 4–5), a printed tab has two –
+ * one below the second line from the top, one above the second line from the bottom. The middle one goes.
+ */
+export function trimRepeatDots(svg: string): string {
+  const dot = String.raw`<use xlink:href="#E044-[^"]*" transform="translate\((\d+), (\d+)\)[^>]*\/>`;
+  const three = new RegExp(String.raw`(${dot}\s*)(${dot}\s*)(${dot})`, 'g');
+  return svg.replace(three, (all, a: string, ax: string, ay: string, _b: string, bx: string, by: string, c: string, cx: string, cy: string) =>
+    ax === bx && bx === cx && Number(by) - Number(ay) === Number(cy) - Number(by) ? a + c : all,
+  );
 }
 
 export interface TabStaff {
@@ -78,5 +112,5 @@ export function applyTabClefs(svg: string, staffs: readonly TabStaff[]): string 
     out += svg.slice(from, begin) + chunk;
     from = end;
   });
-  return out + svg.slice(from);
+  return trimRepeatDots(out + svg.slice(from));
 }

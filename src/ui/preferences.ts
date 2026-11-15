@@ -69,7 +69,7 @@ export function saveLastOpened(path: string): void {
   }
 }
 
-const PDF = 'icastico.pdf';
+const PDF = 'icastico.pdf.v2'; // v2: the size "wie in der Partitur" became the first choice (ADR 0046)
 
 /** The page setup of the last PDF export. */
 export function loadPdfSetup(): { landscape: boolean; scale: number; pack: boolean } {
@@ -77,12 +77,12 @@ export function loadPdfSetup(): { landscape: boolean; scale: number; pack: boole
     const raw: unknown = JSON.parse(localStorage.getItem(PDF) ?? 'null');
     if (typeof raw === 'object' && raw !== null) {
       const o = raw as Record<string, unknown>;
-      return { landscape: o.landscape === true, scale: [45, 60, 75].includes(Number(o.scale)) ? Number(o.scale) : 60, pack: o.pack === true };
+      return { landscape: o.landscape === true, scale: [0, 45, 60, 75].includes(Number(o.scale)) ? Number(o.scale) : 0, pack: o.pack === true };
     }
   } catch {
     // fall through to the default
   }
-  return { landscape: false, scale: 60, pack: false };
+  return { landscape: false, scale: 0, pack: false };
 }
 
 export function savePdfSetup(setup: { landscape: boolean; scale: number; pack: boolean }): void {

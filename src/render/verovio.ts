@@ -5,6 +5,7 @@
  */
 import createVerovioModule from 'verovio/wasm';
 import { VerovioToolkit } from 'verovio/esm';
+import { dropRepeatedLabels, equalizeBars } from './equalBars';
 import { applyTabClefs, applyTabNumbers, type TabStaff } from './tab';
 
 export interface EngraveOptions {
@@ -12,6 +13,8 @@ export interface EngraveOptions {
   readonly pageWidth?: number;
   /** Zoom in percent. */
   readonly scale?: number;
+  /** Minimal width of a bar in Verovio units (half a staff space), so bars of lines with the same number of bars come out equally wide (ADR 0046). */
+  readonly measureMinWidth?: number;
   /** Fixed page height (e.g. A4 preview pictures); default: as tall as the music. */
   readonly pageHeight?: number;
   /** Page margins in mm (ADR 0044); absent = 6 mm at the default size. */
@@ -55,6 +58,7 @@ export class Engraver {
       svgViewBox: true,
       // Justify every system, including the last one.
       minLastJustification: 0,
+      ...(options.measureMinWidth ? { measureMinWidth: options.measureMinWidth } : {}),
       pageMarginTop: unit(options.margins?.top),
       pageMarginBottom: unit(options.margins?.bottom),
       pageMarginLeft: unit(options.margins?.left),
@@ -67,7 +71,9 @@ export class Engraver {
     const count = this.toolkit.getPageCount();
     for (let page = 1; page <= count; page++) {
       const svg = this.toolkit.renderToSVG(page, false);
-      const numbered = options.tab?.size ? applyTabNumbers(svg, options.tab) : svg;
+      // The names of the instruments stand at the first Akkolade only; consecutive Akkoladen with as many bars get bars of equal width.
+      const tidy = equalizeBars(dropRepeatedLabels(svg, page === 1));
+      const numbered = options.tab?.size ? applyTabNumbers(tidy, options.tab) : tidy;
       pages.push(options.tabStaffs?.length ? applyTabClefs(numbered, options.tabStaffs) : numbered);
     }
     return { pages, log: this.toolkit.getLog().trim() };

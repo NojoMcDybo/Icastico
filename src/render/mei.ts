@@ -257,9 +257,9 @@ function staffGrpXml(score: Score, slots: StaffSlot[]): string {
       lines.push(`        <staffGrp symbol="${group.symbol}" bar.thru="true">`);
       open = part.id;
     }
-    // The description at the left of a line can be switched off per part (ADR 0041); without an abbreviation it stands at the first system only (ADR 0045).
-    const named = part.hideLabel === true ? '' : `<label>${esc(part.name)}</label>`;
-    const tabLabel = part.hideLabel === true ? '' : '<label>Tab</label>';
+    // The description at the left of a line can be switched off per part (ADR 0041); the name is also the abbreviation, so every system starts at the same place – the repeated names are taken out of the drawing again (ADR 0045, 0046).
+    const named = part.hideLabel === true ? '' : `<label>${esc(part.name)}</label><labelAbbr>${esc(part.name)}</labelAbbr>`;
+    const tabLabel = part.hideLabel === true ? '' : '<label>Tab</label><labelAbbr>Tab</labelAbbr>';
     const staffDef = (s: StaffSlot, withLabel: boolean, ind: string) =>
       s.tabPart
         ? `${ind}<staffDef n="${s.n}" lines="${GUITAR_STRINGS.length}" clef.shape="TAB" clef.line="3" keysig.visible="false" meter.visible="false">${named}</staffDef>`
@@ -601,11 +601,11 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
   const composer = score.composer
     ? `<respStmt><persName role="composer">${esc(score.composer)}</persName></respStmt>`
     : '';
-  // Title in the middle, the composer one line below at the right and smaller (ADR 0045); Verovio draws it on the first page only.
+  // Title in the middle, the composer one line below at the right and smaller, then an empty line (ADR 0045); Verovio draws it on the first page only.
   const pgHead =
     score.title || score.composer
       ? `      <pgHead func="first">${score.title ? `<rend halign="center" valign="top" fontsize="x-large">${esc(score.title)}</rend>` : ''}${
-          score.composer ? `<rend halign="right" fontsize="small">${esc(score.composer)}</rend>` : ''
+          score.composer ? `<rend halign="right" fontsize="small">${esc(score.composer)}</rend><rend halign="right" fontsize="small">&#160;</rend>` : ''
         }</pgHead>
 `
       : '';
