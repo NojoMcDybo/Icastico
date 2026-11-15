@@ -39,6 +39,7 @@ import { applyRollEdit } from './rollEdits';
 import { deleteRange, extendRange, rangeSpan, selectAllNotes } from './range';
 import { toggleTabAnywhere, translateToTab } from './tabOps';
 import { eraseRests, flipStems, hideRests, shiftRests } from './layoutOps';
+import { chooseLayer } from './layerOps';
 import { moveToString, setFret } from './tabEdit';
 import { freshLinkId, linksOf, withLinks, withValidLinks } from './linkOps';
 import { clearRange, insertSorted, makeRoom } from './voiceOps';
@@ -1210,6 +1211,7 @@ export const COMMANDS = {
   'edit.delete': { title: 'Note löschen', run: deleteNote },
   'edit.backspace': { title: 'Zurück löschen', run: backspace },
   'edit.step': { title: 'Tonhöhe um eine Stufe (bei einer gewählten Pause: die Pause verschieben)', run: step },
+  'input.layer': { title: 'Ebene 1 oder 2 im selben Notensystem (Eingabe dort fortsetzen)', run: chooseLayer },
   'stem.flip': { title: 'Halsrichtung der markierten Noten umdrehen', run: flipStems },
   'rest.hide': { title: 'Gewählte Pause(n) unsichtbar machen / wieder zeigen', run: hideRests },
   'edit.octave': { title: 'Tonhöhe um eine Oktave', run: octave },

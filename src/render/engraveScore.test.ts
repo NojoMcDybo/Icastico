@@ -58,3 +58,21 @@ describe('bars per Akkolade for marked bars', () => {
     expect(next.layout).toEqual({ breaks: [1, 2, 4, 8], systemsPerPage: 3 });
   });
 });
+
+describe('page margins (ADR 0044)', () => {
+  let engraver: Engraver;
+  beforeAll(async () => {
+    engraver = await Engraver.create();
+  });
+  /** Where the first staff line starts, in the units of the drawing. */
+  const staffLeft = (svg: string): number => Number(/class="page-margin" transform="translate\((\d+),/.exec(svg)![1]);
+
+  it('a wider margin pushes the music in from the edge of the page', () => {
+    const score = longScore(4);
+    const plain = engraveScore(engraver, score, {}, { pageWidth: 2100, scale: 40 }).engraved.pages[0]!;
+    const wide = engraveScore(engraver, { ...score, layout: { margins: { top: 6, bottom: 6, left: 30, right: 6 } } }, {}, { pageWidth: 2100, scale: 40 }).engraved.pages[0]!;
+    const none = engraveScore(engraver, { ...score, layout: { margins: { top: 0, bottom: 0, left: 0, right: 0 } } }, {}, { pageWidth: 2100, scale: 40 }).engraved.pages[0]!;
+    expect(staffLeft(wide)).toBeGreaterThan(staffLeft(plain));
+    expect(staffLeft(none)).toBeLessThan(staffLeft(plain));
+  });
+});

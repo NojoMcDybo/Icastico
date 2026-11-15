@@ -14,6 +14,8 @@ export interface EngraveOptions {
   readonly scale?: number;
   /** Fixed page height (e.g. A4 preview pictures); default: as tall as the music. */
   readonly pageHeight?: number;
+  /** Page margins in mm (ADR 0044); absent = 6 mm at the default size. */
+  readonly margins?: { readonly top: number; readonly bottom: number; readonly left: number; readonly right: number };
   /** Tablature notes (xml:id → fret number) to draw as numbers, from `scoreToMei`. */
   readonly tab?: ReadonlyMap<string, string>;
   /** The tablature staves, to get their "TAB" and tuning, from `scoreToMei`. */
@@ -39,6 +41,8 @@ export class Engraver {
   }
 
   engrave(mei: string, options: EngraveOptions = {}): EngraveResult {
+    // Verovio counts in units that shrink with the zoom: 1 mm of paper is 10 units at 100 %.
+    const unit = (mm: number | undefined) => (mm === undefined ? 60 : Math.min(500, Math.round((mm * 10 * 100) / (options.scale ?? 40))));  // Verovio allows 0 to 500
     this.toolkit.setOptions({
       pageWidth: options.pageWidth ?? 2100,
       scale: options.scale ?? 40,
@@ -51,10 +55,10 @@ export class Engraver {
       svgViewBox: true,
       // Justify every system, including the last one.
       minLastJustification: 0,
-      pageMarginTop: 60,
-      pageMarginBottom: 60,
-      pageMarginLeft: 60,
-      pageMarginRight: 60,
+      pageMarginTop: unit(options.margins?.top),
+      pageMarginBottom: unit(options.margins?.bottom),
+      pageMarginLeft: unit(options.margins?.left),
+      pageMarginRight: unit(options.margins?.right),
     });
     if (!this.toolkit.loadData(mei)) {
       throw new Error(`Verovio konnte die Partitur nicht laden:\n${this.toolkit.getLog()}`);

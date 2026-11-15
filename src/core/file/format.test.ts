@@ -25,6 +25,7 @@ import version18File from './fixtures/version18.icastico?raw';
 import version19File from './fixtures/version19.icastico?raw';
 import version20File from './fixtures/version20.icastico?raw';
 import version21File from './fixtures/version21.icastico?raw';
+import version22File from './fixtures/version22.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -707,5 +708,30 @@ describe('format version 22: hand-placed rests, stems and texts', () => {
     expect(() => parseScoreFile(text({ size: 3 }))).toThrow(/Textgröße/);
     expect(() => parseScoreFile(text({ text: '  ' }))).toThrow(/nicht leer/);
     expect(() => parseScoreFile(text({ dx: 'links' }))).toThrow();
+  });
+});
+
+describe('format version 23: page margins', () => {
+  it('opens files saved with format version 22 and saves them as the current version', () => {
+    const score = parseScoreFile(version22File);
+    expect(fileVersion(version22File)).toBe(22);
+    expect(score.layout?.margins).toBeUndefined();
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  it('keeps the margins of the layout and refuses ones that do not make sense', () => {
+    const base = parseScoreFile(version22File);
+    const withMargins = (margins: unknown): string => {
+      const doc = JSON.parse(serializeScore(base, '0')) as { score: { layout?: Record<string, unknown> } };
+      doc.score.layout = { ...doc.score.layout, margins };
+      return JSON.stringify(doc);
+    };
+    const back = parseScoreFile(withMargins({ top: 10, bottom: 12, left: 20, right: 0 }));
+    expect(back.layout).toEqual({ perSystem: 4, systemsPerPage: 2, margins: { top: 10, bottom: 12, left: 20, right: 0 } });
+    expect(parseScoreFile(serializeScore(back, '0'))).toEqual(back);
+    expect(() => parseScoreFile(withMargins({ top: 99, bottom: 0, left: 0, right: 0 }))).toThrow(/Seitenränder/);
+    expect(() => parseScoreFile(withMargins({ top: 1, bottom: 1, left: 1 }))).toThrow();
   });
 });

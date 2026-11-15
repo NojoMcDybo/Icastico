@@ -27,6 +27,7 @@ export function engraveScore(
   options: EngraveOptions = {},
 ): { readonly mei: MeiResult; readonly engraved: EngraveResult } {
   const per = score.layout?.systemsPerPage;
+  options = score.layout?.margins && !options.margins ? { ...options, margins: score.layout.margins } : options;
   const first = scoreToMei(score, meiOptions);
   const run = (mei: MeiResult) => engraver.engrave(mei.mei, { ...options, tab: mei.tab, tabStaffs: mei.tabStaffs });
   if (per === undefined || per < 1) return { mei: first, engraved: run(first) };

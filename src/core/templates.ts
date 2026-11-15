@@ -8,12 +8,14 @@ import { type InstrumentId, getInstrument } from './instruments';
 import {
   type KeyChange,
   type MeterChange,
+  type PageMargins,
   type Part,
   type Score,
   type TimeSignature,
   measureLength,
   measureStart,
   measuresOf,
+  normalizeLayout,
   validateScore,
 } from './model';
 import { durationName } from './notation/notate';
@@ -138,7 +140,22 @@ export function withBarsPerLine(score: Score, starts: readonly number[], from: n
   if (to + 1 < count) breaks.add(to + 1);
   const sorted = [...breaks].filter((i) => i > 0 && i < count).sort((a, b) => a - b);
   const { layout: old, ...rest } = score;
-  return { ...rest, layout: { breaks: sorted, ...(old?.systemsPerPage !== undefined ? { systemsPerPage: old.systemsPerPage } : {}) } };
+  return { ...rest, layout: { breaks: sorted, ...(old?.systemsPerPage !== undefined ? { systemsPerPage: old.systemsPerPage } : {}), ...(old?.margins !== undefined ? { margins: old.margins } : {}) } };
+}
+
+/**
+ * Changes to the page layout (ADR 0042, 0044): bars per Akkolade for the whole piece (0 = automatic; it replaces written line
+ * breaks), Akkoladen per page (0 = as many as fit), page margins. What is not given stays.
+ */
+export function withLayoutChanges(score: Score, c: { perSystem?: number; systemsPerPage?: number; margins?: PageMargins }): Score {
+  const old = score.layout;
+  const perSystem = c.perSystem !== undefined ? (c.perSystem >= 1 ? c.perSystem : undefined) : old?.perSystem;
+  const breaks = c.perSystem !== undefined ? undefined : old?.breaks;
+  const systemsPerPage = c.systemsPerPage !== undefined ? (c.systemsPerPage >= 1 ? c.systemsPerPage : undefined) : old?.systemsPerPage;
+  const margins = c.margins ?? old?.margins;
+  const { layout: _old, ...rest } = score;
+  const layout = normalizeLayout({ ...(perSystem !== undefined ? { perSystem } : {}), ...(breaks ? { breaks } : {}), ...(systemsPerPage !== undefined ? { systemsPerPage } : {}), ...(margins ? { margins } : {}) });
+  return layout ? { ...rest, layout } : rest;
 }
 
 /** Drops entries that repeat the value of the entry before them. */
@@ -213,14 +230,7 @@ export function applyScoreChanges(score: Score, changes: ScoreChanges): { score:
   for (const add of changes.addInstruments ?? []) next = addInstrument(next, add.instrument, add.tab ?? false).score;
   if (next.parts.length === 0) return { error: 'Mindestens ein Instrument muss bleiben.' };
   if (changes.perSystem !== undefined || changes.systemsPerPage !== undefined) {
-    const old = next.layout;
-    const perSystem = changes.perSystem !== undefined ? (changes.perSystem >= 1 ? changes.perSystem : undefined) : old?.perSystem;
-    const breaks = changes.perSystem !== undefined ? undefined : old?.breaks;
-    const systemsPerPage = changes.systemsPerPage !== undefined ? (changes.systemsPerPage >= 1 ? changes.systemsPerPage : undefined) : old?.systemsPerPage;
-    const { layout: _old, ...rest } = next;
-    next = perSystem !== undefined || breaks?.length || systemsPerPage !== undefined
-      ? { ...rest, layout: { ...(perSystem !== undefined ? { perSystem } : {}), ...(breaks?.length ? { breaks } : {}), ...(systemsPerPage !== undefined ? { systemsPerPage } : {}) } }
-      : rest;
+    next = withLayoutChanges(next, { ...(changes.perSystem !== undefined ? { perSystem: changes.perSystem } : {}), ...(changes.systemsPerPage !== undefined ? { systemsPerPage: changes.systemsPerPage } : {}) });
   }
 
   const from = changes.fromMeasure ?? 1;

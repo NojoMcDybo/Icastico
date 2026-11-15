@@ -768,6 +768,14 @@
           "via": "Zeichen-Menü (Strg+J): Tempo-Anweisungen → ♩ = …"
         },
         {
+          "id": "input.layer",
+          "title": "Ebene 1 oder 2 im selben Notensystem: die Eingabe dort fortsetzen (Ebene 1: Hälse nach oben, Ebene 2: nach unten)",
+          "command": "input.layer",
+          "args": { "1": "Ebene 1 (Hälse nach oben)", "2": "Ebene 2 (Hälse nach unten)" },
+          "finale": { "keys": { "1": ["Mod+Shift+1"], "2": ["Mod+Shift+2"] }, "source": "annahme", "note": "Wunsch aus der Rückmelderunde; in Finale heißen die Ebenen „Layer“." },
+          "logic": { "keys": { "1": ["Mod+Shift+1"], "2": ["Mod+Shift+2"] }, "source": "icastico" }
+        },
+        {
           "id": "stem.flip",
           "title": "Halsrichtung der markierten Noten umdrehen (nochmal: wieder automatisch)",
           "command": "stem.flip",
@@ -782,10 +790,18 @@
           "logic": { "keys": ["V"], "source": "icastico" }
         },
         {
-          "id": "layout.range",
-          "title": "Takte pro Akkolade für die markierten Takte (sonst den Takt der gewählten Note)",
-          "command": "layout.range",
-          "via": "Befehlspalette (Strg+K): „Takte pro Akkolade für markierte Takte“; für das ganze Stück: Partitur-Einstellungen"
+          "id": "view.a4",
+          "title": "A4-Ansicht beim Schreiben an / aus (Seiten wie beim Drucken: Seitenränder, Akkoladen pro Seite)",
+          "command": "view.a4",
+          "finale": { "keys": ["Mod+Shift+Y"], "source": "annahme", "note": "Wunsch aus der Rückmelderunde." },
+          "logic": { "keys": ["Mod+Shift+Y"], "source": "icastico" }
+        },
+        {
+          "id": "layout.page",
+          "title": "Seitenaufbau: Takte pro Akkolade (ganzes Stück oder bestimmte Takte), Akkoladen pro Seite, Seitenränder",
+          "command": "layout.page",
+          "finale": { "keys": ["Mod+Shift+A"], "source": "annahme", "note": "Wunsch aus der Rückmelderunde: ein Kürzel für ein Fenster, in dem man Bereich und Takte pro Akkolade einstellt." },
+          "logic": { "keys": ["Mod+Shift+A"], "source": "icastico" }
         },
         {
           "id": "text.free",

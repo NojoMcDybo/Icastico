@@ -14,7 +14,7 @@ import { type Fraction, compare, fracToString, parseFrac } from '../time';
 import { parsePitch, pitchToString } from '../pitch';
 import { CLEF_IDS, type ClefId, type InstrumentId, INSTRUMENTS } from '../instruments';
 import { type Curve, type CurveKind, DEFAULT_VOLUME, curveProblem } from '../curve';
-import { type BarMark, type FreeText, type RestMark, type ScoreLayout, type Link, type NoteEvent, type Part, type Score, type Tone, type Voice, validateScore } from '../model';
+import { type BarMark, type FreeText, type RestMark, type ScoreLayout, type Link, type NoteEvent, type Part, type Score, type Tone, type Voice, normalizeLayout, validateScore } from '../model';
 import { MAX_VERSES } from '../lyrics';
 
 export const FILE_EXTENSION = 'icastico';
@@ -38,9 +38,10 @@ export const FILE_EXTENSION = 'icastico';
  * 19 = optional `clefs` per part: clef changes at the start of a bar (ADR 0040),
  * 20 = optional `hideLabel` per part: no description at the left of the line (ADR 0041),
  * 21 = optional `layout.systemsPerPage`: how many Akkoladen stand on a page (ADR 0042),
- * 22 = optional `rests` per voice (hidden / moved rests), `stem` per note, `texts` per score (ADR 0043).
+ * 22 = optional `rests` per voice (hidden / moved rests), `stem` per note, `texts` per score (ADR 0043),
+ * 23 = optional `layout.margins`: the page margins in mm (ADR 0044).
  */
-export const FORMAT_VERSION = 22;
+export const FORMAT_VERSION = 23;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -62,7 +63,7 @@ function scoreToJson(score: Score): unknown {
     ...(score.tempo !== undefined ? { tempo: score.tempo } : {}),
     ...(score.tempos && score.tempos.length > 0 ? { tempos: score.tempos.map((t) => ({ at: fracToString(t.at), bpm: t.bpm })) } : {}),
     ...(score.texts?.length ? { texts: score.texts.map((t) => ({ id: t.id, part: t.partId, staff: t.staff, at: fracToString(t.at), text: t.text, size: t.size, dx: t.dx, dy: t.dy })) } : {}),
-    ...(score.layout && (score.layout.perSystem !== undefined || score.layout.breaks?.length || score.layout.systemsPerPage !== undefined) ? { layout: { ...(score.layout.perSystem !== undefined ? { perSystem: score.layout.perSystem } : {}), ...(score.layout.breaks?.length ? { breaks: [...score.layout.breaks] } : {}), ...(score.layout.systemsPerPage !== undefined ? { systemsPerPage: score.layout.systemsPerPage } : {}) } } : {}),
+    ...(score.layout && normalizeLayout(score.layout) ? { layout: { ...(score.layout.perSystem !== undefined ? { perSystem: score.layout.perSystem } : {}), ...(score.layout.breaks?.length ? { breaks: [...score.layout.breaks] } : {}), ...(score.layout.systemsPerPage !== undefined ? { systemsPerPage: score.layout.systemsPerPage } : {}), ...(score.layout.margins ? { margins: { ...score.layout.margins } } : {}) } } : {}),
     ...(score.marks?.length ? { marks: score.marks.map((m) => ({ at: fracToString(m.at), kind: m.kind, ...(m.exact ? { exact: true } : {}) })) } : {}),
     ...(score.groups?.length ? { groups: score.groups.map((g) => ({ symbol: g.symbol, parts: [...g.parts] })) } : {}),
     ...(score.chords?.length ? { chords: score.chords.map((c) => ({ at: fracToString(c.at), text: c.text })) } : {}),
@@ -160,7 +161,10 @@ function readLayout(v: unknown): { layout?: ScoreLayout } {
   const perSystem = o.perSystem !== undefined ? int(o.perSystem, 'Takte pro Zeile') : undefined;
   const breaks = o.breaks !== undefined ? arr(o.breaks, 'Zeilenumbrüche').map((b, i) => int(b, `Zeilenumbruch ${i + 1}`)) : undefined;
   const systemsPerPage = o.systemsPerPage !== undefined ? int(o.systemsPerPage, 'Akkoladen pro Seite') : undefined;
-  return perSystem === undefined && !breaks?.length && systemsPerPage === undefined ? {} : { layout: { ...(perSystem !== undefined ? { perSystem } : {}), ...(breaks?.length ? { breaks } : {}), ...(systemsPerPage !== undefined ? { systemsPerPage } : {}) } };
+  const m = o.margins !== undefined ? obj(o.margins, 'Seitenränder') : undefined;
+  const margins = m ? { top: int(m.top, 'Rand oben'), bottom: int(m.bottom, 'Rand unten'), left: int(m.left, 'Rand links'), right: int(m.right, 'Rand rechts') } : undefined;
+  const layout = normalizeLayout({ ...(perSystem !== undefined ? { perSystem } : {}), ...(breaks ? { breaks } : {}), ...(systemsPerPage !== undefined ? { systemsPerPage } : {}), ...(margins ? { margins } : {}) });
+  return layout ? { layout } : {};
 }
 
 function int(v: unknown, where: string): number {
@@ -416,6 +420,8 @@ const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
   20: (doc) => ({ ...doc, version: 21 }),
   // 21 → 22: the optional "rests" of voices, "stem" of notes and "texts" of the score. Version-21 files have none.
   21: (doc) => ({ ...doc, version: 22 }),
+  // 22 → 23: the optional "margins" of the layout. Version-22 files keep the engraver's margins.
+  22: (doc) => ({ ...doc, version: 23 }),
 };
 
 /** Applies `fn` to every event object of a (still unvalidated) score; anything unexpected is left for the reader to reject. */

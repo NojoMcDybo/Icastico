@@ -192,6 +192,30 @@ export interface ScoreLayout {
   readonly breaks?: readonly number[];
   /** How many systems (Akkoladen) stand on a page, then a new page starts (ADR 0042); absent = as many as fit. */
   readonly systemsPerPage?: number;
+  /** Space between the music and the edge of the page, in mm (ADR 0044); absent = the engraver's default. */
+  readonly margins?: PageMargins;
+}
+
+export interface PageMargins {
+  readonly top: number;
+  readonly bottom: number;
+  readonly left: number;
+  readonly right: number;
+}
+
+export const MAX_MARGIN_MM = 40;
+/** What the engraver leaves free without a setting of the score, in mm. */
+export const DEFAULT_MARGIN_MM = 6;
+
+/** The layout without empty entries; undefined when nothing is left (a score without layout has none). */
+export function normalizeLayout(l: ScoreLayout): ScoreLayout | undefined {
+  const out: ScoreLayout = {
+    ...(l.perSystem !== undefined ? { perSystem: l.perSystem } : {}),
+    ...(l.breaks?.length ? { breaks: l.breaks } : {}),
+    ...(l.systemsPerPage !== undefined ? { systemsPerPage: l.systemsPerPage } : {}),
+    ...(l.margins !== undefined ? { margins: l.margins } : {}),
+  };
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 export const MAX_PER_SYSTEM = 16;
@@ -576,6 +600,7 @@ export function validateScore(score: Score): string[] {
   const layout = score.layout;
   if (layout?.perSystem !== undefined && !(Number.isInteger(layout.perSystem) && layout.perSystem >= 1 && layout.perSystem <= MAX_PER_SYSTEM)) problems.push(`Takte pro Zeile: erlaubt sind 1 bis ${MAX_PER_SYSTEM}.`);
   if (layout?.systemsPerPage !== undefined && !(Number.isInteger(layout.systemsPerPage) && layout.systemsPerPage >= 1 && layout.systemsPerPage <= MAX_SYSTEMS_PER_PAGE)) problems.push(`Akkoladen pro Seite: erlaubt sind 1 bis ${MAX_SYSTEMS_PER_PAGE}.`);
+  if (layout?.margins && Object.values(layout.margins).some((m) => !(Number.isInteger(m) && m >= 0 && m <= MAX_MARGIN_MM))) problems.push(`Seitenränder: erlaubt sind ganze Millimeter von 0 bis ${MAX_MARGIN_MM}.`);
   if (layout?.breaks?.some((b, i) => !Number.isInteger(b) || b < 1 || (i > 0 && b <= layout.breaks![i - 1]!))) problems.push('Die Zeilenumbrüche müssen aufsteigende Taktnummern sein.');
   const seenMarks = new Set<string>();
   for (const m of score.marks ?? []) {

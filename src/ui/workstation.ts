@@ -32,20 +32,22 @@ import { exportMusicXml, type ExportResult } from '../core/export/musicxml';
 import { exportMidi } from '../core/export/midi';
 import type { ExportChoice } from './libraryHome';
 import { getInstrument } from '../core/instruments';
-import { type Score, MAX_PER_SYSTEM, MAX_TEMPO, MIN_TEMPO, systemBreaks, keyAt, measuresOf, meterAt, setTempoChange, tempoAt, withTempoAt } from '../core/model';
+import { type Score, DEFAULT_MARGIN_MM, MAX_TEMPO, MIN_TEMPO, systemBreaks, keyAt, measuresOf, meterAt, setTempoChange, tempoAt, withTempoAt } from '../core/model';
 import { secondsOf, timeAt } from '../core/playback';
 import { durationName } from '../core/notation/notate';
 import { type Pitch, STEPS, midiOf, pitchToString } from '../core/pitch';
 import { type Fraction, ZERO, eq, frac, isZero, le, lt, toNumber } from '../core/time';
 import { tuningOf } from '../core/tab';
 import { tabTarget } from '../core/editor/tabEdit';
-import { applyScoreChanges, createScore, emptyScore, keyName as germanKeyName, withBarsPerLine } from '../core/templates';
+import { applyScoreChanges, createScore, emptyScore, keyName as germanKeyName, withBarsPerLine, withLayoutChanges } from '../core/templates';
 import { openKeyPicker } from './keyPicker';
 import { dirOf, fileNameOf, preferredFileName } from '../library/library';
 import type { LibraryStore } from '../library/store';
 import { type ElementRef, type MeiResult, staffElementId } from '../render/mei';
 import { engraveScore } from '../render/engraveScore';
 import { textDialog } from './textDialog';
+import { layoutDialog } from './layoutDialog';
+import { layerNumber, layersOf } from '../core/editor/layerOps';
 import { addText, changeText, eraseText, moveText } from '../core/editor/layoutOps';
 import type { Engraver } from '../render/verovio';
 import type { Platform } from '../platform/files';
@@ -84,7 +86,7 @@ import {
 } from './lanes';
 import { Thumbnails } from './thumbnails';
 import type { UpdateChecker } from './updates';
-import { loadChordSymbolWithNotes, saveChordSymbolWithNotes, loadRollSynth, saveRollSynth, loadNewScoreDefaults, loadPdfSetup, loadView, savePdfSetup, saveKeymapPreset, saveLastOpened, saveNewScoreDefaults, saveView, loadMetronome, saveMetronome, loadZoom, saveZoom, ZOOM_MAX, ZOOM_MIN } from './preferences';
+import { loadChordSymbolWithNotes, saveChordSymbolWithNotes, loadRollSynth, saveRollSynth, loadNewScoreDefaults, loadPdfSetup, loadView, savePdfSetup, saveKeymapPreset, saveLastOpened, saveNewScoreDefaults, saveView, loadMetronome, saveMetronome, loadA4, saveA4, loadZoom, saveZoom, ZOOM_MAX, ZOOM_MIN } from './preferences';
 import { scoreDialog } from './scoreDialog';
 import { comboOf, numpadComboOf } from './keys';
 import { type Keymap, type PresetId, type UiCommandId, buildKeymap, findBinding, KEY_LIBRARY, paletteEntries, PRESETS } from './keymaps/library';
@@ -241,6 +243,9 @@ export class Workstation {
   private fretTyped = { text: '', at: 0 };
   /** Size of the notation in percent. */
   private zoom = loadZoom();
+  /** The score is shown on A4 pages (ADR 0044). */
+  private a4 = loadA4();
+  private renderedA4 = false;
   private renderedZoom = 0;
   /** Where playback starts and where it is: follows the selection while stopped, the clock while playing. */
   private playPos: Fraction = ZERO;
@@ -631,8 +636,14 @@ export class Workstation {
       case 'tempo.change':
         void this.changeTempo();
         return;
-      case 'layout.range':
-        void this.barsPerLineMarked();
+      case 'view.a4':
+        this.a4 = !this.a4;
+        saveA4(this.a4);
+        this.say(this.a4 ? 'A4-Ansicht an: die Seiten stehen wie beim Drucken.' : 'A4-Ansicht aus: eine fortlaufende Seite.');
+        this.update();
+        return;
+      case 'layout.page':
+        void this.pageLayout();
         return;
       case 'text.free':
         void this.addFreeText();
@@ -1226,34 +1237,52 @@ export class Workstation {
     this.update();
   }
 
-  /** Bars per Akkolade for the marked bars only (ADR 0042): the lines before and after keep their breaks. */
-  private async barsPerLineMarked(): Promise<void> {
+  /** The page layout dialog (ADR 0044): bars per Akkolade for the whole piece or a range of bars, Akkoladen per page, page margins. */
+  private async pageLayout(): Promise<void> {
     if (this.empty) return;
     const score = this.state.score;
     const measures = measuresOf(score, 1);
     const span = rangeSpan(this.state);
     const time = this.focusTime();
-    // The bar of the first marked note, and the bar that holds the end of the last one (a single note: its own bar).
-    const a = Math.max(0, measures.findIndex((m) => le(m.start, span?.from ?? time) && lt(span?.from ?? time, m.end)));
-    const lastBar = span ? measures.findIndex((m) => lt(m.start, span.to) && le(span.to, m.end)) : a;
-    const b = Math.max(a, lastBar);
-    const text = await promptText({
-      title: a === b ? `Takte pro Akkolade – Takt ${measures[a]!.number}` : `Takte pro Akkolade – Takt ${measures[a]!.number} bis ${measures[b]!.number}`,
-      label: `Wie viele Takte stehen in einer Akkolade? (1–${MAX_PER_SYSTEM}) Vor den markierten Takten und danach beginnt eine neue Akkolade.`,
-      value: '4',
-      confirm: 'Übernehmen',
-      check: (v) => {
-        const n = Number(v);
-        return Number.isInteger(n) && n >= 1 && n <= MAX_PER_SYSTEM ? null : `Bitte eine ganze Zahl von 1 bis ${MAX_PER_SYSTEM} eingeben.`;
-      },
+    // The bars of the marked notes (or the bar of the selected note) are what the range starts with.
+    const first = Math.max(0, measures.findIndex((m) => le(m.start, span?.from ?? time) && lt(span?.from ?? time, m.end)));
+    const lastBar = span ? measures.findIndex((m) => lt(m.start, span.to) && le(span.to, m.end)) : first;
+    const last = Math.max(first, lastBar);
+    const m0 = score.layout?.margins;
+    const choice = await layoutDialog({
+      range: span ? { from: measures[first]!.number, to: measures[last]!.number } : null,
+      suggest: { from: measures[first]!.number, to: measures[last]!.number },
+      firstBar: measures[0]!.number,
+      lastBar: measures[measures.length - 1]!.number,
+      perSystem: score.layout?.perSystem ?? 0,
+      systemsPerPage: score.layout?.systemsPerPage ?? 0,
+      margins: m0 ?? { top: DEFAULT_MARGIN_MM, bottom: DEFAULT_MARGIN_MM, left: DEFAULT_MARGIN_MM, right: DEFAULT_MARGIN_MM },
     });
-    if (text !== null) {
-      // Where the lines break now: as the score says, else as drawn at the moment.
-      const written = systemBreaks(score, measures.length);
-      const ids = this.result?.measureIds ?? [];
-      const drawn = [...this.el.pages.querySelectorAll('g.system')].map((g) => ids.indexOf(g.querySelector('g.measure')?.id ?? '')).filter((i) => i > 0);
-      const next = withBarsPerLine(score, written.length > 0 ? written : drawn, a, b, Number(text));
-      this.history.apply({ ...this.state, score: next, message: `${Number(text)} Takte pro Akkolade in Takt ${measures[a]!.number}${a === b ? '' : ` bis ${measures[b]!.number}`}` });
+    if (choice) {
+      let next = score;
+      const said: string[] = [];
+      if (choice.perSystem !== null && choice.range) {
+        // Where the lines break now: as the score says, else as drawn at the moment; outside the range nothing moves.
+        const written = systemBreaks(score, measures.length);
+        const ids = this.result?.measureIds ?? [];
+        const drawn = [...this.el.pages.querySelectorAll('g.system')].map((g) => ids.indexOf(g.querySelector('g.measure')?.id ?? '')).filter((i) => i > 0);
+        const a = Math.max(0, measures.findIndex((m) => m.number === choice.range!.from));
+        const b = Math.max(a, measures.findIndex((m) => m.number === choice.range!.to));
+        next = withBarsPerLine(next, written.length > 0 ? written : drawn, a, b, choice.perSystem);
+        said.push(`${choice.perSystem} Takte pro Akkolade in Takt ${choice.range.from}${choice.range.from === choice.range.to ? '' : ` bis ${choice.range.to}`}`);
+      } else if (choice.perSystem !== null) {
+        next = withLayoutChanges(next, { perSystem: choice.perSystem });
+        said.push(choice.perSystem > 0 ? `${choice.perSystem} Takte pro Akkolade` : 'Takte pro Akkolade: automatisch');
+      }
+      if (choice.systemsPerPage !== null) {
+        next = withLayoutChanges(next, { systemsPerPage: choice.systemsPerPage });
+        said.push(choice.systemsPerPage > 0 ? `${choice.systemsPerPage} Akkoladen pro Seite` : 'Akkoladen pro Seite: so viele wie passen');
+      }
+      if (choice.margins !== null) {
+        next = withLayoutChanges(next, { margins: choice.margins });
+        said.push('Seitenränder geändert');
+      }
+      if (next !== score) this.history.apply({ ...this.state, score: next, message: said.join(' · ') });
     }
     this.update();
   }
@@ -2649,12 +2678,14 @@ export class Workstation {
     const measures = measuresOf(s.score, 1, coverTime).length;
     // The page stays as wide as before when zoomed out (smaller notes, more per line), and grows when zoomed in.
     const width = Math.min(this.el.pages.clientWidth, Math.round((1100 * Math.max(this.zoom, 100)) / 100));
-    if (s.score === this.renderedScore && measures === this.renderedMeasures && width === this.renderedWidth && hiddenKey === this.renderedHidden && this.zoom === this.renderedZoom) return;
+    if (s.score === this.renderedScore && measures === this.renderedMeasures && width === this.renderedWidth && hiddenKey === this.renderedHidden && this.zoom === this.renderedZoom && this.a4 === this.renderedA4) return;
 
     const started = performance.now();
     const scale = Math.max(10, Math.round((SCALE * this.zoom) / 100));
     const { mei: result, engraved } = engraveScore(this.engraver, s.score, { ...(coverTime ? { coverTime } : {}), hiddenStaves: hidden, showHiddenRests: true }, {
       pageWidth: Math.round((width * 100) / scale),
+      // A4 view: pages of the proportions of a sheet, so margins and Akkoladen per page look as they will print.
+      ...(this.a4 ? { pageHeight: Math.round((Math.round((width * 100) / scale) * 297) / 210) } : {}),
       scale,
     });
     const { pages, log } = engraved;
@@ -2672,6 +2703,7 @@ export class Workstation {
     this.renderedMeasures = measures;
     this.renderedWidth = width;
     this.renderedZoom = this.zoom;
+    this.renderedA4 = this.a4;
     this.renderedHidden = hiddenKey;
     this.lastRedrawEnd = performance.now();
     this.lastRedrawMs = this.lastRedrawEnd - started;
@@ -2895,6 +2927,9 @@ export class Workstation {
     this.el.status.textContent = this.empty ? EMPTY_HINT : (s.message ?? this.describeSelection() ?? HINT);
     if (s.caret) {
       const parts = [`Eingabe · ${durationName(inputLength(s.input))}`];
+      const caretPart = s.score.parts.find((p) => p.id === s.caret!.partId);
+      const layer = caretPart ? layerNumber(caretPart, getVoice(s.score, s.caret).voice) : 1;
+      if (caretPart && layersOf(caretPart, getVoice(s.score, s.caret).voice.staff).length > 1) parts.push(`Ebene ${layer}`);
       if (this.recording) parts.unshift('● Aufnahme');
       if (s.input.insert) parts.push('Einfügen');
       if (s.input.chord) parts.push('Akkord');

@@ -71,3 +71,4 @@ Was wird dadurch leichter, was schwerer?
 | 0041 | [Rückmeldungen Paket A: Tabulatur frei, Zeilenbeschriftung, Anklicken/Löschen, Tabulatur-Import](0041-rueckmeldungen-paket-a.md) | angenommen |
 | 0042 | [Seitenaufbau: Takte pro Akkolade für markierte Takte, Akkoladen pro Seite](0042-seitenaufbau-akkoladen.md) | angenommen |
 | 0043 | [Pausen verstecken und verschieben, Halsrichtung, freie Texte](0043-pausen-halsrichtung-freie-texte.md) | angenommen |
+| 0044 | [Zwei Ebenen im Notensystem, Seitenaufbau-Fenster mit Seitenrändern, A4-Ansicht](0044-ebenen-seitenaufbau-a4-ansicht.md) | angenommen |

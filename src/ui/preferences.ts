@@ -215,6 +215,25 @@ export function saveMetronome(on: boolean): void {
   }
 }
 
+const A4_KEY = 'icastico.a4';
+
+/** Whether the score is shown on A4 pages while writing (remembered). */
+export function loadA4(): boolean {
+  try {
+    return localStorage.getItem(A4_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveA4(on: boolean): void {
+  try {
+    localStorage.setItem(A4_KEY, on ? '1' : '0');
+  } catch {
+    // Storage unavailable – it starts off next time.
+  }
+}
+
 export function loadView(path: string): ViewState {
   try {
     const all = JSON.parse(localStorage.getItem(VIEWS_KEY) ?? '{}') as Record<string, unknown>;

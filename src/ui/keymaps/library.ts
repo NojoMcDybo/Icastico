@@ -29,7 +29,8 @@ export type UiCommandId =
   | 'text.chord'
   | 'input.chordName'
   | 'tempo.change'
-  | 'layout.range'
+  | 'layout.page'
+  | 'view.a4'
   | 'text.free'
   | 'view.voiceTest'
   | 'play.record'
@@ -86,7 +87,8 @@ export const UI_COMMANDS: ReadonlySet<string> = new Set<UiCommandId>([
   'text.chord',
   'input.chordName',
   'tempo.change',
-  'layout.range',
+  'layout.page',
+  'view.a4',
   'text.free',
   'view.voiceTest',
   'play.record',

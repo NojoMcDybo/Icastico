@@ -12,6 +12,15 @@ export interface PatchNote {
 /** Newest first. Keep each line to one short sentence. */
 export const PATCH_NOTES: readonly PatchNote[] = [
   {
+    version: '0.28.0',
+    items: [
+      'Zwei Ebenen im selben Notensystem: Strg+Umschalt+1 / 2 wählt die Ebene; Hälse oben (Ebene 1) und unten (Ebene 2); gleiche Töne teilen sich einen Notenkopf.',
+      'Seitenaufbau-Fenster (Strg+Umschalt+A): Takte pro Akkolade für das ganze Stück oder bestimmte Takte, Akkoladen pro Seite und Seitenränder.',
+      'Seitenränder auch im Drucken-Fenster mit Vorschau.',
+      'A4-Ansicht beim Schreiben (Strg+Umschalt+Y): die Seiten stehen wie beim Drucken.',
+    ],
+  },
+  {
     version: '0.27.0',
     items: [
       'Pausen anklicken: V macht sie unsichtbar, ↑/↓ verschiebt sie, die Rücktaste blendet sie aus.',

@@ -2,7 +2,7 @@
  * Pages for the PDF (ADR 0023): engraved with Verovio at A4 size, drawn to a canvas, stored as JPEG.
  * Several short scores can share a page ("Sammelblatt", for teaching material).
  */
-import { type Score } from '../core/model';
+import { type PageMargins, type Score, normalizeLayout } from '../core/model';
 import { A4_POINTS, type PdfPage, buildPdf } from '../core/export/pdf';
 import { engraveScore } from '../render/engraveScore';
 import type { Engraver } from '../render/verovio';
@@ -17,18 +17,21 @@ export interface PdfSetup {
   readonly perSystem?: number;
   /** Akkoladen per page for this print only: absent = as the score says, 0 = as many as fit. */
   readonly systemsPerPage?: number;
+  /** Page margins in mm for this print only: absent = as the score says. */
+  readonly margins?: PageMargins;
 }
 
 /** The score as it is printed: with the bars per line of the setup, if it has one (the score itself is not changed). */
 function shaped(score: Score, setup: PdfSetup): Score {
-  if (setup.perSystem === undefined && setup.systemsPerPage === undefined) return score;
+  if (setup.perSystem === undefined && setup.systemsPerPage === undefined && setup.margins === undefined) return score;
   const own = score.layout;
   const perSystem = setup.perSystem === undefined ? own?.perSystem : setup.perSystem > 0 ? setup.perSystem : undefined;
   const breaks = setup.perSystem === undefined ? own?.breaks : undefined; // a number set for the print replaces the written line breaks
   const systemsPerPage = setup.systemsPerPage === undefined ? own?.systemsPerPage : setup.systemsPerPage > 0 ? setup.systemsPerPage : undefined;
+  const margins = setup.margins ?? own?.margins;
   const { layout: _own, ...rest } = score;
-  if (perSystem === undefined && !breaks?.length && systemsPerPage === undefined) return rest;
-  return { ...rest, layout: { ...(perSystem !== undefined ? { perSystem } : {}), ...(breaks?.length ? { breaks } : {}), ...(systemsPerPage !== undefined ? { systemsPerPage } : {}) } };
+  const layout = normalizeLayout({ ...(perSystem !== undefined ? { perSystem } : {}), ...(breaks?.length ? { breaks } : {}), ...(systemsPerPage !== undefined ? { systemsPerPage } : {}), ...(margins ? { margins } : {}) });
+  return layout ? { ...rest, layout } : rest;
 }
 
 export const SIZES: readonly { readonly label: string; readonly scale: number }[] = [

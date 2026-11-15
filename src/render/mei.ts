@@ -139,21 +139,31 @@ function lyricXml(syllable: string, previousContinues: boolean, id: string, vers
 /** MEI @artic values of the articulation signs of a note ("stacc ten"). */
 const ARTIC: Record<string, string> = { stacc: 'stacc', stacciss: 'stacciss', ten: 'ten', acc: 'acc', marc: 'marc' };
 
-function noteXml(item: NotatedNote, accidentals: AccidentalState, tiedIn: ReadonlySet<string>, indent: string, verse = '', artic = ''): string {
+/** A note that shares its notehead with the note of the other layer on the same beat (ADR 0044). */
+interface SharedHead {
+  /** This note draws no head of its own: only its stem (and flag or beam) shows. */
+  readonly hide: boolean;
+  /** Layer 1 stems go up, layer 2 stems go down. */
+  readonly dir: 'up' | 'down';
+}
+
+function noteXml(item: NotatedNote, accidentals: AccidentalState, tiedIn: ReadonlySet<string>, indent: string, verse = '', artic = '', share?: SharedHead): string {
   const tie =
     item.tiedFromPrevious && item.tiedToNext ? 'm' : item.tiedToNext ? 'i' : item.tiedFromPrevious ? 't' : '';
   const tieAttr = tie ? ` tie="${tie}"` : '';
-  const stem = item.stem ? ` stem.dir="${item.stem}"` : '';
+  const dir = item.stem ?? share?.dir;
+  const stem = dir ? ` stem.dir="${dir}"` : '';
+  const noHead = share?.hide ? ' head.visible="false"' : '';
   // A note tied in from the previous measure does not repeat its accidental.
   const pitchAttrs = (p: Pitch, toneId: string) =>
     `pname="${p.step.toLowerCase()}" oct="${p.octave}"${accidentals.attrsFor(p, item.tiedFromPrevious || tiedIn.has(toneId))}`;
 
   if (item.tones.length === 1) {
-    const head = `${indent}<note xml:id="${item.id}" ${durAttrs(item.duration)} ${pitchAttrs(item.tones[0]!.pitch, item.tones[0]!.id)}${tieAttr}${stem}${artic}`;
+    const head = `${indent}<note xml:id="${item.id}" ${durAttrs(item.duration)} ${pitchAttrs(item.tones[0]!.pitch, item.tones[0]!.id)}${tieAttr}${stem}${noHead}${artic}`;
     return verse ? `${head}>${verse}</note>` : `${head}/>`;
   }
   const notes = item.tones
-    .map((t) => `${indent}  <note xml:id="${chordNoteId(item, t)}" ${pitchAttrs(t.pitch, t.id)}${tieAttr}/>`)
+    .map((t) => `${indent}  <note xml:id="${chordNoteId(item, t)}" ${pitchAttrs(t.pitch, t.id)}${tieAttr}${noHead}/>`)
     .join('\n');
   return `${indent}<chord xml:id="${item.id}" ${durAttrs(item.duration)}${stem}${artic}>\n${notes}${verse ? `\n${indent}  ${verse}` : ''}\n${indent}</chord>`;
 }
@@ -167,16 +177,41 @@ function restPlace(center: Pitch, shift: number | undefined): string {
   return ` ploc="${step.toLowerCase()}" oloc="${octave}"`;
 }
 
+const samePitches = (a: NotatedNote, b: NotatedNote): boolean => {
+  const key = (n: NotatedNote) => n.tones.map((t) => `${t.pitch.step}${t.pitch.alter}${t.pitch.octave}`).sort().join();
+  return key(a) === key(b);
+};
+
+/**
+ * The same tones on the same beat in layer 1 and layer 2 share one notehead (ADR 0044): hollow if either note is a half or
+ * whole note (the shorter note then shows its length by its stem alone); layer 1 stems go up, layer 2 stems go down.
+ */
+function sharedHeads(layers: readonly (readonly NotatedItem[])[]): Map<string, SharedHead> {
+  const out = new Map<string, SharedHead>();
+  if (layers.length < 2) return out;
+  for (const a of layers[0]!) {
+    if (a.kind !== 'note') continue;
+    const b = layers[1]!.find((x): x is NotatedNote => x.kind === 'note' && eq(x.onset, a.onset) && samePitches(a, x));
+    if (!b) continue;
+    const hollowA = a.duration.base <= 2;
+    const hollowB = b.duration.base <= 2;
+    const keepB = !hollowA && hollowB; // the hollow head wins over the filled one
+    out.set(a.id, { hide: keepB, dir: 'up' });
+    out.set(b.id, { hide: !keepB, dir: 'down' });
+  }
+  return out;
+}
+
 interface RestLook {
   /** Pitch of the middle line of the staff the rest is on. */
   readonly center: Pitch;
   readonly showHidden: boolean;
 }
 
-function itemXml(item: NotatedItem, accidentals: AccidentalState, tiedIn: ReadonlySet<string>, indent: string, verse = '', artic = '', look?: RestLook): string {
+function itemXml(item: NotatedItem, accidentals: AccidentalState, tiedIn: ReadonlySet<string>, indent: string, verse = '', artic = '', look?: RestLook, share?: SharedHead): string {
   switch (item.kind) {
     case 'note':
-      return noteXml(item, accidentals, tiedIn, indent, verse, artic);
+      return noteXml(item, accidentals, tiedIn, indent, verse, artic, share);
     case 'rest': {
       // The gap a glide travels through is time without a rest sign; a rest the user hid is not printed.
       const hidden = item.hidden === true;
@@ -491,6 +526,7 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
       // Voices without notes (e.g. after their only tone was deleted) draw nothing, unless the staff would be empty.
       const voices = onStaff.some((v) => v.events.length > 0) ? onStaff.filter((v) => v.events.length > 0) : onStaff.slice(0, 1);
       const accidentals = new AccidentalState(m.fifths);
+      const shared = slot.tab || slot.tabPart ? new Map<string, SharedHead>() : sharedHeads(voices.map((v) => notated.get(v.id)![mi]!));
       // A clef change at the start of the next bar is the last thing of the first layer: a small clef before the barline (ADR 0040).
       const next = measures[mi + 1];
       const comingClef = !slot.tab && !slot.tabPart && next ? (slot.part.clefs ?? []).find((c) => c.staff === slot.staffIndex && eq(c.at, next.start)) : undefined;
@@ -518,7 +554,7 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
             const first = item.kind === 'note' && !item.tiedFromPrevious;
             const verse = first ? (syllables.get(item.eventId) ?? '') : '';
             const artic = first ? (articOf.get(item.eventId) ?? '') : '';
-            body.push(itemXml(item, accidentals, tiedIn, indent, verse, artic, { center: clefAt(slot.part, slot.staffIndex, m.start).center, showHidden: options.showHiddenRests === true }));
+            body.push(itemXml(item, accidentals, tiedIn, indent, verse, artic, { center: clefAt(slot.part, slot.staffIndex, m.start).center, showHidden: options.showHiddenRests === true }, shared.get(item.id)));
           }
           if (beam && i === beam[1]) body.push('            </beam>');
           if (brackets.some((g) => g.end === i)) body.push('            </tuplet>');

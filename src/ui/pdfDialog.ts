@@ -60,6 +60,13 @@ export function pdfDialog(options: PrintDialogOptions): Promise<PrintChoice | nu
     for (let n = 1; n <= 8; n++) perPage.append(el('option', { value: String(n), textContent: n === 1 ? '1 Akkolade' : `${n} Akkoladen` }));
     perPage.value = options.initial.systemsPerPage === undefined ? '' : String(options.initial.systemsPerPage);
 
+    // The margin of this print, the same on all four sides; the four sides of the score are set in the page dialog.
+    const margin = el('select', { id: 'pdf-margin' });
+    margin.append(el('option', { value: '', textContent: 'wie in der Partitur' }));
+    for (const mm of [0, 5, 10, 15, 20, 25]) margin.append(el('option', { value: String(mm), textContent: `${mm} mm` }));
+    const m0 = options.initial.margins;
+    margin.value = m0 && m0.top === m0.bottom && m0.top === m0.left && m0.top === m0.right && [0, 5, 10, 15, 20, 25].includes(m0.top) ? String(m0.top) : '';
+
     const pack = el('input', { id: 'pdf-pack', type: 'checkbox', checked: options.initial.pack });
 
     const setupNow = (): PdfSetup => ({
@@ -68,9 +75,10 @@ export function pdfDialog(options: PrintDialogOptions): Promise<PrintChoice | nu
       pack: options.scoreCount > 1 && pack.checked,
       ...(perLine.value === '' ? {} : { perSystem: Number(perLine.value) }),
       ...(perPage.value === '' ? {} : { systemsPerPage: Number(perPage.value) }),
+      ...(margin.value === '' ? {} : { margins: { top: Number(margin.value), bottom: Number(margin.value), left: Number(margin.value), right: Number(margin.value) } }),
     });
 
-    const controls = el('div', { className: 'print__controls' }, el('h2', { textContent: options.title }), row('Seite', format, 'pdf-format'), row('Notengröße', size, 'pdf-size'), row('Takte pro Akkolade', perLine, 'pdf-perline'), row('Akkoladen pro Seite', perPage, 'pdf-perpage'));
+    const controls = el('div', { className: 'print__controls' }, el('h2', { textContent: options.title }), row('Seite', format, 'pdf-format'), row('Notengröße', size, 'pdf-size'), row('Takte pro Akkolade', perLine, 'pdf-perline'), row('Akkoladen pro Seite', perPage, 'pdf-perpage'), row('Seitenränder', margin, 'pdf-margin'));
     if (options.scoreCount > 1) {
       controls.append(row('Mehrere pro Seite', el('div', {}, pack, el('span', { textContent: ` ${options.scoreCount} Partituren untereinander auf gemeinsamen Seiten (Notenbeispiele)` })), 'pdf-pack'));
     }
@@ -114,7 +122,7 @@ export function pdfDialog(options: PrintDialogOptions): Promise<PrintChoice | nu
       window.clearTimeout(timer);
       timer = window.setTimeout(draw, 120);
     };
-    for (const control of [format, size, perLine, perPage, pack]) control.addEventListener('change', soon);
+    for (const control of [format, size, perLine, perPage, margin, pack]) control.addEventListener('change', soon);
 
     const close = (result: PrintChoice | null) => {
       window.clearTimeout(timer);
