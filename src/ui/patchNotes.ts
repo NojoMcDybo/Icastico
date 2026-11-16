@@ -12,6 +12,15 @@ export interface PatchNote {
 /** Newest first. Keep each line to one short sentence. */
 export const PATCH_NOTES: readonly PatchNote[] = [
   {
+    version: '0.29.0',
+    items: [
+      'Tasten anpassen: F1 → „Tasten anpassen …“ – jede Funktion bekommt eine eigene Taste, gilt sofort und bleibt gespeichert.',
+      'Lautstärke mehrerer Noten zugleich: Strg+Alt+↑ / ↓ für den markierten Bereich; jede Änderung ist zu hören, auch am Regler der Piano-Roll.',
+      'Notenschrift und Piano-Roll zeigen beim Scrollen denselben Takt.',
+      'Besser lesbare Menüs über dem Notenblatt, aufgeräumte Fenster „Seitenaufbau“ und „Akkord nach Namen“, schnelleres Setzen bei „Akkoladen pro Seite“.',
+    ],
+  },
+  {
     version: '0.28.2',
     items: [
       'Gleich breite Takte: Akkoladen mit gleicher Taktzahl haben ihre Taktstriche genau übereinander.',
