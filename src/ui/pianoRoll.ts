@@ -34,11 +34,14 @@ import {
   xOfTime,
   yOfMidi,
   zoneOf,
+  snapTime,
   DEFAULT_PX_PER_WHOLE,
 } from './pianoRollGeometry';
 
 export interface RollHost {
   state(): EditorState;
+  /** The user moved the roll sideways: this time stands at its left edge (never called for scrolls the roll made itself). */
+  scrolled(time: Fraction): void;
   /** Click on a tone (or on empty space: null). Never changes the score. */
   select(selection: Selection | null, caretTime: Fraction | null): void;
   /** The user worked in this lane (it becomes the active one). */
@@ -90,6 +93,10 @@ export class PianoRoll {
   private readonly title: HTMLElement;
   private readonly info: HTMLElement;
   private readonly scroller: HTMLElement;
+  /** The next scroll event comes from the roll itself (not the user); and the last sideways position reported. */
+  private quiet = false;
+  private lastLeft = 0;
+  private reportFrame = 0;
   private svg: SVGSVGElement | null = null;
   private body: SVGGElement | null = null;
   /** The line drawn while a glide is being dragged. */
@@ -144,6 +151,7 @@ export class PianoRoll {
     this.scroller.addEventListener('pointerup', (e) => this.onUp(e, true));
     this.scroller.addEventListener('pointercancel', (e) => this.onUp(e, false));
     this.scroller.addEventListener('dblclick', (e) => this.onDouble(e));
+    this.scroller.addEventListener('scroll', () => this.onScroll(), { passive: true });
     this.scroller.addEventListener(
       'wheel',
       (e) => {
@@ -189,6 +197,33 @@ export class PianoRoll {
     return (part?.voices ?? []).filter((v) => v.staff === this.staff.staffIndex).map((v) => ({ partId: this.staff.partId, voiceId: v.id }));
   }
 
+  /** Sets the horizontal scroll position; a move the roll makes itself is not reported to the host. */
+  private setLeft(left: number): void {
+    const before = this.scroller.scrollLeft;
+    this.scroller.scrollLeft = Math.max(0, left);
+    if (this.scroller.scrollLeft !== before) this.quiet = true;
+    this.lastLeft = this.scroller.scrollLeft;
+  }
+
+  /** Scrolls so that `time` stands at the left edge (the other view moved). */
+  scrollToTime(time: Fraction): void {
+    if (this.layout) this.setLeft(xOfTime(this.layout, time) - this.layout.labelWidth);
+  }
+
+  private onScroll(): void {
+    if (this.quiet) {
+      this.quiet = false;
+      return;
+    }
+    if (this.scroller.scrollLeft === this.lastLeft || this.reportFrame) return; // only sideways moves, one report per frame
+    this.reportFrame = requestAnimationFrame(() => {
+      this.reportFrame = 0;
+      const layout = this.layout;
+      this.lastLeft = this.scroller.scrollLeft;
+      if (layout) this.host.scrolled(snapTime(layout, this.scroller.scrollLeft + layout.labelWidth, frac(1, 64)));
+    });
+  }
+
   /** Moves the playhead line without redrawing; `follow` scrolls it into view (while playing). */
   setPlayhead(time: Fraction | null, follow = false): void {
     this.playhead = time;
@@ -198,7 +233,7 @@ export class PianoRoll {
     line.setAttribute('x1', String(x));
     line.setAttribute('x2', String(x));
     if (follow && (x > this.scroller.scrollLeft + this.scroller.clientWidth - 40 || x < this.scroller.scrollLeft)) {
-      this.scroller.scrollLeft = Math.max(0, x - 80);
+      this.setLeft(x - 80);
     }
   }
 
@@ -455,7 +490,7 @@ export class PianoRoll {
     if (selected && selectionKey !== this.shownSelection) {
       const x0 = Number(selected.getAttribute('x'));
       const to = scrollTarget(this.scroller.scrollLeft, this.scroller.clientWidth, x0, x0 + Number(selected.getAttribute('width')));
-      if (to !== null) this.scroller.scrollLeft = to;
+      if (to !== null) this.setLeft(to);
       const y = Number(selected.getAttribute('y')) + 22;
       if (y < this.scroller.scrollTop + 22 || y > this.scroller.scrollTop + this.scroller.clientHeight - 30) {
         this.scroller.scrollTop = Math.max(0, y - this.scroller.clientHeight / 2);

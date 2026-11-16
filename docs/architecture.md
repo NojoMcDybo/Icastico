@@ -79,7 +79,7 @@ ausführlich getestet.
 - `core/symbols.ts` – Bibliothek der Sonderzeichen (Daten), `core/playOrder.ts` – Spielreihenfolge bei Wiederholungen (ADR 0024), `ui/symbolPalette.ts` – die Palette; `core/export/` – MusicXML- und PDF-Ausgabe (ADR 0021, 0023); `core/tab.ts` – Gitarrengriffe (ADR 0022); `core/extract.ts` – Einzelstimme; `render/tab.ts` – Bundzahlen in der Tab-Zeile; `ui/pdfExport.ts`, `ui/pdfDialog.ts` – PDF-Seiten; `core/import/` – MusicXML-Import (XML-Leser, `.mxl`, Übersetzung in die Partitur; ADR 0017); `core/curve.ts` – Kurven für Lautstärke und Gleitverlauf (ADR 0016); `ui/curvePopup.ts` – das Menü dazu; `core/playback.ts` – Abspielplan (reine Logik); `audio/synth.ts` – eingebauter Klang (Web Audio); `ui/player.ts`, `ui/transport.ts` – Wiedergabe und Transportleiste (ADR 0015).
 - `chordDialog.ts` – Akkord nach Namen (mit `core/chordNames.ts`), `instrumentPicker.ts` – Instrumentenwahl, `layoutDialog.ts` – Seitenaufbau, `textDialog.ts` – freie Texte.
 - `commandPalette.ts` – Befehlspalette (Strg+K): Suchfeld über alle Funktionen der Tastenbibliothek (`paletteEntries`, `searchPalette` in `keymaps/library.ts`), ausgeführt über `Workstation.run` (ADR 0004).
-- `lanes.ts` / `laneControls.ts` – welche Ansichten in welcher Größe gezeigt werden (reiner Zustand, getestet).
+- `lanes.ts` / `laneControls.ts` – welche Ansichten in welcher Größe gezeigt werden (reiner Zustand, getestet); `measureIndexAt` für den Gleichlauf von Notenschrift und Roll (ADR 0048).
 - `workstation.ts` – rendert nur bei Partitur-Änderungen neu, zeichnet Cursor
   und Auswahl über das SVG, Statuszeile, Tastenhilfe. Fehler in einem
   Command werden abgefangen und rückgängig gemacht.

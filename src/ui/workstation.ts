@@ -33,7 +33,7 @@ import { exportMusicXml, type ExportResult } from '../core/export/musicxml';
 import { exportMidi } from '../core/export/midi';
 import type { ExportChoice } from './libraryHome';
 import { getInstrument } from '../core/instruments';
-import { type Score, DEFAULT_MARGIN_MM, MAX_TEMPO, MIN_TEMPO, systemBreaks, keyAt, measuresOf, meterAt, setTempoChange, tempoAt, withTempoAt } from '../core/model';
+import { type Score, DEFAULT_MARGIN_MM, MAX_TEMPO, MIN_TEMPO, systemBreaks, keyAt, measuresOf, measureStart, meterAt, setTempoChange, tempoAt, withTempoAt } from '../core/model';
 import { secondsOf, timeAt } from '../core/playback';
 import { durationName } from '../core/notation/notate';
 import { type Pitch, STEPS, midiOf, pitchToString } from '../core/pitch';
@@ -84,6 +84,7 @@ import {
   visibleLanes,
   withMode,
   withHeight,
+  measureIndexAt,
 } from './lanes';
 import { Thumbnails } from './thumbnails';
 import type { UpdateChecker } from './updates';
@@ -261,6 +262,9 @@ export class Workstation {
   private shownSelection = '';
   /** State at the start of a piano-roll drag; every preview is computed from it. */
   private rollBase: EditorState | null = null;
+  /** The next scroll of the notation comes from the program (a roll moved it), not from the user. */
+  private quietCanvas = false;
+  private canvasFrame = 0;
   private readonly library: LibraryHome | null;
   /** The loudness / glide-course menu of the piano roll (ADR 0016). */
   private readonly shape: CurvePopup;
@@ -396,6 +400,7 @@ export class Workstation {
       () => this.dirty,
       () => this.confirmDiscard(),
     );
+    el.pages.parentElement!.addEventListener('scroll', () => this.onCanvasScroll(), { passive: true });
     window.addEventListener('keydown', (e) => this.onKey(e));
     window.addEventListener('keyup', (e) => this.onKeyUp(e));
     window.addEventListener('blur', () => this.releaseSpace());
@@ -2304,10 +2309,61 @@ export class Workstation {
     };
   }
 
+  // ── Notation and piano roll show the same bar (ADR 0048) ───────────────────
+
+  /** Both views are shown, nobody plays and nobody drags: the moments the two may follow each other. */
+  private canSync(): boolean {
+    return !this.empty && !this.player.active && !this.history.inGesture && !this.drag && !this.el.pages.parentElement!.hidden;
+  }
+
+  /** A roll was moved by the user: the notation shows that bar (if it is not in view anyway), the other rolls follow. */
+  private syncFromRoll(lane: LaneId, time: Fraction): void {
+    if (this.empty || this.player.active || this.history.inGesture || this.drag) return;
+    for (const [id, ui] of this.rollLanes) if (rollLane(id) !== lane) ui.roll.scrollToTime(time);
+    if (!this.canSync()) return;
+    const measures = measuresOf(this.state.score);
+    const bar = measures[measureIndexAt(measures, time)];
+    const canvas = this.el.pages.parentElement!;
+    const node = bar ? document.getElementById('m' + bar.number) : null;
+    if (!node) return;
+    const box = node.getBoundingClientRect();
+    const view = canvas.getBoundingClientRect();
+    const shown = Math.min(box.bottom, view.bottom) - Math.max(box.top, view.top);
+    if (shown >= Math.min(box.height, view.height) * 0.5) return; // mostly in view already: no tremble
+    const before = canvas.scrollTop;
+    this.quietCanvas = true;
+    node.scrollIntoView({ block: 'center' });
+    if (canvas.scrollTop === before) this.quietCanvas = false;
+  }
+
+  private onCanvasScroll(): void {
+    if (this.quietCanvas) {
+      this.quietCanvas = false;
+      return;
+    }
+    if (this.canvasFrame) return;
+    this.canvasFrame = requestAnimationFrame(() => {
+      this.canvasFrame = 0;
+      this.syncFromNotation();
+    });
+  }
+
+  /** The notation was moved by the user: every roll shows the first bar of the top system. */
+  private syncFromNotation(): void {
+    if (!this.canSync() || this.rollLanes.size === 0) return;
+    const canvas = this.el.pages.parentElement!;
+    const top = canvas.getBoundingClientRect().top + 40;
+    const first = [...this.el.pages.querySelectorAll<SVGGElement>('g.measure')].find((m) => m.getBoundingClientRect().bottom > top);
+    const number = first ? Number(first.id.replace(/^m/, '')) : NaN;
+    const start = Number.isFinite(number) ? measureStart(this.state.score, number) : null;
+    if (start) for (const ui of this.rollLanes.values()) ui.roll.scrollToTime(start);
+  }
+
   /** What one roll lane needs from the workstation. */
   private rollHost(lane: LaneId): RollHost {
     return {
       ...this.gestureHost(),
+      scrolled: (time) => this.syncFromRoll(lane, time),
       openShape: (target, anchor) => this.shape.open(target, anchor),
       hearKey: (midi, partId) => {
         const part = this.state.score.parts.find((p) => p.id === partId);

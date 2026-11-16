@@ -411,6 +411,12 @@
           "via": "Kante über der Roll ziehen oder mit ↑ / ↓"
         },
         {
+          "id": "view.sync",
+          "title": "Notenschrift und Piano-Roll zeigen denselben Takt",
+          "command": "ui.control",
+          "via": "geschieht von selbst beim Scrollen, sobald beide zu sehen sind"
+        },
+        {
           "id": "lane.view",
           "title": "Zeile als Noten, als Piano-Roll oder als beides zeigen",
           "command": "ui.control",

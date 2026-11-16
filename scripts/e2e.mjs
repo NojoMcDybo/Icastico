@@ -1363,6 +1363,41 @@ try {
   const volBack = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Lautstärke-Test.icastico'))[1].contents;
   check(!/"vol"/.test(volBack), 'Lautstärke: Strg+Z nimmt die Änderung aller Noten in einem Schritt zurück');
 
+  // ── Gleichlauf von Notenschrift und Piano-Roll (ADR 0048) ──
+  await newScore('Gleichlauf-Test');
+  await type('5'); // quarter notes: four to a bar (the choice of the last score stays otherwise)
+  for (let i = 0; i < 60; i++) await page.keyboard.press('c');
+  await type('Escape', 'Control+Shift+P');
+  await page.waitForSelector('.roll__scroll');
+  const fullSize = page.viewportSize();
+  await page.setViewportSize({ width: fullSize.width, height: 520 }); // a small window: the page does not fit, so the notation can scroll
+  await page.waitForTimeout(1000); // the notation is drawn again for the new size
+  /** The first bar number on the roll's ruler and whether the notation shows that bar. */
+  const syncNow = () =>
+    page.evaluate(() => {
+      const roll = document.querySelector('.roll__scroll');
+      const edge = roll.getBoundingClientRect().left + 60; // behind the key column
+      const label = [...roll.querySelectorAll('.roll__measure')].find((l) => l.getBoundingClientRect().left >= edge);
+      const bar = label ? Number(label.textContent) : 0;
+      const r = document.getElementById('m' + bar)?.getBoundingClientRect();
+      const c = document.getElementById('canvas');
+      const cb = c.getBoundingClientRect();
+      return { bar, left: roll.scrollLeft, top: c.scrollTop, inView: !!r && r.bottom > cb.top && r.top < cb.bottom };
+    });
+  await page.evaluate(() => { document.querySelector('.roll__scroll').scrollLeft = 0; });
+  await page.waitForTimeout(400);
+  await page.evaluate(() => { document.getElementById('canvas').scrollTop = 0; });
+  await page.waitForTimeout(400);
+  await page.evaluate(() => { document.querySelector('.roll__scroll').scrollLeft = 1e6; }); // as far right as it goes
+  await page.waitForTimeout(800);
+  const afterRoll = await syncNow();
+  check(afterRoll.bar > 4 && afterRoll.top > 0 && afterRoll.inView, `Gleichlauf: die Roll nach rechts gezogen (Takt ${afterRoll.bar}), die Notenschrift zeigt denselben Takt`);
+  await page.evaluate(() => { document.getElementById('canvas').scrollTop = 0; });
+  await page.waitForTimeout(800);
+  const afterNotation = await syncNow();
+  check(afterNotation.left < afterRoll.left && afterNotation.bar <= 2, `Gleichlauf: die Notenschrift nach oben gezogen, die Roll folgt zum ersten Takt (Takt ${afterNotation.bar})`);
+  await page.setViewportSize(fullSize);
+
   // ── Neue Funktionen: Zoom, Metronom, Cycle, Quantisieren, Drucken, Oktave ──
   await newScore('Funktionen-Test');
   await type('5', 'c', 'd', 'e', 'f', 'Escape');

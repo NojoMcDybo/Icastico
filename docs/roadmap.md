@@ -54,7 +54,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Vorbereitung Piano-Roll: einzelne Akkordtöne sind auswählbar (Klick auf den Notenkopf), eine Ziehgeste ergibt später genau einen Rückgängig-Schritt und wird nie halbfertig gespeichert; ein Zeichenfehler macht nur die letzte Änderung rückgängig, nicht frühere
 - [x] Piano-Roll unter der Notenschrift (Strg+Umschalt+P): Balken zeichnen (ziehen, Doppelklick), verschieben, verlängern, löschen; ein Klick wählt denselben Ton wie in der Notenschrift; Raster = gewählter Notenwert; Esc verwirft eine Geste; Tasten Alt+←/→ und Umschalt+←/→ (ADR 0013)
 - [x] Zeilenart je Notenzeile (Notenschrift / Beides / Piano-Roll, Schalter neben jeder Zeile) und Ansichtsgrößen klein/normal/maximiert (Esc bringt zurück), wird je Partitur gemerkt (ADR 0013)
-- [ ] Notenschrift und Piano-Roll scrollen taktweise im Gleichlauf
+- [x] Notenschrift und Piano-Roll scrollen taktweise im Gleichlauf (ADR 0048)
 - [x] Einzelnen Akkordton in eine eigene Stimme lösen (Strg+Umschalt+D), Roll zeigt alle Stimmen einer Zeile
 - [x] Ausdrückliche Haltebögen (zwei getrennte Noten, `T` setzt/löst) und Gleiten (Strg+Umschalt+G; die Lücke zwischen den Balken ist die Gleitdauer, ohne Lücke nur direkter Wechsel, Verbindung bleibt) in Notenschrift und Roll, Dateiformat 4 (ADR 0014)
 - [x] Piano-Roll: Höhe der Roll durch Ziehen ihrer Oberkante (keine Größenknöpfe mehr), feineres Raster zum Zeichnen und Verlängern, Gleiten durch Ziehen von einem Punkt am Balkenende auf einen beliebigen anderen Balken

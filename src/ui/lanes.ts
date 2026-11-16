@@ -7,6 +7,8 @@
  * it up makes it big – there are no size buttons. This is not part of the score
  * file: it is remembered per score by the app.
  */
+import type { Measure } from '../core/model';
+import { type Fraction, le } from '../core/time';
 
 export type StaffMode = 'notation' | 'both' | 'roll';
 /** `notation` (all staves that are shown as notes) or `roll:<staffKey>`. */
@@ -115,4 +117,13 @@ export function parseView(text: string | null): ViewState {
   } catch {
     return DEFAULT_VIEW;
   }
+}
+
+/** The bar that starts at or before `time` (index into `measures`; the first bar for a time before it). */
+export function measureIndexAt(measures: readonly Measure[], time: Fraction): number {
+  let found = 0;
+  measures.forEach((m, i) => {
+    if (le(m.start, time)) found = i;
+  });
+  return found;
 }

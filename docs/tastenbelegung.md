@@ -74,6 +74,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Quantisieren: eingespielte Noten ins Raster rücken (markierter Bereich, sonst die ganze Zeile) | `Q` *(Icastico)* | `Q` | (wie Finale) | ✓ |
 | Piano-Roll: Synth-Klang an / aus (Orgelklang, nichts klingt aus) | *Knopf „Synth“ in der Leiste der Roll* | *Knopf „Synth“ in der Leiste der Roll* | (wie Finale) | ✓ |
 | Piano-Roll: Höhe ändern (Doppelklick: Standardhöhe) | *Kante über der Roll ziehen oder mit ↑ / ↓* | *Kante über der Roll ziehen oder mit ↑ / ↓* | (wie Finale) | ✓ |
+| Notenschrift und Piano-Roll zeigen denselben Takt | *geschieht von selbst beim Scrollen, sobald beide zu sehen sind* | *geschieht von selbst beim Scrollen, sobald beide zu sehen sind* | (wie Finale) | ✓ |
 | Zeile als Noten, als Piano-Roll oder als beides zeigen | *Schalter „Noten · Beides · Roll“ an der Zeile (Strg+Umschalt+P schaltet die Roll um)* | *Schalter „Noten · Beides · Roll“ an der Zeile (Strg+Umschalt+P schaltet die Roll um)* | (wie Finale) | ✓ |
 | Tabulatur: die Bundzahl einer markierten Note ändern – Zahl tippen (zwei Ziffern schnell hintereinander: 10 bis 22) | *Note in der Tabulaturzeile anklicken und die Zahl tippen* | *Note in der Tabulaturzeile anklicken und die Zahl tippen* | (wie Finale) | ✓ |
 | Tabulatur: die markierte Zahl auf eine andere Saite legen (der Ton bleibt, der Bund passt sich an) | *↑ / ↓ bei einer markierten Note der Tabulaturzeile* | *↑ / ↓ bei einer markierten Note der Tabulaturzeile* | (wie Finale) | ✓ |

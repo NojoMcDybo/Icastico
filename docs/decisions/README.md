@@ -75,3 +75,4 @@ Was wird dadurch leichter, was schwerer?
 | 0045 | [Titel und Komponist über der Partitur, Instrumentennamen nur am Anfang, A4-Ansicht als Standard](0045-kopfzeile-instrumentennamen-a4-standard.md) | angenommen |
 | 0046 | [Gleich breite Takte, Druck wie in der Partitur, Punkte in der Tabulatur, mehr Luft unter dem Komponisten](0046-gleiche-takte-pdf-wie-partitur-tab-punkte.md) | angenommen |
 | 0047 | [Lautstärke mehrerer Töne zugleich, und jede Änderung ist zu hören](0047-lautstaerke-mehrerer-toene.md) | angenommen |
+| 0048 | [Notenschrift und Piano-Roll zeigen denselben Takt](0048-gleichlauf-notenschrift-piano-roll.md) | angenommen |

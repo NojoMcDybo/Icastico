@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { measuresOf } from '../core/model';
+import { add, frac } from '../core/time';
+import { createScore, DEFAULT_SETUP } from '../core/templates';
 import {
   COMPACT_BELOW,
   DEFAULT_ROLL_HEIGHT,
@@ -10,6 +13,7 @@ import {
   heightOf,
   hiddenStaves,
   isCompact,
+  measureIndexAt,
   modeOf,
   nextMode,
   normalize,
@@ -115,5 +119,20 @@ describe('remembering per score', () => {
     expect(n.modes).toEqual({});
     expect(n.heights).toEqual({});
     expect(n.active).toBe(NOTATION);
+  });
+});
+
+describe('the bar at a time (notation and roll show the same bar)', () => {
+  const score = { ...createScore({ ...DEFAULT_SETUP, pickup: frac(1, 4) }), };
+  const bars = measuresOf(score, 4);
+  it('an upbeat counts as the first bar; the barline itself belongs to the bar that starts there', () => {
+    expect(bars[0]!.number).toBe(0);
+    expect(measureIndexAt(bars, frac(0, 1))).toBe(0);
+    expect(measureIndexAt(bars, bars[1]!.start)).toBe(1);
+    expect(measureIndexAt(bars, add(bars[2]!.start, frac(1, 8)))).toBe(2);
+  });
+  it('after the end the last bar, before the start the first', () => {
+    expect(measureIndexAt(bars, frac(100, 1))).toBe(bars.length - 1);
+    expect(measureIndexAt([], frac(1, 1))).toBe(0);
   });
 });
