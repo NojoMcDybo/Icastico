@@ -44,7 +44,8 @@ export type UiCommandId =
   | 'edit.cut'
   | 'edit.paste'
   | 'edit.transpose'
-  | 'view.palette';
+  | 'view.palette'
+  | 'view.keys';
 
 /** Functions handled by the mouse, listed for the help only. */
 export const MOUSE_COMMANDS = new Set([
@@ -69,6 +70,7 @@ export const UI_COMMANDS: ReadonlySet<string> = new Set<UiCommandId>([
   'history.undo',
   'history.redo',
   'view.help',
+  'view.keys',
   'file.new',
   'file.open',
   'file.import',
@@ -254,6 +256,8 @@ export function buildKeymap(id: PresetId, library: KeyLibrary = KEY_LIBRARY, mac
 // ── Command palette (Ctrl+K) ───────────────────────────────────────────────
 
 export interface PaletteEntry {
+  /** The function's id in the library (with `arg`, the key of its own keys: see `overrideKey`). */
+  readonly id: string;
   readonly title: string;
   /** The heading the function stands under in the key help. */
   readonly group: string;
@@ -275,11 +279,59 @@ export function paletteEntries(id: PresetId, library: KeyLibrary = KEY_LIBRARY, 
       const keysOf = (arg: string | undefined) => (own.find((p) => p.arg === arg)?.keys ?? []).map((k) => displayCombo(k, mac)).join(' / ');
       // The variants: named in `args`, or the arguments any layout has keys for.
       const variants = fn.args ? Object.keys(fn.args) : [...new Set([fn.finale, fn.logic, fn.speedy].flatMap((p) => pairsIn(p).flatMap((x) => (x.arg === undefined ? [] : [x.arg]))))];
-      if (variants.length === 0) entries.push({ title: fn.title, group: group.title, keys: keysOf(undefined), command });
-      for (const arg of variants) entries.push({ title: `${fn.title}: ${fn.args?.[arg] ?? arg}`, group: group.title, keys: keysOf(arg), command, arg: Number(arg) });
+      if (variants.length === 0) entries.push({ id: fn.id, title: fn.title, group: group.title, keys: keysOf(undefined), command });
+      for (const arg of variants) entries.push({ id: fn.id, title: `${fn.title}: ${fn.args?.[arg] ?? arg}`, group: group.title, keys: keysOf(arg), command, arg: Number(arg) });
     }
   }
   return entries;
+}
+
+// ── The user's own keys (ADR 0049) ─────────────────────────────────────────
+
+/** Only what differs from the library, per function (and variant): the keys now on it; an empty list = no key. */
+export type KeyOverrides = Readonly<Record<string, readonly string[]>>;
+
+export const overrideKey = (functionId: string, arg?: string): string => `${functionId}|${arg ?? ''}`;
+
+const keysOfPreset = (fn: LibraryFunction, id: PresetId): PresetKeys | undefined => fn[id] ?? (id === 'speedy' ? fn.finale : undefined);
+
+/** The library with the user's own keys for one layout laid over it; the other layouts stay as they are. */
+export function withOverrides(library: KeyLibrary, id: PresetId, overrides: KeyOverrides): KeyLibrary {
+  if (Object.keys(overrides).length === 0) return library;
+  const groups = library.groups.map((group) => ({
+    ...group,
+    functions: group.functions.map((fn): LibraryFunction => {
+      const own = keyPairs(keysOfPreset(fn, id)?.keys ?? []);
+      const args = [...new Set([...Object.keys(fn.args ?? {}), ...own.flatMap((p) => (p.arg === undefined ? [] : [p.arg]))])];
+      const variants: (string | undefined)[] = args.length > 0 ? args : [undefined];
+      if (!variants.some((a) => overrides[overrideKey(fn.id, a)])) return fn;
+      const keysFor = (a: string | undefined): readonly string[] => overrides[overrideKey(fn.id, a)] ?? own.find((p) => p.arg === a)?.keys ?? [];
+      const keys = args.length > 0 ? Object.fromEntries(args.map((a) => [a, keysFor(a)])) : keysFor(undefined);
+      return { ...fn, [id]: { keys, source: 'icastico' as const } };
+    }),
+  }));
+  return { ...library, groups };
+}
+
+/** The keys (raw combinations) a function or variant has in this layout. */
+export function keysOfFunction(library: KeyLibrary, id: PresetId, functionId: string, arg?: string): readonly string[] {
+  for (const group of library.groups) {
+    const fn = group.functions.find((f) => f.id === functionId);
+    if (fn) return keyPairs(keysOfPreset(fn, id)?.keys ?? []).find((p) => p.arg === arg)?.keys ?? [];
+  }
+  return [];
+}
+
+/** Which function holds `combo` in this layout, if any (its title names the variant, e.g. "…: Viertel"). */
+export function holderOf(library: KeyLibrary, id: PresetId, combo: string): { functionId: string; arg?: string; title: string } | null {
+  for (const group of library.groups) {
+    for (const fn of group.functions) {
+      if (!fn.command || MOUSE_COMMANDS.has(fn.command)) continue;
+      const hit = keyPairs(keysOfPreset(fn, id)?.keys ?? []).find((p) => p.keys.includes(combo));
+      if (hit) return { functionId: fn.id, ...(hit.arg !== undefined ? { arg: hit.arg } : {}), title: hit.arg !== undefined ? `${fn.title}: ${fn.args?.[hit.arg] ?? hit.arg}` : fn.title };
+    }
+  }
+  return null;
 }
 
 /** The entries that contain every word of the query (in title, heading or key); those whose title starts with it come first. */

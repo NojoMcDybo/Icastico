@@ -2779,3 +2779,79 @@ button.lcd__cell:nth-child(3) {
 .page .is-hidden-rest {
   opacity: 0.28;
 }
+
+/* "Tasten anpassen" (ADR 0049) */
+.keys {
+  width: min(680px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.keys__search {
+  width: 100%;
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.08);
+  color: var(--ink);
+  font: inherit;
+}
+
+.keys__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  min-height: 120px;
+  flex: 1 1 auto;
+}
+
+.keys__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.keys__row.is-changed .keys__name::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.keys__row.is-capturing {
+  background: rgb(117 184 255 / 0.12);
+}
+
+.keys__name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.keys__keys {
+  flex: 0 0 auto;
+  max-width: 45%;
+  color: var(--dim);
+  font-size: 13px;
+  text-align: right;
+}
+
+.keys__button {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
+.keys__more {
+  padding: 8px 4px;
+  color: var(--dim);
+  font-size: 13px;
+}

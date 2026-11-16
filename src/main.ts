@@ -2,8 +2,8 @@ import './styles.css';
 import { demoScore } from './core/demo';
 import { LibraryStore } from './library/store';
 import { Engraver } from './render/verovio';
-import { buildKeymap } from './ui/keymaps/library';
-import { loadKeymapPreset } from './ui/preferences';
+import { KEY_LIBRARY, buildKeymap, withOverrides } from './ui/keymaps/library';
+import { loadKeyOverrides, loadKeymapPreset } from './ui/preferences';
 import { Workstation } from './ui/workstation';
 import { currentPlatform } from './platform/files';
 import { APP_VERSION } from './version';
@@ -57,7 +57,7 @@ async function start(): Promise<void> {
       updateButton: $('update-button'),
     },
     engraver,
-    buildKeymap(loadKeymapPreset()),
+    buildKeymap(loadKeymapPreset(), withOverrides(KEY_LIBRARY, loadKeymapPreset(), loadKeyOverrides(loadKeymapPreset()))),
     platform,
     store,
     updates,

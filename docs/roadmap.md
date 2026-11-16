@@ -73,7 +73,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Befehlspalette (Strg+K): Suchfeld über der Partitur, findet jede Funktion (auch je Notenwert, Intervall …) mit ihrer Taste in der gewählten Belegung; ↑/↓ wählt, Enter führt aus, Esc schließt (ADR 0004)
 - [ ] Panels andockbar, Layout speicherbar
 - [ ] Workspaces pro Instrument/Aufgabe
-- [ ] Tastenbelegung frei anpassbar (Grundlage: Bibliothek, ADR 0011)
+- [x] Tastenbelegung frei anpassbar: F1 → „Tasten anpassen …“, je Funktion eigene Taste, wegnehmen, zurücksetzen; gilt sofort und bleibt gespeichert (ADR 0049)
 
 ## Schritt 3 – Klang & Austausch
 

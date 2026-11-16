@@ -5,7 +5,7 @@
 import { type InstrumentId, INSTRUMENTS } from '../core/instruments';
 import { type ScoreSetup, DEFAULT_SETUP } from '../core/templates';
 import { ZERO } from '../core/time';
-import type { PresetId } from './keymaps/library';
+import type { KeyOverrides, PresetId } from './keymaps/library';
 import { DEFAULT_VIEW, type ViewState, parseView } from './lanes';
 
 const KEY = 'icastico.newScore';
@@ -102,6 +102,26 @@ export function loadKeymapPreset(): PresetId {
     return id === 'finale' || id === 'logic' ? id : 'speedy';
   } catch {
     return 'speedy';
+  }
+}
+
+/** The user's own keys for one layout (only what differs from the library; a broken entry is ignored). */
+export function loadKeyOverrides(id: PresetId): KeyOverrides {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(`icastico.keys.${id}`) ?? '{}');
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {};
+    return Object.fromEntries(Object.entries(raw).filter((e): e is [string, string[]] => Array.isArray(e[1]) && e[1].every((k) => typeof k === 'string')));
+  } catch {
+    return {};
+  }
+}
+
+export function saveKeyOverrides(id: PresetId, overrides: KeyOverrides): void {
+  try {
+    if (Object.keys(overrides).length === 0) localStorage.removeItem(`icastico.keys.${id}`);
+    else localStorage.setItem(`icastico.keys.${id}`, JSON.stringify(overrides));
+  } catch {
+    // not remembered
   }
 }
 

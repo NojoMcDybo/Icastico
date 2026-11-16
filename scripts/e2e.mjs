@@ -1707,6 +1707,46 @@ try {
   await page.keyboard.press('Escape');
   check((await page.locator('.palette').count()) === 0, 'Befehlspalette: Esc schließt sie, ohne etwas auszuführen');
 
+  // ── Tasten anpassen (ADR 0049) ──
+  await newScore('Tasten-Test');
+  await type('5', 'c', 'Escape');
+  await type('F1');
+  await page.click('.help__head button:has-text("Tasten anpassen")');
+  await page.waitForSelector('.keys');
+  await page.fill('.keys__search', 'Transponieren');
+  const keyRow = page.locator('.keys__row').first();
+  await keyRow.locator('button:has-text("Ändern")').click();
+  check(/Neue Taste drücken/.test(await keyRow.textContent()), 'Tasten anpassen: „Ändern“ wartet auf die neue Taste');
+  await page.keyboard.press('Control+Alt+t');
+  check(/Alt\+T/.test(await keyRow.locator('.keys__keys').textContent()) && (await keyRow.getAttribute('class')).includes('is-changed'), 'Tasten anpassen: die neue Taste steht in der Zeile, die Zeile ist als geändert markiert');
+  await keyRow.locator('button:has-text("Ändern")').click();
+  await page.keyboard.press('Control+z');
+  check(/Liegt auf/.test(await keyRow.textContent()), 'Tasten anpassen: eine schon vergebene Taste fragt nach, bevor sie der anderen Funktion genommen wird');
+  await keyRow.locator('button:has-text("Abbrechen")').click();
+  await page.click('.keys button:has-text("Fertig")');
+  await page.waitForSelector('.keys', { state: 'detached' });
+  await type('Control+Alt+t');
+  await page.waitForSelector('.transpose .wheel');
+  check(true, 'Tasten anpassen: die neue Taste (Strg+Alt+T) öffnet das Transponieren-Fenster – sofort, ohne Neustart');
+  await page.click('.transpose button:has-text("Abbrechen")');
+  await page.waitForSelector('.transpose', { state: 'detached' });
+  await type('Control+Shift+t');
+  await page.waitForTimeout(300);
+  check((await page.locator('.transpose').count()) === 0, 'Tasten anpassen: die alte Taste (Strg+Umschalt+T) tut nichts mehr');
+  check(await page.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith('icastico.keys.'))), 'Tasten anpassen: die eigene Taste wird gespeichert');
+  await type('F1');
+  await page.click('.help__head button:has-text("Tasten anpassen")');
+  await page.waitForSelector('.keys');
+  await page.click('.keys button:has-text("Alle zurücksetzen")');
+  await page.click('.modal__box:not(.keys) button.is-primary');
+  await page.click('.keys button:has-text("Fertig")');
+  await page.waitForSelector('.keys', { state: 'detached' });
+  await type('Control+Shift+t');
+  await page.waitForSelector('.transpose .wheel');
+  check(true, 'Tasten anpassen: „Alle zurücksetzen“ bringt die Standardtaste zurück');
+  await page.click('.transpose button:has-text("Abbrechen")');
+  await page.waitForSelector('.transpose', { state: 'detached' });
+
   // ── Triolen (Alt+9 in der Finale-Belegung) ──
   await newScore('Triolen-Test');
   await type('4', 'Alt+9', 'c', 'd', 'e', 'Alt+9', '5', 'g');

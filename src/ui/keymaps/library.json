@@ -519,6 +519,12 @@
           "logic": { "keys": ["Mod+N"], "source": "doku" }
         },
         {
+          "id": "view.keys",
+          "title": "Tasten anpassen: jede Funktion auf eine eigene Taste legen",
+          "command": "view.keys",
+          "via": "Tastenhilfe (F1): Knopf „Tasten anpassen …“"
+        },
+        {
           "id": "library.toggle",
           "title": "Bibliothek",
           "command": "library.toggle",

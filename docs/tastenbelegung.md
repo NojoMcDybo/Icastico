@@ -99,6 +99,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Funktion | Finale | Logic Pro | Finale-Ziffernblock | Icastico |
 |---|---|---|---|---|
 | Neue Partitur | `Strg+N` | `Strg+N` | (wie Finale) | ✓ |
+| Tasten anpassen: jede Funktion auf eine eigene Taste legen | *Tastenhilfe (F1): Knopf „Tasten anpassen …“* | *Tastenhilfe (F1): Knopf „Tasten anpassen …“* | (wie Finale) | ✓ |
 | Bibliothek | `Strg+O` *(Icastico)* – In Finale/Logic: Öffnen. | `Strg+O` *(Icastico)* – In Finale/Logic: Öffnen. | (wie Finale) | ✓ |
 | Datei von außerhalb der Bibliothek öffnen | `Strg+Umschalt+O` *(Icastico)* | `Strg+Umschalt+O` *(Icastico)* | (wie Finale) | ✓ |
 | Importieren: MusicXML (Finale), MIDI-Datei oder Einzelstimmen-Aufnahme (Logic) | `Strg+Umschalt+I` *(Icastico)* | `Strg+Umschalt+I` *(Icastico)* | (wie Finale) | ✓ |

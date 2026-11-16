@@ -88,10 +88,11 @@ import {
 } from './lanes';
 import { Thumbnails } from './thumbnails';
 import type { UpdateChecker } from './updates';
-import { loadChordSymbolWithNotes, saveChordSymbolWithNotes, loadRollSynth, saveRollSynth, loadNewScoreDefaults, loadPdfSetup, loadView, savePdfSetup, saveKeymapPreset, saveLastOpened, saveNewScoreDefaults, saveView, loadMetronome, saveMetronome, loadA4, saveA4, loadZoom, saveZoom, ZOOM_MAX, ZOOM_MIN } from './preferences';
+import { loadChordSymbolWithNotes, saveChordSymbolWithNotes, loadRollSynth, saveRollSynth, loadNewScoreDefaults, loadPdfSetup, loadView, savePdfSetup, saveKeymapPreset, loadKeyOverrides, saveLastOpened, saveNewScoreDefaults, saveView, loadMetronome, saveMetronome, loadA4, saveA4, loadZoom, saveZoom, ZOOM_MAX, ZOOM_MIN } from './preferences';
 import { scoreDialog } from './scoreDialog';
 import { comboOf, numpadComboOf } from './keys';
-import { type Keymap, type PresetId, type UiCommandId, buildKeymap, findBinding, KEY_LIBRARY, paletteEntries, PRESETS } from './keymaps/library';
+import { type KeyLibrary, type Keymap, type PresetId, type UiCommandId, buildKeymap, findBinding, KEY_LIBRARY, paletteEntries, PRESETS, withOverrides } from './keymaps/library';
+import { keysDialog } from './keysDialog';
 import { commandPalette } from './commandPalette';
 
 export interface WorkstationElements {
@@ -132,7 +133,7 @@ const AUTOSAVE_DELAY = 1000;
 /** Commands that make sense without an open score. */
 /** What works on a chosen syllable instead of on the notes. */
 const SYLLABLE_COMMANDS = new Set<string>(['edit.delete', 'edit.backspace', 'edit.copy', 'edit.cut', 'edit.paste']);
-const WITHOUT_DOCUMENT = new Set<string>(['file.new', 'file.open', 'library.toggle', 'view.help', 'view.voiceTest', 'view.palette']);
+const WITHOUT_DOCUMENT = new Set<string>(['file.new', 'file.open', 'library.toggle', 'view.help', 'view.voiceTest', 'view.palette', 'view.keys']);
 
 const isInside = (root: string, path: string): boolean => {
   const norm = (p: string) => p.replace(/\\/g, '/').toLowerCase();
@@ -559,8 +560,12 @@ export class Workstation {
         this.el.help.hidden = false;
         this.el.help.querySelector<HTMLInputElement>('.help__search')?.focus();
         return;
+      case 'view.keys':
+        this.el.help.hidden = true;
+        void keysDialog({ preset: this.keymap.id, changed: () => this.applyKeymap(this.keymap.id) });
+        return;
       case 'view.palette':
-        void commandPalette(paletteEntries(this.keymap.id)).then((pick) => pick && this.run(pick.command, pick.arg ?? 0));
+        void commandPalette(paletteEntries(this.keymap.id, this.keyLibrary())).then((pick) => pick && this.run(pick.command, pick.arg ?? 0));
         return;
       case 'view.roll':
         this.toggleRoll();
@@ -3029,10 +3034,20 @@ export class Workstation {
   }
 
   /** Switches between the Finale and the Logic key layout (remembered). */
-  setKeymap(id: PresetId): void {
-    this.keymap = buildKeymap(id);
-    saveKeymapPreset(id);
+  /** The key library of a layout with the user's own keys laid over it (ADR 0049). */
+  private keyLibrary(id: PresetId = this.keymap.id): KeyLibrary {
+    return withOverrides(KEY_LIBRARY, id, loadKeyOverrides(id));
+  }
+
+  /** Builds keys and key help of a layout anew (also after the user changed a key). */
+  private applyKeymap(id: PresetId): void {
+    this.keymap = buildKeymap(id, this.keyLibrary(id));
     this.buildHelp();
+  }
+
+  setKeymap(id: PresetId): void {
+    this.applyKeymap(id);
+    saveKeymapPreset(id);
     this.el.help.querySelector<HTMLButtonElement>(`[data-preset="${id}"]`)?.focus();
   }
 
@@ -3066,7 +3081,13 @@ export class Workstation {
       this.el.help.hidden = true;
       void showPatchNotes(latestNotes());
     });
-    head.append(title, switcher, news);
+    const own = document.createElement('button');
+    own.type = 'button';
+    own.className = 'pill help__news';
+    own.textContent = 'Tasten anpassen …';
+    own.title = 'Jede Funktion auf eine eigene Taste legen';
+    own.addEventListener('click', () => this.run('view.keys'));
+    head.append(title, switcher, news, own);
     const desc = document.createElement('p');
     desc.className = 'help__desc';
     desc.textContent = this.keymap.description;

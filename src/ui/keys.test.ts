@@ -11,6 +11,10 @@ import {
   UI_COMMANDS,
   paletteEntries,
   searchPalette,
+  holderOf,
+  keysOfFunction,
+  overrideKey,
+  withOverrides,
 } from './keymaps/library';
 import { COMMANDS, newScoreState, runCommand, type CommandId } from '../core/editor/commands';
 import { validateScore } from '../core/model';
@@ -235,5 +239,52 @@ describe('command palette (Ctrl+K)', () => {
     expect(searchPalette(entries, 'strg+umschalt+t').some((e) => e.command === 'edit.transpose')).toBe(true);
     expect(searchPalette(entries, 'gibtesnicht')).toEqual([]);
     expect(searchPalette(entries, '  ')).toHaveLength(entries.length);
+  });
+});
+
+describe('the user own keys (ADR 0049)', () => {
+  const library = (id: 'finale' | 'logic' | 'speedy', overrides: Record<string, string[]>) => withOverrides(KEY_LIBRARY, id, overrides);
+  const keymap = (id: 'finale' | 'logic' | 'speedy', overrides: Record<string, string[]>) => buildKeymap(id, library(id, overrides), false);
+
+  it('without differences the library is the same one', () => {
+    expect(withOverrides(KEY_LIBRARY, 'finale', {})).toBe(KEY_LIBRARY);
+  });
+
+  it('a new key replaces the old ones of that function only, in that layout only', () => {
+    const map = keymap('finale', { [overrideKey('edit.transpose')]: ['Mod+Alt+T'] });
+    expect(findBinding(map, 'Mod+Alt+T')?.command).toBe('edit.transpose');
+    expect(findBinding(map, 'Mod+Shift+T')).toBeUndefined();
+    expect(findBinding(buildKeymap('logic', library('finale', { [overrideKey('edit.transpose')]: ['Mod+Alt+T'] }), false), 'Mod+Alt+T')).toBeUndefined();
+    expect(findBinding(keymap('finale', {}), 'Mod+Shift+T')?.command).toBe('edit.transpose');
+  });
+
+  it('an empty list takes the key away', () => {
+    const map = keymap('logic', { [overrideKey('edit.transpose')]: [] });
+    expect(map.bindings.some((b) => b.command === 'edit.transpose')).toBe(false);
+  });
+
+  it('only the named variant of a function changes', () => {
+    const before = keysOfFunction(KEY_LIBRARY, 'finale', 'edit.volume', '-1');
+    const lib = library('finale', { [overrideKey('edit.volume', '1')]: ['Mod+Alt+L'] });
+    expect(keysOfFunction(lib, 'finale', 'edit.volume', '1')).toEqual(['Mod+Alt+L']);
+    expect(keysOfFunction(lib, 'finale', 'edit.volume', '-1')).toEqual(before);
+  });
+
+  it('the numpad layout keeps the keys it inherits from Finale when it changes one', () => {
+    const before = buildKeymap('speedy', KEY_LIBRARY, false).bindings.length;
+    const map = keymap('speedy', { [overrideKey('edit.transpose')]: ['Mod+Alt+T'] });
+    expect(findBinding(map, 'Mod+Alt+T')?.command).toBe('edit.transpose');
+    expect(map.bindings.length).toBe(before - (buildKeymap('speedy', KEY_LIBRARY, false).bindings.filter((b) => b.command === 'edit.transpose').length - 1));
+  });
+
+  it('says which function holds a key', () => {
+    expect(holderOf(KEY_LIBRARY, 'finale', 'Mod+Shift+T')).toMatchObject({ functionId: 'edit.transpose' });
+    expect(holderOf(KEY_LIBRARY, 'finale', 'Mod+Alt+Shift+F12')).toBeNull();
+    const moved = holderOf(library('finale', { [overrideKey('edit.transpose')]: ['Mod+Alt+T'] }), 'finale', 'Mod+Alt+T');
+    expect(moved?.functionId).toBe('edit.transpose');
+  });
+
+  it('every function of the palette carries its id', () => {
+    for (const e of paletteEntries('finale', KEY_LIBRARY, false)) expect(e.id).toBeTruthy();
   });
 });
