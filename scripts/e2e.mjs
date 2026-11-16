@@ -1349,6 +1349,20 @@ try {
   await type('Control+Delete');
   check((await page.locator('.page g.note').count()) >= 1, 'Tabulatur-Zeile: die Noten der anderen Zeile bleiben beim Bearbeiten erhalten');
 
+  // ── Lautstärke mehrerer Töne (Strg+Alt+↑/↓) ──
+  await newScore('Lautstärke-Test');
+  await type('5', 'c', 'd', 'e', 'Escape');
+  await page.locator('.page g.note').first().click({ force: true });
+  await type('Control+a', 'Control+Alt+ArrowUp');
+  check(/3 Töne lauter/.test(await status()), 'Lautstärke: Strg+Alt+↑ stellt alle markierten Noten lauter und nennt die Zahl');
+  await saved();
+  const volFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Lautstärke-Test.icastico'))[1].contents;
+  check((volFile.match(/"vol": 108/g) ?? []).length === 3, 'Lautstärke: die Datei enthält dreimal „vol“: 108');
+  await type('Control+z');
+  await saved();
+  const volBack = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Lautstärke-Test.icastico'))[1].contents;
+  check(!/"vol"/.test(volBack), 'Lautstärke: Strg+Z nimmt die Änderung aller Noten in einem Schritt zurück');
+
   // ── Neue Funktionen: Zoom, Metronom, Cycle, Quantisieren, Drucken, Oktave ──
   await newScore('Funktionen-Test');
   await type('5', 'c', 'd', 'e', 'f', 'Escape');

@@ -46,8 +46,8 @@ export class SimpleSynth implements Engine {
   private readonly waves = new Map<string, PeriodicWave>();
 
   /** A short sound of these pitches – feedback while editing. */
-  audition(midis: readonly number[], instrument: InstrumentId, sustained: boolean): void {
-    const notes = midis.map((midi): SoundNote => ({ instrument, start: 0, end: 0.4, path: [{ t: 0, midi }, { t: 0.4, midi }] }));
+  audition(midis: readonly number[], instrument: InstrumentId, sustained: boolean, velocity?: number): void {
+    const notes = midis.map((midi): SoundNote => ({ instrument, start: 0, end: 0.4, path: [{ t: 0, midi }, { t: 0.4, midi }], ...(velocity === undefined ? {} : { volume: velocity }) }));
     void this.play({ notes, length: 0.4 }, 0, sustained);
   }
 

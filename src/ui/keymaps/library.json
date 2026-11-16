@@ -160,6 +160,14 @@
           "logic": { "keys": { "1": ["Alt+ArrowUp"], "-1": ["Alt+ArrowDown"] }, "source": "doku" }
         },
         {
+          "id": "edit.volume",
+          "title": "Lautstärke der markierten Noten (oder der gewählten Note)",
+          "command": "edit.volume",
+          "args": { "1": "lauter", "-1": "leiser" },
+          "finale": { "keys": { "1": ["Mod+Alt+ArrowUp"], "-1": ["Mod+Alt+ArrowDown"] }, "source": "icastico" },
+          "logic": { "keys": { "1": ["Mod+Alt+ArrowUp"], "-1": ["Mod+Alt+ArrowDown"] }, "source": "icastico" }
+        },
+        {
           "id": "edit.octave",
           "title": "Eine Oktave höher / tiefer",
           "command": "edit.octave",

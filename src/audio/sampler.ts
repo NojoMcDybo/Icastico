@@ -131,7 +131,7 @@ export class Sampler implements Engine {
   }
 
   /** A short sound of these pitches – feedback while editing. Silent (but starts loading) while the sounds are not loaded yet. */
-  async audition(midis: readonly number[], instrument: InstrumentId): Promise<void> {
+  async audition(midis: readonly number[], instrument: InstrumentId, velocity = AUDITION_VELOCITY): Promise<void> {
     if (!this.loaded) {
       void this.load().catch(() => undefined);
       return;
@@ -142,7 +142,7 @@ export class Sampler implements Engine {
     // After a stop the synthesizer is silenced until its queued notes have run out: wait for that.
     const start = { time: Math.max(ctx.currentTime, this.drainUntil + 0.03) };
     synth.programChange(channel, PROGRAMS[instrument], start);
-    for (const key of midis) synth.noteOn(channel, key, AUDITION_VELOCITY, start);
+    for (const key of midis) synth.noteOn(channel, key, velocity, start);
     const stop = { time: start.time + AUDITION_MS / 1000 };
     for (const key of midis) synth.noteOff(channel, key, stop);
   }

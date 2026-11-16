@@ -36,7 +36,7 @@ import {
   voiceEnd,
 } from './state';
 import { applyRollEdit } from './rollEdits';
-import { deleteRange, extendRange, rangeSpan, selectAllNotes } from './range';
+import { changeVolume, deleteRange, extendRange, rangeSpan, selectAllNotes } from './range';
 import { toggleTabAnywhere, translateToTab } from './tabOps';
 import { eraseRests, flipStems, hideRests, shiftRests } from './layoutOps';
 import { chooseLayer } from './layerOps';
@@ -1214,6 +1214,7 @@ export const COMMANDS = {
   'input.layer': { title: 'Ebene 1 oder 2 im selben Notensystem (Eingabe dort fortsetzen)', run: chooseLayer },
   'stem.flip': { title: 'Halsrichtung der markierten Noten umdrehen', run: flipStems },
   'rest.hide': { title: 'Gewählte Pause(n) unsichtbar machen / wieder zeigen', run: hideRests },
+  'edit.volume': { title: 'Lautstärke der markierten Noten', run: changeVolume },
   'edit.octave': { title: 'Tonhöhe um eine Oktave', run: octave },
   'edit.alter': { title: 'Vorzeichen: Halbton höher/tiefer', run: alter },
   'edit.semitone': { title: 'Um einen Halbton transponieren', run: semitone },

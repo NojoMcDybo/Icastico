@@ -3,6 +3,7 @@
  * Strg+A). A marked passage can be deleted (it becomes rests), cut, copied and pasted, and played in a loop.
  * Pure functions on the editor state; the clipboard itself lives in the workstation.
  */
+import { DEFAULT_VOLUME, MAX_VOLUME, MIN_VOLUME, volumeMark } from '../curve';
 import { type Fraction, add, eq, le, lt, sub } from '../time';
 import { type NoteEvent, type Part, type Score, eventEnd } from '../model';
 import { type Pitch, midiOf } from '../pitch';
@@ -117,6 +118,51 @@ export function deleteRange(s: EditorState): EditorState {
     selection: { kind: 'gap', partId: span.partId, voiceId: span.voiceId, time: span.from },
     message: `${span.notes} ${span.notes === 1 ? 'Note' : 'Noten'} gelöscht`,
   };
+}
+
+/** One step of louder/softer: half a dynamic step (the steps of `volumeMark` are 16 apart). */
+export const VOLUME_STEP = 8;
+
+/** Makes the marked passage (else the selected note, or the selected chord tone) louder or softer by `steps` × 8. */
+export function changeVolume(s: EditorState, steps: number): EditorState {
+  const span = rangeSpan(s);
+  const sel = s.selection;
+  if (!span && sel?.kind !== 'event') return say(s, 'Erst eine Note auswählen oder einen Bereich markieren.');
+  const part = span ? partOf(s.score, span.partId) : undefined;
+  const refs: { ref: VoiceRef; ids: ReadonlySet<string> | null }[] = [];
+  if (span && part) {
+    for (const v of part.voices) {
+      const inside = v.events.filter((e) => le(span.from, e.onset) && lt(e.onset, span.to)).map((e) => e.id);
+      if (inside.length > 0) refs.push({ ref: { partId: part.id, voiceId: v.id }, ids: new Set(inside) });
+    }
+  } else if (sel?.kind === 'event') refs.push({ ref: sel, ids: new Set([sel.eventId]) });
+  // A single clicked chord tone is changed alone, a whole note otherwise.
+  const only = !span && sel?.kind === 'event' ? sel.toneId : undefined;
+  const clamp = (v: number): number => Math.max(MIN_VOLUME, Math.min(MAX_VOLUME, v));
+  let score = s.score;
+  let changed = 0;
+  let shown: number | null = null;
+  for (const { ref, ids } of refs) {
+    score = updateEvents(score, ref, (events) =>
+      events.map((e) => {
+        if (!ids!.has(e.id)) return e;
+        const alone = only !== undefined && e.tones.length > 1 && e.tones.some((t) => t.id === only) ? only : undefined;
+        const tones = e.tones.map((t) => {
+          if (alone !== undefined && t.id !== alone) return t;
+          const now = t.volume ?? DEFAULT_VOLUME;
+          const next = clamp(now + steps * VOLUME_STEP);
+          if (next === now) return t;
+          changed++;
+          shown ??= next;
+          const { volume: _old, ...rest } = t;
+          return next === DEFAULT_VOLUME ? rest : { ...rest, volume: next };
+        });
+        return { ...e, tones };
+      }),
+    );
+  }
+  if (changed === 0) return say(s, steps > 0 ? 'Lauter geht es nicht.' : 'Leiser geht es nicht.');
+  return { ...s, score, message: `${changed} ${changed === 1 ? 'Ton' : 'Töne'} ${steps > 0 ? 'lauter' : 'leiser'} (${volumeMark(shown!)} · ${shown})` };
 }
 
 // ── Clipboard ──────────────────────────────────────────────────────────────

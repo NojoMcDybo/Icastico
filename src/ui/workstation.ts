@@ -9,6 +9,7 @@ import { lyricOf, syllableId, verseOfSyllableId } from '../core/lyrics';
 import { type SyllableClip, chosenNotes, clearSyllables, copySyllables, moveSyllable, pasteSyllables } from '../core/editor/lyricOps';
 import { chordDialog } from './chordDialog';
 import { type CommandId, chordSymbolText, dropBarSign, enterChordByName, dropNoteSign, eraseBarSign, eraseChordSymbol, eraseClefChange, eraseLink, eraseNoteSign, eraseTempoChange, ghostPitches, signsAtFocus, lyricsText, newScoreState, runCommand, setChordSymbol, setLyricOf, setLyrics } from '../core/editor/commands';
+import { DEFAULT_VOLUME } from '../core/curve';
 import { demoScore } from '../core/demo';
 import { History } from '../core/editor/history';
 import { type EditorState, type VoiceRef, allVoiceRefs, createEditorState, getVoice, inputLength, staffCenter } from '../core/editor/state';
@@ -2795,6 +2796,7 @@ export class Workstation {
     const before = this.heardScore;
     this.heardScore = s.score;
     if (this.empty || this.player.active || !before || performance.now() - this.lastAudition < 40) return;
+    const quick = performance.now() - this.lastAudition < 150; // the volume slider fires on every movement
     const sel = s.selection;
     // The preview note at the input cursor is silent while its pitch is changed; it sounds when Enter sets it (a new note).
     if (s.score === before || sel?.kind !== 'event') return;
@@ -2807,14 +2809,17 @@ export class Workstation {
     if (!part || !event) return;
     const old = find(before).event;
     const sound = (e: typeof event) => e.tones.map((t) => t.id + ':' + midiOf(t.pitch)).join(' ');
-    if (old && sound(old) === sound(event)) return; // the score changed elsewhere: nothing to hear
+    const loud = (e: typeof event) => e.tones.map((t) => t.id + ':' + (t.volume ?? DEFAULT_VOLUME)).join(' ');
+    const volumeOnly = !!old && sound(old) === sound(event) && loud(old) !== loud(event);
+    if (old && sound(old) === sound(event) && !volumeOnly) return; // the score changed elsewhere: nothing to hear
+    if (volumeOnly && quick) return;
     const tones = sel.toneId ? event.tones.filter((t) => t.id === sel.toneId) : event.tones;
-    this.hear(tones.map((t) => midiOf(t.pitch)), part.instrument);
+    this.hear(tones.map((t) => midiOf(t.pitch)), part.instrument, volumeOnly ? Math.max(...tones.map((t) => t.volume ?? DEFAULT_VOLUME)) : undefined);
   }
 
-  private hear(midis: readonly number[], instrument: Parameters<Synth['audition']>[1]): void {
+  private hear(midis: readonly number[], instrument: Parameters<Synth['audition']>[1], velocity?: number): void {
     this.lastAudition = performance.now();
-    this.synth.audition(midis, instrument);
+    this.synth.audition(midis, instrument, velocity);
   }
 
   /** The synthesizer sound of the roll on / off (remembered); every roll shows the same state. */

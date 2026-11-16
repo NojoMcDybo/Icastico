@@ -39,6 +39,7 @@ umschaltbar (Tastenhilfe F1). `Strg` ist auf dem Mac `⌘`, `Alt` ist `⌥`.
 | Vorschau-Note: Kreuz / B | – | – | `+` Kreuz, `−` B *(Annahme)* | ✓ |
 | Eine Stufe höher / tiefer (in der Tonart) | `↑` höher, `↓` tiefer *(Annahme)* | – | *Hier gilt ↑/↓ für die Vorschau-Note („Vorschau-Note eine Stufe“).* | ✓ |
 | Einen Halbton höher / tiefer (E → F) | – | `Alt+↑` höher, `Alt+↓` tiefer | (wie Finale) | ✓ |
+| Lautstärke der markierten Noten (oder der gewählten Note) | `Strg+Alt+↑` lauter, `Strg+Alt+↓` leiser *(Icastico)* | `Strg+Alt+↑` lauter, `Strg+Alt+↓` leiser *(Icastico)* | (wie Finale) | ✓ |
 | Eine Oktave höher / tiefer | `Strg+↑` höher, `Strg+↓` tiefer *(Annahme)* | `Alt+Umschalt+↑` höher, `Alt+Umschalt+↓` tiefer | (wie Finale) | ✓ |
 | Vorzeichen ändern (E → Eis, E → Es) | `+` Kreuz, `−` B *(Annahme)* | `+` Kreuz, `−` B *(Icastico)* | *Hier gilt +/− für die Vorschau-Note („Vorschau-Note: Vorzeichen“).* | ✓ |
 | Notenwert der Note ändern | `Alt+1` 64tel, `Alt+2` 32tel, `Alt+3` 16tel, `Alt+4` Achtel, `Alt+5` Viertel, `Alt+6` Halbe, `Alt+7` Ganze | `Alt+1` Ganze, `Alt+2` Halbe, `Alt+3` Viertel, `Alt+4` Achtel, `Alt+5` 16tel, `Alt+6` 32tel, `Alt+7` 64tel *(Icastico)* | (wie Finale) | ✓ |

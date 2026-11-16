@@ -21,11 +21,11 @@ export class Synth implements Engine {
     (globalThis as { __icasticoHz?: () => number }).__icasticoHz = () => this.sampler.dominantHz();
   }
 
-  /** A short sound of these pitches, for feedback while editing. */
-  audition(midis: readonly number[], instrument: InstrumentId): void {
+  /** A short sound of these pitches, for feedback while editing; `velocity` 1–127 (absent = the usual strength). */
+  audition(midis: readonly number[], instrument: InstrumentId, velocity?: number): void {
     if (midis.length === 0) return;
-    if (this.sustained || this.failed) this.simple.audition(midis, instrument, this.sustained);
-    else void this.sampler.audition(midis, instrument).catch(() => undefined);
+    if (this.sustained || this.failed) this.simple.audition(midis, instrument, this.sustained, velocity);
+    else void this.sampler.audition(midis, instrument, velocity).catch(() => undefined);
   }
 
   async play(plan: PlaybackPlan, from: number): Promise<Playing> {

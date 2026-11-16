@@ -177,3 +177,46 @@ describe('pasting into a tablature staff (ADR 0030)', () => {
     expect(pasted.message).toMatch(/zu tief oder zu hoch/);
   });
 });
+
+describe('louder and softer (ADR 0047)', () => {
+  const volumes = (s: EditorState) => events(s).flatMap((e) => e.tones.map((t) => t.volume));
+  const marked = (): EditorState => run(run(run(select(eight(), 1), 'range.extend', 1), 'range.extend', 1), 'edit.volume', 1);
+
+  it('the marked notes all get 8 louder, nothing else changes', () => {
+    const s = marked();
+    expect(volumes(s)).toEqual([undefined, 108, 108, 108, undefined, undefined, undefined, undefined]);
+    expect(s.message).toBe('3 Töne lauter (ff · 108)');
+    expect(validateScore(s.score)).toEqual([]);
+  });
+
+  it('differences between the tones stay, the top is 127, and the way back drops the default again', () => {
+    let s = select(eight(), 0);
+    s = run(s, 'edit.volume', -2); // 84
+    s = run(run(select(s, 1), 'edit.volume', 1), 'edit.volume', 1); // 116
+    s = run(select(run(s, 'range.extend', 1), 0), 'range.extend', 1);
+    for (let i = 0; i < 3; i++) s = run(s, 'edit.volume', 1);
+    expect(volumes(s).slice(0, 2)).toEqual([108, 127]); // 84 + 24, 116 + 24 clamped
+    const back = run(run(run(select(eight(), 0), 'edit.volume', 1), 'edit.volume', -1), 'edit.volume', 0);
+    expect(volumes(back)[0]).toBeUndefined(); // 100 again: no volume written
+  });
+
+  it('one chord tone alone when it is the selected one, the whole note otherwise', () => {
+    let s = select(eight(), 0);
+    const ev = events(s)[0]!;
+    const score = { ...s.score, parts: s.score.parts.map((p) => ({ ...p, voices: p.voices.map((v) => (v.id === VOICE.voiceId ? { ...v, events: v.events.map((e) => (e.id === ev.id ? { ...e, tones: [...e.tones, { id: `${e.id}-t2`, pitch: { step: 'E', alter: 0, octave: 5 } as never }] } : e)) } : v)) })) };
+    s = { ...s, score, selection: { kind: 'event', ...VOICE, eventId: ev.id, toneId: `${ev.id}-t2` } };
+    expect(events(run(s, 'edit.volume', 1))[0]!.tones.map((t) => t.volume)).toEqual([undefined, 108]);
+    expect(events(run({ ...s, selection: { kind: 'event', ...VOICE, eventId: ev.id } }, 'edit.volume', 1))[0]!.tones.map((t) => t.volume)).toEqual([108, 108]);
+  });
+
+  it('says so when nothing is selected or when the end is reached, and leaves the score alone', () => {
+    const none = { ...eight(), selection: null, caret: null, range: null };
+    expect(run(none, 'edit.volume', 1).message).toMatch(/Erst eine Note/);
+    let s = select(eight(), 0);
+    for (let i = 0; i < 4; i++) s = run(s, 'edit.volume', 1); // 100 → 127
+    expect(volumes(s)[0]).toBe(127);
+    const again = run(s, 'edit.volume', 1);
+    expect(again.message).toBe('Lauter geht es nicht.');
+    expect(again.score).toBe(s.score);
+  });
+});

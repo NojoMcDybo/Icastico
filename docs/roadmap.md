@@ -63,7 +63,7 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Akkorde: Note auf eine andere ziehen (Notenschrift) bzw. genau darauf zeichnen (Roll, Alt + Ziehen) = Akkord, sonst automatisch zweite Stimme derselben Zeile; Akkordmodus (Taste links neben der 1) (ADR 0016)
 - [x] Lautstärke je Ton und Lautstärke-Linie über die Note (Ein-/Ausblenden), Gleitverlauf als Kurve für Tonhöhe und Lautstärke; Menü per Klick auf Balken bzw. Gleit-Linie, Punkt mit Taste P setzen und ziehen; Dateiformat 6, Wiedergabe mit Expression (ADR 0016)
 - [x] Akkordnamen tippen („Cm7“) und Akkord-Menü (Umkehrungen, Septakkorde …) – siehe ADR 0037
-- [ ] Lautstärke mehrerer Töne zugleich ändern; beim Einstellen anhören
+- [x] Lautstärke mehrerer Töne zugleich ändern (Strg+Alt+↑/↓, relativ ±8 je Schritt); beim Einstellen anhören, auch am Regler der Piano-Roll (ADR 0047)
 - [ ] Bessere Einzelinstrumente (z. B. ein Konzertflügel als zweite Klangdatei) und Auswahl der Klänge je Instrument
 - [x] Aufnahmeknopf: Noten diktieren oder einspielen (Taste `R`, siehe Schritt 3)
 - [x] Bindebogen zur nächsten Note (Taste `T`, ADR 0029); offen: Bogen über mehrere Noten
