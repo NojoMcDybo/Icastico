@@ -156,3 +156,13 @@ describe('equally wide bars (ADR 0046)', () => {
     expect(ends[2]![1]).toBe(ends[0]![2]);
   });
 });
+
+describe('the page limit does not stay for the next score', () => {
+  it('after a score with Akkoladen per page, one without is engraved as it was before', async () => {
+    const engraver = await Engraver.create();
+    const before = engraveScore(engraver, longScore(40), {}, { pageWidth: 1200 }).engraved.pages.length;
+    const limited = engraveScore(engraver, { ...longScore(40), layout: { systemsPerPage: 1 } }, {}, { pageWidth: 1200 });
+    expect(limited.engraved.pages.length).toBeGreaterThan(before);
+    expect(engraveScore(engraver, longScore(40), {}, { pageWidth: 1200 }).engraved.pages).toHaveLength(before);
+  });
+});

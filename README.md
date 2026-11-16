@@ -6,11 +6,12 @@ Open Source, angelehnt an Finale, aber neu gedacht.
 
 *Music notation software built as a customizable workstation. Early development.*
 
-> **Status:** v0.25 – Befehlspalette (Strg+K), Noteneingabe wie in Finale (Simple Entry oder Ziffernblock) oder Logic Pro
+> **Status:** v0.28 – Befehlspalette (Strg+K), Noteneingabe wie in Finale (Simple Entry oder Ziffernblock) oder Logic Pro
 > ([alle Tasten](docs/tastenbelegung.md)), Piano-Roll unter der Notenschrift, Wiedergabe mit
 > Instrumentenklängen, Gitarrentabulatur mit Stimmungen, Liedtext, Akkordsymbole, Triolen,
 > Sonderzeichen (Dynamik, Wiederholungen, Sprünge), Transponieren, Import von MusicXML, MIDI und
-> Einzelstimmen-Aufnahmen, Export als PDF, MusicXML und MIDI, Drucken, Noten diktieren und
+> Einzelstimmen-Aufnahmen, mehrere Strophen, Akkord nach Namen, weitere Instrumente, Tempo- und
+> Schlüsselwechsel, zwei Ebenen je Zeile, Seitenaufbau mit A4-Ansicht, freie Texte, Export als PDF, MusicXML und MIDI, Drucken, Noten diktieren und
 > MIDI-Keyboard (Windows). Eigene Bibliothek in `Dokumente/Icastico` mit Sammlungen und Papierkorb,
 > automatisches Speichern, automatische Updates. Strg+O Bibliothek, Strg+N neu, F1 alle Tasten.
 > Siehe [Roadmap](docs/roadmap.md).

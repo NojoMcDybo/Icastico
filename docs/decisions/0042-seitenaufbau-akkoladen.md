@@ -33,3 +33,7 @@ Wunsch aus der Rückmelderunde: Die Aufteilung der Partitur soll auch in der App
 - „Markierte Takte“ gelten für die Takte, in denen markierte Noten liegen (ganze Takte, nicht Teile davon). Eine Zahl, bei der alles in eine Akkolade passt,
   entspricht einer automatischen Aufteilung ohne feste Umbrüche.
 - Kein Systemabstand, keine Kopf-/Fußzeile (Roadmap).
+
+## Nachtrag (Feinschliff nach 0.28.2)
+
+Überlässt die Partitur die Zeilen dem Notensatz, wird nur noch **einmal** gezeichnet: Verovios Option `systemMaxPerPage` begrenzt die Akkoladen je Seite selbst (`EngraveOptions.systemsPerPage`; sie wird bei jedem Aufruf gesetzt, weil Verovio Optionen zwischen Aufrufen behält). 64 Takte × 3 Stimmen: ca. 290 ms statt zuvor zwei Durchgänge. Bei festen Zeilen (`breaks: 'encoded'`) ignoriert Verovio die Option – dort bleiben die `<pb/>`-Seitenumbrüche. Der Satz „zweimal gezeichnet“ oben gilt damit nicht mehr.

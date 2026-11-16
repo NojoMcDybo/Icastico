@@ -62,11 +62,11 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Echte Instrumentenklänge (SpessaSynth + MuseScore General, MIT) mit Gleiten per Pitch-Bend; Rückfall auf den einfachen Klang
 - [x] Akkorde: Note auf eine andere ziehen (Notenschrift) bzw. genau darauf zeichnen (Roll, Alt + Ziehen) = Akkord, sonst automatisch zweite Stimme derselben Zeile; Akkordmodus (Taste links neben der 1) (ADR 0016)
 - [x] Lautstärke je Ton und Lautstärke-Linie über die Note (Ein-/Ausblenden), Gleitverlauf als Kurve für Tonhöhe und Lautstärke; Menü per Klick auf Balken bzw. Gleit-Linie, Punkt mit Taste P setzen und ziehen; Dateiformat 6, Wiedergabe mit Expression (ADR 0016)
-- [ ] Akkordnamen tippen („Cm7“) und Akkord-Menü (Umkehrungen, Septakkorde …)
+- [x] Akkordnamen tippen („Cm7“) und Akkord-Menü (Umkehrungen, Septakkorde …) – siehe ADR 0037
 - [ ] Lautstärke mehrerer Töne zugleich ändern; beim Einstellen anhören
 - [ ] Bessere Einzelinstrumente (z. B. ein Konzertflügel als zweite Klangdatei) und Auswahl der Klänge je Instrument
-- [ ] Aufnahmeknopf: Noten diktieren oder einspielen
-- [ ] Legato/Phrasierungsbögen
+- [x] Aufnahmeknopf: Noten diktieren oder einspielen (Taste `R`, siehe Schritt 3)
+- [x] Bindebogen zur nächsten Note (Taste `T`, ADR 0029); offen: Bogen über mehrere Noten
 
 ## Schritt 2 – Workstation
 
@@ -78,7 +78,8 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 ## Schritt 3 – Klang & Austausch
 
 - [x] Wiedergabe mit Instrumentenklängen, Abspielmarke und blaue Noten laufen mit – anders gelöst als geplant: im Web-Teil statt in Rust (SpessaSynth, ADR 0015)
-- [ ] MIDI-Keyboard-Eingabe (Step + Echtzeit mit Quantisierer)
+- [x] MIDI-Keyboard-Eingabe, Step (Windows/Browser)
+- [ ] MIDI-Keyboard: Echtzeit mit Taktgeber und Quantisierer; Mac
 - [x] MusicXML importieren (`.musicxml`, `.xml`, `.mxl`; Strg+Umschalt+I): Noten, Akkorde, Stimmen, Haltebögen, Tonart, Taktart, Auftakt, Tempo, Triolen/Quintolen/Septolen, Liedtext (1. Strophe), Akkordsymbole (ADR 0017, 0019, 0020)
 - [x] Belegung „Finale-Ziffernblock“ (ADR 0018): Ziffernblock = Notenwert, Vorschau-Note am Cursor, Enter setzt sie, ↑/↓ und Zahlenreihe ändern sie
 - [x] Liedtext (L) und Akkordsymbole (K), Dateiformat 7 (ADR 0019)
@@ -124,7 +125,8 @@ Jeder Schritt endet mit einem Build, den der Owner installiert und testet.
 - [x] Rückmeldungen nach 0.28.0: A4-Ansicht beim Schreiben als Standard; Titel mittig und Komponist rechtsbündig darunter (kleiner) über der Partitur, in Anzeige, PDF und Vorschaubild; Instrumentennamen nur vor der ersten Akkolade (ADR 0045)
 - [x] Rückmeldungen nach 0.28.1: Tabulatur mit zwei Wiederholungspunkten und Punkten hinter punktierten Zahlen; gleich breite Takte in aufeinanderfolgenden Akkoladen mit gleicher Taktzahl; Druck/PDF "wie in der Partitur" (Standard); eine Zeile mehr Platz unter dem Komponisten (ADR 0046)
 - [ ] Finale-Dateien (`.musx`) direkt lesen – verschlüsseltes Binärformat, bewusst zurückgestellt (ADR 0021)
-- [ ] Seitenlayout von Hand (Umbrüche, Systemabstand, Kopf-/Fußzeile), Tabulatur-Spieltechniken
+- [x] Seitenlayout von Hand: Takte pro Akkolade, Akkoladen pro Seite, Seitenränder, Kopfzeile (ADR 0042–0046)
+- [ ] Seitenlayout: Systemabstand, Fußzeile; Tabulatur-Spieltechniken
 
 ## Schritt 4 – Audio→Noten
 

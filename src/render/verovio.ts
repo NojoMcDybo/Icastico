@@ -13,8 +13,8 @@ export interface EngraveOptions {
   readonly pageWidth?: number;
   /** Zoom in percent. */
   readonly scale?: number;
-  /** Minimal width of a bar in Verovio units (half a staff space), so bars of lines with the same number of bars come out equally wide (ADR 0046). */
-  readonly measureMinWidth?: number;
+  /** At most this many Akkoladen on a page (Verovio starts a new page itself); absent = as many as fit. */
+  readonly systemsPerPage?: number;
   /** Fixed page height (e.g. A4 preview pictures); default: as tall as the music. */
   readonly pageHeight?: number;
   /** Page margins in mm (ADR 0044); absent = 6 mm at the default size. */
@@ -58,7 +58,8 @@ export class Engraver {
       svgViewBox: true,
       // Justify every system, including the last one.
       minLastJustification: 0,
-      ...(options.measureMinWidth ? { measureMinWidth: options.measureMinWidth } : {}),
+      // Verovio keeps options between calls: always set, so a limit does not stay for the next score.
+      systemMaxPerPage: options.systemsPerPage ?? 0,
       pageMarginTop: unit(options.margins?.top),
       pageMarginBottom: unit(options.margins?.bottom),
       pageMarginLeft: unit(options.margins?.left),

@@ -90,9 +90,14 @@ export function layoutDialog(initial: LayoutInitial): Promise<LayoutChoice | nul
       right: numberInput('layout-m-right', String(m.right), 0, MAX_MARGIN_MM),
     };
     const marginRow = document.createElement('div');
-    marginRow.className = 'form__control';
-    marginRow.append('oben ', sides.top, ' unten ', sides.bottom, ' links ', sides.left, ' rechts ', sides.right, ' mm');
-    for (const i of [from, to, ...Object.values(sides)]) i.style.width = '4.5em';
+    marginRow.className = 'form__quad';
+    for (const [text, input] of [['oben', sides.top], ['unten', sides.bottom], ['links', sides.left], ['rechts', sides.right]] as const) {
+      const cell = document.createElement('label');
+      cell.append(text, input);
+      marginRow.append(cell);
+    }
+    for (const i of [from, to]) i.style.width = '4.5em';
+    for (const i of [perSystem, perPage]) i.style.width = '100%';
 
     const hint = document.createElement('p');
     hint.className = 'form__hint';
@@ -125,7 +130,7 @@ export function layoutDialog(initial: LayoutInitial): Promise<LayoutChoice | nul
       rangeRow,
       field('Takte pro Akkolade', perSystem, 'layout-persystem'),
       field('Akkoladen pro Seite', perPage, 'layout-perpage'),
-      field('Seitenränder', marginRow, 'layout-m-top'),
+      field('Seitenränder (mm)', marginRow, 'layout-m-top'),
       hint,
       error,
       buttons,

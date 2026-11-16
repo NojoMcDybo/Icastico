@@ -33,7 +33,7 @@ export function chordDialog(options: ChordDialogOptions): Promise<ChordDialogRes
 
     const input = el('input', { id: 'chord-name', type: 'text', placeholder: 'z. B. Cm7, G7, Fmaj7, C/G', autocomplete: 'off', spellcheck: false });
     input.style.width = '100%';
-    const label = el('label', { className: 'form__label', htmlFor: 'chord-name', textContent: 'Name des Akkords (B = deutsches H, Bb = deutsches B)' });
+    const label = el('label', { className: 'form__label form__label--above', htmlFor: 'chord-name', textContent: 'Name des Akkords (B = deutsches H, Bb = deutsches B)' });
     const chips = el('div', { className: 'chips' });
     const inversions = el('div', { className: 'chips' });
     const preview = el('p', { id: 'chord-preview' });
@@ -91,10 +91,10 @@ export function chordDialog(options: ChordDialogOptions): Promise<ChordDialogRes
       label,
       input,
       chips,
-      el('p', { className: 'form__label', textContent: 'Umkehrung' }),
+      el('p', { className: 'form__label form__label--above', textContent: 'Umkehrung' }),
       inversions,
       preview,
-      el('label', {}, symbol, ' Akkordsymbol über die Noten schreiben'),
+      el('label', { className: 'form__check' }, symbol, 'Akkordsymbol über die Noten schreiben'),
       error,
       el('div', { className: 'modal__buttons' }, cancel, ok),
     );

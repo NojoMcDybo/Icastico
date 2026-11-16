@@ -54,6 +54,7 @@ ausführlich getestet.
   Jedes Element bekommt eine ID; `elements` bildet SVG-IDs auf Modell-Events ab
   (Klick auf Note → Event).
 - `verovio.ts` – Wrapper um Verovio (WASM). Einzige Stelle, die Verovio kennt.
+- `engraveScore.ts` – Partitur → Zeichnung samt Seitenaufbau (Takte pro Akkolade, Akkoladen pro Seite, Ränder); `equalBars.ts` – gleich breite Takte in Akkoladen mit gleicher Taktzahl (ADR 0046).
 
 ### 4. Editor – `src/core/editor/`
 
@@ -76,6 +77,7 @@ ausführlich getestet.
 - `pianoRoll.ts` / `pianoRollGeometry.ts` – Piano-Roll als zweite Ansicht (eigenes SVG);
   Geometrie rein und getestet, Bearbeitungen über `core/editor/rollEdits.ts` (ADR 0013).
 - `core/symbols.ts` – Bibliothek der Sonderzeichen (Daten), `core/playOrder.ts` – Spielreihenfolge bei Wiederholungen (ADR 0024), `ui/symbolPalette.ts` – die Palette; `core/export/` – MusicXML- und PDF-Ausgabe (ADR 0021, 0023); `core/tab.ts` – Gitarrengriffe (ADR 0022); `core/extract.ts` – Einzelstimme; `render/tab.ts` – Bundzahlen in der Tab-Zeile; `ui/pdfExport.ts`, `ui/pdfDialog.ts` – PDF-Seiten; `core/import/` – MusicXML-Import (XML-Leser, `.mxl`, Übersetzung in die Partitur; ADR 0017); `core/curve.ts` – Kurven für Lautstärke und Gleitverlauf (ADR 0016); `ui/curvePopup.ts` – das Menü dazu; `core/playback.ts` – Abspielplan (reine Logik); `audio/synth.ts` – eingebauter Klang (Web Audio); `ui/player.ts`, `ui/transport.ts` – Wiedergabe und Transportleiste (ADR 0015).
+- `chordDialog.ts` – Akkord nach Namen (mit `core/chordNames.ts`), `instrumentPicker.ts` – Instrumentenwahl, `layoutDialog.ts` – Seitenaufbau, `textDialog.ts` – freie Texte.
 - `commandPalette.ts` – Befehlspalette (Strg+K): Suchfeld über alle Funktionen der Tastenbibliothek (`paletteEntries`, `searchPalette` in `keymaps/library.ts`), ausgeführt über `Workstation.run` (ADR 0004).
 - `lanes.ts` / `laneControls.ts` – welche Ansichten in welcher Größe gezeigt werden (reiner Zustand, getestet).
 - `workstation.ts` – rendert nur bei Partitur-Änderungen neu, zeichnet Cursor

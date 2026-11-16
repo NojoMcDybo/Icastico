@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+import { engraveScore } from './engraveScore';
 import { scoreToMei } from './mei';
 import { Engraver } from './verovio';
 import { parseLine } from '../core/line';
@@ -41,5 +42,17 @@ it('engraves a 64-bar song for three staves well within 1.5 seconds', async () =
   const { pages } = engraver.engrave(result.mei, { pageWidth: 2750, scale: 40, tab: result.tab, tabStaffs: result.tabStaffs });
   const took = performance.now() - started;
   expect(pages.length).toBeGreaterThan(1);
+  expect(took).toBeLessThan(1500);
+});
+
+// With "Akkoladen pro Seite" and lines left to the engraver the score was engraved twice (ADR 0042, Nachtrag): the second
+// limit catches that coming back. Measured: about 250 ms.
+it('engraves the 64-bar song with Akkoladen per page in one pass, well within 1.5 seconds', async () => {
+  const engraver = await Engraver.create();
+  engraveScore(engraver, song(2));
+  const started = performance.now();
+  const { engraved } = engraveScore(engraver, { ...song(64), layout: { systemsPerPage: 4 } }, {}, { pageWidth: 2750, scale: 40 });
+  const took = performance.now() - started;
+  expect(engraved.pages.length).toBeGreaterThan(2);
   expect(took).toBeLessThan(1500);
 });
