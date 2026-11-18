@@ -10,7 +10,7 @@
  * applies to the same pitch (step + octave) until the end of the measure,
  * a note tied over from the previous measure shows no accidental.
  */
-import { type Score, type Part, type Tone, clefAt, eventEnd, locateTones, measuresOf, type Measure, systemBreaks, tempoAt, validateScore } from '../core/model';
+import { type Score, type Part, type Tone, type Voice, type NoteEvent, clefAt, eventEnd, locateTones, measuresOf, type Measure, systemBreaks, tempoAt, validateScore } from '../core/model';
 import { MAX_VERSES, lyricOf, syllableId, versesUsed } from '../core/lyrics';
 import { type Fraction, ZERO, compare, div, eq, gt, isZero, le, lt, sub, frac } from '../core/time';
 import { barSign, noteSymbol, voltaNumber } from '../core/symbols';
@@ -166,6 +166,21 @@ function noteXml(item: NotatedNote, accidentals: AccidentalState, tiedIn: Readon
     .map((t) => `${indent}  <note xml:id="${chordNoteId(item, t)}" ${pitchAttrs(t.pitch, t.id)}${tieAttr}${noHead}/>`)
     .join('\n');
   return `${indent}<chord xml:id="${item.id}" ${durAttrs(item.duration)}${stem}${artic}>\n${notes}${verse ? `\n${indent}  ${verse}` : ''}\n${indent}</chord>`;
+}
+
+/**
+ * Side of a slur or tie in a staff with several layers (ADR 0050): while another layer sounds during the span the curve goes to
+ * the outside (upper layer above, lower layer below, so the space between them stays free); a layer on its own curves away from
+ * its stems (layer 1 stems go up, layer 2 stems go down). One layer: Verovio's own choice is right, so nothing is written.
+ */
+function curveDir(part: Part, voice: Voice, from: NoteEvent, to: NoteEvent): string {
+  const layers = part.voices.filter((v) => v.staff === voice.staff && v.events.length > 0);
+  const li = layers.indexOf(voice);
+  if (layers.length < 2 || li < 0) return '';
+  const end = eventEnd(to);
+  const busy = layers.some((v) => v !== voice && v.events.some((e) => lt(e.onset, end) && gt(eventEnd(e), from.onset)));
+  const above = busy ? li === 0 : (from.stem ?? (li === 0 ? 'up' : 'down')) === 'down';
+  return ` curvedir="${above ? 'above' : 'below'}"`;
 }
 
 /** Where a moved rest sits: the pitch of the middle line of the staff, `shift` staff steps higher. */
@@ -377,7 +392,7 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
     const staff = elements.get(pa.last.id)!.staffN;
     const list = controls.get(pa.lastMeasure) ?? [];
     if (l.kind === 'tie') {
-      list.push(`<tie xml:id="tie-${l.id}" staff="${staff}" startid="#${start}" endid="#${end}"/>`);
+      list.push(`<tie xml:id="tie-${l.id}" staff="${staff}" startid="#${start}" endid="#${end}"${curveDir(a.part, a.voice, a.event, b.event)}/>`);
       if (pa.lastMeasure !== pb.firstMeasure) tiedIn.add(b.tone.id);
     } else {
       const gap = gt(b.event.onset, eventEnd(a.event));
@@ -421,7 +436,7 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
             const end = to && pieces.get(to.id);
             if (end && elements.get(end.first.id)) {
               const target = first.lastMeasure === first.firstMeasure ? list : (controls.get(first.lastMeasure) ?? []);
-              target.push(`<slur xml:id="slr-${ev.id}" staff="${elements.get(first.last.id)!.staffN}" startid="#${first.last.id}" endid="#${end.first.id}"/>`);
+              target.push(`<slur xml:id="slr-${ev.id}" staff="${elements.get(first.last.id)!.staffN}" startid="#${first.last.id}" endid="#${end.first.id}"${curveDir(part, voice, ev, to)}/>`);
               controls.set(first.lastMeasure, target);
             }
           }
@@ -601,11 +616,13 @@ export function scoreToMei(score: Score, options: MeiOptions = {}): MeiResult {
   const composer = score.composer
     ? `<respStmt><persName role="composer">${esc(score.composer)}</persName></respStmt>`
     : '';
-  // Title in the middle, the composer one line below at the right and smaller, then an empty line (ADR 0045); Verovio draws it on the first page only.
+  // Title in the middle, the composer one line below at the right and smaller, the free line under it, then an empty line (ADR 0045, 0050); Verovio draws it on the first page only.
   const pgHead =
-    score.title || score.composer
+    score.title || score.composer || score.freeLine
       ? `      <pgHead func="first">${score.title ? `<rend halign="center" valign="top" fontsize="x-large">${esc(score.title)}</rend>` : ''}${
-          score.composer ? `<rend halign="right" fontsize="small">${esc(score.composer)}</rend><rend halign="right" fontsize="small">&#160;</rend>` : ''
+          score.composer ? `<rend halign="right" fontsize="small">${esc(score.composer)}</rend>` : ''
+        }${score.freeLine ? `<rend halign="right" fontsize="small">${esc(score.freeLine)}</rend>` : ''}${
+          score.composer || score.freeLine ? '<rend halign="right" fontsize="small">&#160;</rend>' : ''
         }</pgHead>
 `
       : '';

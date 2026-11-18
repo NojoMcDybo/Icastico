@@ -103,6 +103,18 @@ describe('title, composer and instrument names (ADR 0045)', () => {
     expect(composer.size).toBeLessThan(title.size);
   });
 
+  it('the free line stands under the composer, also without a composer', () => {
+    const score = { ...longScore(4), title: 'Mein Titel', composer: 'Max Muster', freeLine: 'Text: Anna Beispiel' };
+    const svg = engraveScore(engraver, score, {}, { pageWidth: 2100, scale: 40, pageHeight: 2970 }).engraved.pages[0]!;
+    const composer = line(svg, 'Max Muster');
+    const free = line(svg, 'Text: Anna Beispiel');
+    expect(free.y).toBeGreaterThan(composer.y);
+    expect(free.size).toBe(composer.size);
+    const { composer: _c, ...alone } = score;
+    const aloneSvg = engraveScore(engraver, alone, {}, { pageWidth: 2100, scale: 40, pageHeight: 2970 }).engraved.pages[0]!;
+    expect(line(aloneSvg, 'Text: Anna Beispiel').y).toBeGreaterThan(line(aloneSvg, 'Mein Titel').y);
+  });
+
   it('the instrument name stands at the first Akkolade only', () => {
     const score = { ...longScore(12), layout: { perSystem: 2 } };
     const svg = engraveScore(engraver, score).engraved.pages[0]!;

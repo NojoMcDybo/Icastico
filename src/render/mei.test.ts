@@ -618,3 +618,34 @@ describe('hand-placed things in MEI (ADR 0043)', () => {
     expect(mei).toContain('Zart &amp; leise');
   });
 });
+
+describe('side of slurs and ties with several layers (ADR 0050)', () => {
+  const withLayers = (lines: string[], marks: 'slur' | 'tie' = 'slur') => {
+    const base = emptyScore();
+    const template = base.parts[0]!.voices[0]!;
+    const voices = lines.map((line, k) => ({ ...template, id: k === 0 ? template.id : `layer${k}`, events: parseLine(line, `l${k}-`).map((e, i) => (marks === 'slur' && i % 2 === 0 ? { ...e, marks: ['slur'] } : e)) }));
+    const links = marks === 'tie' ? voices.flatMap((v) => v.events.filter((_, i) => i % 2 === 0).map((e, i) => ({ id: `${v.id}-${i}`, kind: 'tie' as const, from: e.tones[0]!.id, to: v.events[v.events.indexOf(e) + 1]!.tones[0]!.id }))) : [];
+    return scoreToMei({ ...base, links, parts: base.parts.map((p, i) => (i === 0 ? { ...p, voices } : p)) }).mei;
+  };
+  const dirs = (mei: string, tag: string) => (mei.match(new RegExp(`<${tag} [^>]*/>`, 'g')) ?? []).map((x) => /curvedir="(\w+)"/.exec(x)?.[1] ?? 'none');
+
+  it('writes nothing for one layer: Verovio curves away from the stems', () => {
+    expect(dirs(withLayers(['C4:1/4 D4:1/4 E4:1/4 F4:1/4']), 'slur')).toEqual(['none', 'none']);
+  });
+
+  it('while both layers sound, the upper layer curves above and the lower below', () => {
+    const mei = withLayers(['G4:1/4 A4:1/4 B4:1/4 C5:1/4', 'C3:1/4 D3:1/4 E3:1/4 F3:1/4']);
+    expect(dirs(mei, 'slur')).toEqual(['above', 'above', 'below', 'below']);
+  });
+
+  it('a layer on its own curves away from its stems, even though another layer exists', () => {
+    const mei = withLayers(['G4:1/4 A4:1/4 B4:1/4 C5:1/4', 'r:1/1 C3:1/4 D3:1/4 E3:1/4 F3:1/4']);
+    expect(dirs(mei, 'slur').slice(0, 2)).toEqual(['below', 'below']); // layer 1, stems up
+    expect(dirs(mei, 'slur').slice(2)).toEqual(['above', 'above']); // layer 2, stems down
+  });
+
+  it('ties follow the same rule', () => {
+    const mei = withLayers(['G4:1/4 G4:1/4 B4:1/4 B4:1/4', 'C3:1/4 C3:1/4 E3:1/4 E3:1/4'], 'tie');
+    expect(dirs(mei, 'tie')).toEqual(['above', 'above', 'below', 'below']);
+  });
+});

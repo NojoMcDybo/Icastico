@@ -1314,6 +1314,7 @@ export class Workstation {
       initial: {
         title: score.title,
         composer: score.composer ?? '',
+        freeLine: score.freeLine ?? '',
         pickup: score.pickup ?? ZERO,
         firstMeter: score.meter[0]!.sig,
         fromMeasure: Math.max(1, here.number),

@@ -14,6 +14,7 @@ import { germanName } from './transposeDialog';
 export interface EditInitial {
   readonly title: string;
   readonly composer: string;
+  readonly freeLine: string;
   readonly pickup: Fraction;
   /** Meter of the first measure (the upbeat belongs to it). */
   readonly firstMeter: TimeSignature;
@@ -79,7 +80,8 @@ export function scoreDialog(options: Options): Promise<ScoreSetup | ScoreChanges
     // Title & composer
     const title = el('input', { id: 'f-title', type: 'text', value: init.title, placeholder: 'Ohne Titel' });
     const composer = el('input', { id: 'f-composer', type: 'text', value: init.composer, placeholder: 'optional' });
-    form.append(row('Titel', title, 'f-title'), row('Komponist', composer, 'f-composer'));
+    const freeLine = el('input', { id: 'f-free-line', type: 'text', value: init.freeLine, placeholder: 'optional, z. B. Text: … · Satz: …' });
+    form.append(row('Titel', title, 'f-title'), row('Komponist', composer, 'f-composer'), row('Freie Zeile', freeLine, 'f-free-line'));
 
     // Instruments (new score only)
     let instruments: InstrumentId[] = isNew ? [...options.initial.instruments] : [];
@@ -364,6 +366,7 @@ export function scoreDialog(options: Options): Promise<ScoreSetup | ScoreChanges
         return close({
           title: title.value,
           composer: composer.value,
+          freeLine: freeLine.value,
           instruments,
           fifths: Number(key.value),
           meter,
@@ -376,6 +379,7 @@ export function scoreDialog(options: Options): Promise<ScoreSetup | ScoreChanges
         fromMeasure,
         ...(title.value !== i.title ? { title: title.value } : {}),
         ...(composer.value !== i.composer ? { composer: composer.value } : {}),
+        ...(freeLine.value !== i.freeLine ? { freeLine: freeLine.value } : {}),
         ...(Number(key.value) !== i.fifths ? { fifths: Number(key.value) } : {}),
         ...(meter.count !== i.meter.count || meter.unit !== i.meter.unit ? { meter } : {}),
         ...(!eq(pickupValue, i.pickup) ? { pickup: pickupValue } : {}),

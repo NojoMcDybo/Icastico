@@ -23,6 +23,7 @@ import { durationName } from './notation/notate';
 export interface ScoreSetup {
   readonly title: string;
   readonly composer: string;
+  readonly freeLine: string;
   /** In score order, top to bottom. The same instrument may appear twice. */
   readonly instruments: readonly InstrumentId[];
   readonly fifths: number;
@@ -34,6 +35,7 @@ export interface ScoreSetup {
 export const DEFAULT_SETUP: ScoreSetup = {
   title: '',
   composer: '',
+  freeLine: '',
   instruments: ['voice', 'guitar', 'piano'],
   fifths: 0,
   meter: { count: 4, unit: 4 },
@@ -65,9 +67,11 @@ export function createScore(setup: ScoreSetup): Score {
   });
 
   const composer = setup.composer.trim();
+  const freeLine = setup.freeLine.trim();
   return {
     title: setup.title.trim() || UNTITLED,
     ...(composer ? { composer } : {}),
+    ...(freeLine ? { freeLine } : {}),
     meter: [{ at: ZERO, sig: setup.meter }],
     keys: [{ at: ZERO, fifths: setup.fifths }],
     ...(gt(setup.pickup, ZERO) ? { pickup: setup.pickup } : {}),
@@ -103,6 +107,7 @@ export function emptyScore(title = 'Neue Partitur'): Score {
 export interface ScoreChanges {
   readonly title?: string;
   readonly composer?: string;
+  readonly freeLine?: string;
   /** Upbeat length; ZERO removes it. */
   readonly pickup?: Fraction;
   /** Printed measure number from which `fifths` / `meter` apply (≤ 1 = whole piece). */
@@ -177,6 +182,11 @@ export function applyScoreChanges(score: Score, changes: ScoreChanges): { score:
     const { composer: _old, ...rest } = next;
     const composer = changes.composer.trim();
     next = composer ? { ...rest, composer } : rest;
+  }
+  if (changes.freeLine !== undefined) {
+    const { freeLine: _old, ...rest } = next;
+    const freeLine = changes.freeLine.trim();
+    next = freeLine ? { ...rest, freeLine } : rest;
   }
   if (changes.pickup !== undefined) {
     const { pickup: _old, ...rest } = next;

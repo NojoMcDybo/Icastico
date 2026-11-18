@@ -158,6 +158,8 @@ export interface Part {
 export interface Score {
   readonly title: string;
   readonly composer?: string;
+  /** A free line of text under the composer (e.g. "Text: …", "Satz: …"); absent = none (ADR 0050). */
+  readonly freeLine?: string;
   /** Sorted by `at`; the first entry must be at 0. */
   readonly meter: readonly MeterChange[];
   /** Sorted by `at`; the first entry must be at 0. */

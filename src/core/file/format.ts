@@ -41,7 +41,7 @@ export const FILE_EXTENSION = 'icastico';
  * 22 = optional `rests` per voice (hidden / moved rests), `stem` per note, `texts` per score (ADR 0043),
  * 23 = optional `layout.margins`: the page margins in mm (ADR 0044).
  */
-export const FORMAT_VERSION = 23;
+export const FORMAT_VERSION = 24;
 
 /** A file could not be read; `message` is meant for the user (German). */
 export class FileFormatError extends Error {
@@ -57,6 +57,7 @@ function scoreToJson(score: Score): unknown {
   return {
     title: score.title,
     ...(score.composer !== undefined ? { composer: score.composer } : {}),
+    ...(score.freeLine !== undefined ? { freeLine: score.freeLine } : {}),
     meter: score.meter.map((m) => ({ at: fracToString(m.at), count: m.sig.count, unit: m.sig.unit })),
     keys: score.keys.map((k) => ({ at: fracToString(k.at), fifths: k.fifths })),
     ...(score.pickup ? { pickup: fracToString(score.pickup) } : {}),
@@ -315,6 +316,7 @@ function readScore(v: unknown): Score {
   const score: Score = {
     title: str(o.title, 'Titel'),
     ...(o.composer !== undefined ? { composer: str(o.composer, 'Komponist') } : {}),
+    ...(o.freeLine !== undefined ? { freeLine: str(o.freeLine, 'Freie Zeile') } : {}),
     meter: arr(o.meter, 'Taktarten').map((m, i) => {
       const e = obj(m, `Taktart ${i + 1}`);
       const sig = { count: int(e.count, `Taktart ${i + 1}`), unit: int(e.unit, `Taktart ${i + 1}`) };
@@ -422,6 +424,8 @@ const MIGRATIONS: Record<number, (doc: Obj) => Obj> = {
   21: (doc) => ({ ...doc, version: 22 }),
   // 22 → 23: the optional "margins" of the layout. Version-22 files keep the engraver's margins.
   22: (doc) => ({ ...doc, version: 23 }),
+  // 23 → 24: the optional "freeLine" of the score (a line under the composer). Version-23 files have none.
+  23: (doc) => ({ ...doc, version: 24 }),
 };
 
 /** Applies `fn` to every event object of a (still unvalidated) score; anything unexpected is left for the reader to reject. */

@@ -77,3 +77,4 @@ Was wird dadurch leichter, was schwerer?
 | 0047 | [Lautstärke mehrerer Töne zugleich, und jede Änderung ist zu hören](0047-lautstaerke-mehrerer-toene.md) | angenommen |
 | 0048 | [Notenschrift und Piano-Roll zeigen denselben Takt](0048-gleichlauf-notenschrift-piano-roll.md) | angenommen |
 | 0049 | [Tasten frei belegen](0049-tasten-frei-belegen.md) | angenommen |
+| 0050 | [Seite der Bögen bei mehreren Ebenen, freie Zeile, bewegliche Fenster](0050-bogenseite-freie-zeile-bewegliche-fenster.md) | angenommen |

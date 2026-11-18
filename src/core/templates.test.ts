@@ -105,6 +105,12 @@ describe('applyScoreChanges', () => {
     expect('composer' in s).toBe(false);
   });
 
+  it('sets the free line, an empty one removes it', () => {
+    const set = ok(applyScoreChanges(base(), { freeLine: '  Text: Anna ' }));
+    expect(set.freeLine).toBe('Text: Anna');
+    expect('freeLine' in ok(applyScoreChanges(set, { freeLine: '' }))).toBe(false);
+  });
+
   it('changes the key from a measure on, keeping the sounding notes', () => {
     const s = ok(applyScoreChanges(base(), { fromMeasure: 3, fifths: 2 }));
     expect(s.keys).toEqual([

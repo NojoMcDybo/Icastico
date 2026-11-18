@@ -886,6 +886,13 @@ body.is-dragging-note * {
   margin: 0 0 14px;
   font-size: 18px;
   font-weight: 600;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.modal__box.is-dragging h2 {
+  cursor: grabbing;
 }
 
 .modal__box p {

@@ -285,6 +285,35 @@ try {
   check((await page.textContent('.form__error')).includes('Takt 99 gibt es nicht'), 'Unmöglicher Takt: Meldung im Dialog, Dialog bleibt offen');
   await type('Escape');
 
+  // ── Fenster verschieben, Freie Zeile unter dem Komponisten ──
+  await page.click('#doc-title');
+  await page.waitForSelector('.modal h2:text("Partitur-Einstellungen")');
+  const dialogBox = page.locator('.modal__box');
+  const dialogBefore = await dialogBox.boundingBox();
+  const grip = await page.locator('.modal__box h2').boundingBox();
+  await page.mouse.move(grip.x + 20, grip.y + 8);
+  await page.mouse.down();
+  await page.mouse.move(grip.x + 120, grip.y + 28, { steps: 5 });
+  await page.mouse.up();
+  const dialogAfter = await dialogBox.boundingBox();
+  check(Math.abs(dialogAfter.x - dialogBefore.x - 100) < 2 && Math.abs(dialogAfter.y - dialogBefore.y - 20) < 2, 'Fenster: am Titel gezogen, folgt das Fenster der Maus');
+  await page.mouse.move(grip.x + 20 + 100, grip.y + 8 + 20);
+  await page.mouse.down();
+  await page.mouse.move(-5000, -5000, { steps: 4 });
+  await page.mouse.up();
+  const dialogCorner = await dialogBox.boundingBox();
+  check(dialogCorner.x >= -1 && dialogCorner.y >= -1, 'Fenster: bleibt beim Ziehen ganz im sichtbaren Bereich');
+  await page.fill('#f-composer', 'Max Muster');
+  await page.fill('#f-free-line', 'Text: Anna Beispiel');
+  await page.click('.modal button[type="submit"]');
+  await page.waitForFunction(() => document.querySelector('.page')?.textContent?.includes('Text: Anna Beispiel'));
+  const headLines = await page.evaluate(() => {
+    const y = (t) => [...document.querySelectorAll('.page text, .page tspan')].find((n) => n.textContent === t)?.getBoundingClientRect().top ?? -1;
+    return [y('Max Muster'), y('Text: Anna Beispiel')];
+  });
+  check(headLines[0] >= 0 && headLines[1] > headLines[0], 'Freie Zeile: steht in der Partitur unter dem Komponisten');
+  await type('Control+z');
+
   // ── Noten mit der Maus ziehen ──
   await type('Escape', 'Escape');
   const note = page.locator('.page g.note').first();
@@ -796,7 +825,7 @@ try {
   await type('Escape');
   await saved();
   const shaped = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([p]) => p.endsWith('Verlauf-Test.icastico'))[1].contents;
-  check(/"version": 23/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 23)');
+  check(/"version": 24/.test(shaped) && /"curve": \[\[0, 0\], \[0\.5, 0\.15\], \[1, 1\]\]/.test(shaped), 'Der Gleitverlauf steht in der gespeicherten Datei (Format 24)');
   await type('Control+Enter');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true', null, { timeout: 30000 });
   await page.waitForTimeout(1500);
@@ -1344,7 +1373,7 @@ try {
   await page.screenshot({ path: join(outDir, 'tabulatur-instrument.png') });
   await saved();
   const tabFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Tab-Instrument.icastico'))[1].contents;
-  check(/"instrument": "tab"/.test(tabFile) && /"version": 23/.test(tabFile), 'Tabulatur: die Zeile steht als Instrument „tab“ in der Datei (Format 23)');
+  check(/"instrument": "tab"/.test(tabFile) && /"version": 24/.test(tabFile), 'Tabulatur: die Zeile steht als Instrument „tab“ in der Datei (Format 24)');
   await page.locator('.page g.note').first().click({ force: true });
   await type('Control+Delete');
   check((await page.locator('.page g.note').count()) >= 1, 'Tabulatur-Zeile: die Noten der anderen Zeile bleiben beim Bearbeiten erhalten');
@@ -1846,7 +1875,7 @@ try {
   await page.screenshot({ path: join(outDir, 'zeichen.png') });
   await saved();
   const signsFile = Object.entries(await page.evaluate(() => JSON.parse(localStorage.getItem('icastico.browserLibrary')).files)).find(([path]) => path.endsWith('Zeichen-Test.icastico'))[1].contents;
-  check(/"version": 23/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 23)');
+  check(/"version": 24/.test(signsFile) && signsFile.includes('"marks": ["mf", "stacc"]') && /"kind": "repeatStart"/.test(signsFile) && /"kind": "volta1"/.test(signsFile), 'Zeichen: Noten- und Taktzeichen stehen in der gespeicherten Datei (Format 24)');
   await page.click('.transport__buttons button[aria-label="Zum Anfang"]');
   await page.click('.transport__play');
   await page.waitForFunction(() => document.querySelector('.transport__play')?.getAttribute('aria-pressed') === 'true');

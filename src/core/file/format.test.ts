@@ -26,6 +26,7 @@ import version19File from './fixtures/version19.icastico?raw';
 import version20File from './fixtures/version20.icastico?raw';
 import version21File from './fixtures/version21.icastico?raw';
 import version22File from './fixtures/version22.icastico?raw';
+import version23File from './fixtures/version23.icastico?raw';
 import { demoScore } from '../demo';
 import { emptyScore } from '../templates';
 
@@ -733,5 +734,23 @@ describe('format version 23: page margins', () => {
     expect(parseScoreFile(serializeScore(back, '0'))).toEqual(back);
     expect(() => parseScoreFile(withMargins({ top: 99, bottom: 0, left: 0, right: 0 }))).toThrow(/Seitenränder/);
     expect(() => parseScoreFile(withMargins({ top: 1, bottom: 1, left: 1 }))).toThrow();
+  });
+});
+
+describe('format version 24: free line under the composer', () => {
+  it('opens files saved with format version 23 and saves them as the current version', () => {
+    const score = parseScoreFile(version23File);
+    expect(fileVersion(version23File)).toBe(23);
+    expect(score.freeLine).toBeUndefined();
+    const saved = serializeScore(score, '0.0.0');
+    expect(fileVersion(saved)).toBe(FORMAT_VERSION);
+    expect(parseScoreFile(saved)).toEqual(score);
+  });
+
+  it('keeps the free line and writes nothing when there is none', () => {
+    const base = parseScoreFile(version23File);
+    const back = parseScoreFile(serializeScore({ ...base, freeLine: 'Text: Anna' }, '0'));
+    expect(back.freeLine).toBe('Text: Anna');
+    expect(serializeScore(base, '0')).not.toContain('freeLine');
   });
 });

@@ -12,10 +12,12 @@ import { announceUpdate } from './ui/patchNotes';
 import { currentUpdater } from './platform/updater';
 import { UpdateChecker } from './ui/updates';
 import { startSplash } from './ui/splash';
+import { enableMovableDialogs } from './ui/movableDialogs';
 
 const $ = (id: string) => document.getElementById(id)!;
 
 async function start(): Promise<void> {
+  enableMovableDialogs();
   const splash = startSplash();
   $('status').textContent = 'Notensatz wird geladen …';
   const engraver = await Engraver.create();
