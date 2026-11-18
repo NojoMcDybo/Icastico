@@ -12,6 +12,14 @@ export interface PatchNote {
 /** Newest first. Keep each line to one short sentence. */
 export const PATCH_NOTES: readonly PatchNote[] = [
   {
+    version: '0.30.0',
+    items: [
+      'Bögen bei zwei Stimmen in einer Zeile: die obere Stimme bekommt ihre Bögen oben, die untere unten; spielt eine Stimme allein, geht der Bogen gegen die Hälse.',
+      'Neue „Freie Zeile“ unter dem Komponisten (Partitur-Einstellungen), z. B. „Text: …“ – auch im PDF.',
+      'Alle Fenster lassen sich an ihrer Überschrift verschieben.',
+    ],
+  },
+  {
     version: '0.29.0',
     items: [
       'Tasten anpassen: F1 → „Tasten anpassen …“ – jede Funktion bekommt eine eigene Taste, gilt sofort und bleibt gespeichert.',
